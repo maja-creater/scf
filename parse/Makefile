@@ -1,0 +1,95 @@
+CFILES += ../util/scf_string.c
+CFILES += ../util/scf_graph.c
+CFILES += ../lex/scf_lex.c
+
+CFILES += scf_parse_util.c
+#CFILES += scf_parse.c
+CFILES += scf_parse2.c
+CFILES += scf_parse_test.c
+CFILES += scf_operator_handler_semantic.c
+CFILES += scf_operator_handler_expr.c
+
+CFILES += ../native/scf_native.c
+CFILES += ../native/x64/scf_native_x64.c
+CFILES += ../native/x64/scf_x64_inst.c
+CFILES += ../native/x64/scf_x64_3ac.c
+
+CFILES += ../elf/scf_elf.c
+CFILES += ../elf/scf_elf_x64.c
+
+CFILES += ../core/scf_lex_word.c
+CFILES += ../core/scf_type.c
+CFILES += ../core/scf_variable.c
+
+CFILES += ../core/scf_node.c
+CFILES += ../core/scf_label.c
+
+CFILES += ../core/scf_expr.c
+CFILES += ../core/scf_block.c
+CFILES += ../core/scf_scope.c
+CFILES += ../core/scf_function.c
+
+CFILES += ../core/scf_operator.c
+CFILES += ../core/scf_operator_handler.c
+CFILES += ../core/scf_type_cast.c
+
+CFILES += ../core/scf_operator_handler_3ac.c
+
+CFILES += ../core/scf_dag.c
+CFILES += ../core/scf_operator_dag.c
+CFILES += ../core/scf_3ac.c
+
+CFILES += ../core/scf_ast.c
+
+CFILES += scf_dfa.c
+CFILES += scf_dfa_parse.c
+
+CFILES += scf_dfa_call.c
+CFILES += scf_dfa_create.c
+CFILES += scf_dfa_sizeof.c
+CFILES += scf_dfa_expr.c
+
+CFILES += scf_dfa_struct.c
+CFILES += scf_dfa_union.c
+CFILES += scf_dfa_class.c
+
+CFILES += scf_dfa_type.c
+CFILES += scf_dfa_identity.c
+
+CFILES += scf_dfa_function.c
+CFILES += scf_dfa_operator.c
+CFILES += scf_dfa_var.c
+
+CFILES += scf_dfa_init_data.c
+CFILES += scf_struct_array.c
+
+CFILES += scf_dfa_if.c
+CFILES += scf_dfa_while.c
+CFILES += scf_dfa_for.c
+
+CFILES += scf_dfa_break.c
+CFILES += scf_dfa_continue.c
+CFILES += scf_dfa_goto.c
+CFILES += scf_dfa_return.c
+CFILES += scf_dfa_error.c
+CFILES += scf_dfa_label.c
+
+CFILES += scf_dfa_block.c
+
+CFLAGS += -g
+#CFLAGS += -Wall 
+CFLAGS += -I../util
+CFLAGS += -I../core
+CFLAGS += -I../lex
+CFLAGS += -I../parse
+CFLAGS += -I../elf
+CFLAGS += -I../native
+CFLAGS += -I../native/x64
+
+LDFLAGS +=
+
+all:
+	gcc $(CFLAGS) $(CFILES) $(LDFLAGS)
+
+clean:
+	rm *.o

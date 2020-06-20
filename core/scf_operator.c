@@ -1,0 +1,76 @@
+#include"scf_operator.h"
+#include"scf_core_types.h"
+
+static scf_operator_t	base_operators[] = {
+	{SCF_OP_EXPR,			"(", 		0, 1,	SCF_OP_ASSOCIATIVITY_LEFT},
+
+	{SCF_OP_CALL, 			"(", 		1, -1,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_ARRAY_INDEX, 	"[", 		1, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_POINTER,        "->",       1, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
+
+	{SCF_OP_CREATE, 		"create", 	2, -1,	SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_TYPE_CAST, 		"(", 		2, 2,	SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_LOGIC_NOT, 		"!", 		2, 1,	SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_NEG, 			"-", 		2, 1,	SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_POSITIVE, 		"+", 		2, 1,	SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_SIZEOF,         "sizeof",   2, 1,   SCF_OP_ASSOCIATIVITY_RIGHT},
+
+	{SCF_OP_DEREFERENCE, 	"*", 		2, 1,	SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_ADDRESS_OF, 	"&", 		2, 1,	SCF_OP_ASSOCIATIVITY_RIGHT},
+
+	{SCF_OP_MUL, 			"*", 		4, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_DIV, 			"/", 		4, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+
+	{SCF_OP_ADD, 			"+", 		5, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_SUB, 			"-", 		5, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+
+	{SCF_OP_EQ, 			"==", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_GT, 			">", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_LT, 			"<", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+//	{SCF_OP_GE, 			">=", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+//	{SCF_OP_LE, 			"<=", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+
+
+	{SCF_OP_ASSIGN, 		"=", 		10, 2,	SCF_OP_ASSOCIATIVITY_RIGHT},
+
+
+	{SCF_OP_BLOCK,			"{}", 		15, -1, SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_RETURN,			"return",	15, -1, SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_BREAK,			"break", 	15, -1, SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_CONTINUE,		"continue", 15, -1, SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_GOTO,			"goto", 	15, -1, SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_LABEL,			    "label", 	15, -1, SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_ERROR,			"error",    15, -1, SCF_OP_ASSOCIATIVITY_LEFT},
+
+	{SCF_OP_IF, 			"if", 		15, -1, SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_WHILE, 			"while", 	15, -1, SCF_OP_ASSOCIATIVITY_LEFT},
+};
+
+scf_operator_t* scf_find_base_operator(const char* name, const int nb_operands)
+{
+	int i;
+	for (i = 0; i < sizeof(base_operators) / sizeof(base_operators[0]); i++) {
+
+		scf_operator_t* op = &base_operators[i];
+
+		if (nb_operands == op->nb_operands && !strcmp(name, op->name))
+			return op;
+	}
+
+	return NULL;
+}
+
+scf_operator_t* scf_find_base_operator_by_type(const int type)
+{
+	int i;
+	for (i = 0; i < sizeof(base_operators) / sizeof(base_operators[0]); i++) {
+
+		scf_operator_t* op = &base_operators[i];
+
+		if (type == op->type)
+			return op;
+	}
+
+	return NULL;
+}
+
