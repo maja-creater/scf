@@ -187,28 +187,18 @@ static int _scf_op_expr_array_index(scf_ast_t* ast, scf_node_t** nodes, int nb_n
 		return -1;
 	}
 
-	scf_type_t*		t = scf_ast_find_type_type(ast, v0->type);
-
-	int const_flag    		= t->const_flag;
-	int nb_pointers			= t->nb_pointers;
-	t->const_flag			= v0->const_flag;
-	t->nb_pointers			= v0->nb_pointers - 1;
-
-	if (t->nb_pointers < 0) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
-
-		t->const_flag			= const_flag;
-		t->nb_pointers			= nb_pointers;
+	if (v0->nb_pointers < 1) {
+		scf_loge("\n");
 		return -1;
 	}
 
-	scf_lex_word_t* w = scf_lex_word_clone(nodes[0]->parent->w);
-	scf_variable_t* r = scf_variable_alloc(w, t);
+	scf_type_t*		t = scf_ast_find_type_type(ast, v0->type);
+	scf_lex_word_t* w = nodes[0]->parent->w;
+	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, v0->nb_pointers - 1, v0->func_ptr);
+	if (!r)
+		return -ENOMEM;
 
-	*(d->pret) = r;
-
-	t->const_flag			= const_flag;
-	t->nb_pointers			= nb_pointers;
+	*d->pret = r;
 	return 0;
 }
 
@@ -385,18 +375,11 @@ static int _scf_op_expr_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 
 	scf_type_t*	t = scf_ast_find_type_type(ast, v0->type);
 	assert(t);
-	int nb_pointers = t->nb_pointers;
-	int const_flag	= t->const_flag;
-	int array_capacity = t->array_capacity;
 
-	t->nb_pointers = v0->nb_pointers;
-
-	scf_lex_word_t* w = scf_lex_word_clone(nodes[0]->parent->w);
-	scf_variable_t* r = scf_variable_alloc(w, t);
-
-	t->const_flag = const_flag;
-	t->nb_pointers = nb_pointers;
-	t->array_capacity = array_capacity;
+	scf_lex_word_t* w = nodes[0]->parent->w;
+	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, v1->nb_pointers, v1->func_ptr);
+	if (!r)
+		return -ENOMEM;
 
 	v0->data.i = v1->data.i;
 	r->data.i = v1->data.i;

@@ -36,14 +36,29 @@ struct scf_variable_s {
 		void*			p; // for pointer or struct data or array
 	} data;
 
+	scf_string_t*       signature;
+
 	uint32_t            const_literal_flag:1;
-	uint32_t            const_flag:1;
-	uint32_t            alloc_flag:1;
-	uint32_t            local_flag:1;
+	uint32_t            const_flag  :1;
+	uint32_t            static_flag :1;
+	uint32_t            alloc_flag  :1;
+	uint32_t            local_flag  :1;
+	uint32_t            global_flag :1;
+	uint32_t            member_flag :1;
+	uint32_t            arg_flag    :1;
 };
+
+static inline int scf_variable_const(scf_variable_t* v)
+{
+	if (SCF_FUNCTION_PTR == v->type)
+		return v->const_literal_flag;
+
+	return v->const_flag && 0 == v->nb_pointers;
+}
 
 scf_variable_t*	scf_variable_alloc(scf_lex_word_t* w, scf_type_t* t);
 scf_variable_t*	scf_variable_clone(scf_variable_t* var);
+scf_variable_t*	scf_variable_ref(scf_variable_t* var);
 void 			scf_variable_free(scf_variable_t* var);
 
 void 			scf_variable_print(scf_variable_t* var);
@@ -56,6 +71,13 @@ void 			scf_variable_set_array_member(scf_variable_t* array, int index, scf_vari
 void 			scf_variable_get_array_member(scf_variable_t* array, int index, scf_variable_t* member);
 
 int             scf_variable_same_type(scf_variable_t* v0, scf_variable_t* v1);
+
+void            scf_variable_sign_extend(scf_variable_t* v, int bytes);
+void            scf_variable_zero_extend(scf_variable_t* v, int bytes);
+
+void            scf_variable_extend_std(scf_variable_t* v, scf_variable_t* std);
+
+void            scf_variable_extend_bytes(scf_variable_t* v, int bytes);
 
 #endif
 

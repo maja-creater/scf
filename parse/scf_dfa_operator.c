@@ -168,7 +168,7 @@ static int _operator_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 		scf_type_t* t = (scf_type_t*)parse->ast->current_block;
 
-		if (!t->class_flag) {
+		if (!t->node.class_flag) {
 			scf_loge("only class has operator overloading\n");
 			return SCF_DFA_ERROR;
 		}
@@ -183,7 +183,7 @@ static int _operator_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	}
 
 	if (f) {
-		if (!f->define_flag) {
+		if (!f->node.define_flag) {
 			int i;
 
 			for (i = 0; i < f->argv->size; i++) {
@@ -246,7 +246,7 @@ static int _operator_action_end(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	parse->ast->current_block  = (scf_block_t*)(opd->parent_block);
 
 	if (d->current_function->node.nb_nodes > 0)
-		d->current_function->define_flag = 1;
+		d->current_function->node.define_flag = 1;
 
 	opd->parent_block = NULL;
 	opd->hook_end     = NULL;

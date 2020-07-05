@@ -50,7 +50,7 @@ static int _class_action_identity(scf_dfa_t* dfa, scf_vector_t* words, void* dat
 		}
 
 		parse->ast->nb_structs++;
-		t->class_flag = 1;
+		t->node.class_flag = 1;
 		scf_scope_push_type(parse->ast->current_block->scope, t);
 		scf_node_add_child((scf_node_t*)parse->ast->current_block, (scf_node_t*)t);
 	}

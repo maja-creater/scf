@@ -8,7 +8,7 @@ int	scf_ast_open(scf_ast_t** past)
 	assert(ast);
 
 	ast->root_block = scf_block_alloc_cstr("global");
-	ast->root_block->root_flag = 1;
+	ast->root_block->node.root_flag = 1;
 	printf("%s(),%d, root_block: %p\n", __func__, __LINE__, ast->root_block);
 
 	*past = ast;
@@ -54,7 +54,7 @@ int scf_ast_add_file_block(scf_ast_t* ast, const char* path)
 		return -1;
 	}
 
-	file_block->file_flag = 1;
+	file_block->node.file_flag = 1;
 
 	scf_node_add_child((scf_node_t*)ast->root_block, (scf_node_t*)file_block);
 	ast->current_block = file_block;

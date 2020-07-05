@@ -32,7 +32,7 @@ static int _type_action_base_type(scf_dfa_t* dfa, scf_vector_t* words, void* dat
 static scf_function_t* _type_find_function(scf_block_t* b, const char* name)
 {
 	while (b) {
-		if (!b->file_flag && !b->root_flag) {
+		if (!b->node.file_flag && !b->node.root_flag) {
 			b = (scf_block_t*)b->node.parent;
 			continue;
 		}

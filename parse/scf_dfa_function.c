@@ -59,6 +59,8 @@ int _function_add_arg(scf_dfa_t* dfa, dfa_parse_data_t* d)
 		scf_vector_add(d->current_function->argv, arg);
 		scf_scope_push_var(d->current_function->scope, arg);
 		arg->refs++;
+		arg->arg_flag   = 1;
+		arg->local_flag = 1;
 
 		d->current_identity = NULL;
 		d->current_type     = NULL;
@@ -129,7 +131,7 @@ static int _function_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 		scf_type_t* t = (scf_type_t*)parse->ast->current_block;
 
-		if (!t->class_flag) {
+		if (!t->node.class_flag) {
 			scf_loge("only class has member function\n");
 			return SCF_DFA_ERROR;
 		}
@@ -142,7 +144,7 @@ static int _function_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 		scf_block_t* b = parse->ast->current_block;
 
 		while (b) {
-			if (!b->root_flag && !b->file_flag) {
+			if (!b->node.root_flag && !b->node.file_flag) {
 				scf_loge("function should be defined in file or global, or class\n");
 				return SCF_DFA_ERROR;
 			}
@@ -164,7 +166,7 @@ static int _function_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	}
 
 	if (f) {
-		if (!f->define_flag) {
+		if (!f->node.define_flag) {
 			int i;
 
 			for (i = 0; i < f->argv->size; i++) {
@@ -219,7 +221,7 @@ static int _function_action_end(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	parse->ast->current_block  = (scf_block_t*)(fd->parent_block);
 
 	if (d->current_function->node.nb_nodes > 0)
-		d->current_function->define_flag = 1;
+		d->current_function->node.define_flag = 1;
 
 	fd->parent_block = NULL;
 	fd->hook_end     = NULL;

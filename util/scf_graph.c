@@ -3,9 +3,16 @@
 scf_graph_t* scf_graph_alloc()
 {
 	scf_graph_t* graph = calloc(1, sizeof(scf_graph_t));
-	assert(graph);
+	if (!graph)
+		return NULL;
 
 	graph->nodes = scf_vector_alloc();
+	if (!graph->nodes) {
+
+		free(graph);
+		graph = NULL;
+		return NULL;
+	}
 	return graph;
 }
 
@@ -14,10 +21,12 @@ void scf_graph_free(scf_graph_t* graph)
 	if (graph) {
 		int i;
 		for (i = 0; i < graph->nodes->size; i++) {
+
 			scf_graph_node_t* node = graph->nodes->data[i];
 
 			scf_graph_node_free(node);
 		}
+
 		scf_vector_free(graph->nodes);
 		free(graph);
 		graph = NULL;
@@ -27,9 +36,16 @@ void scf_graph_free(scf_graph_t* graph)
 scf_graph_node_t* scf_graph_node_alloc()
 {
 	scf_graph_node_t* node = calloc(1, sizeof(scf_graph_node_t));
-	assert(node);
+	if (!node)
+		return NULL;
 
 	node->neighbors = scf_vector_alloc();
+	if (!node->neighbors) {
+
+		free(node);
+		node = NULL;
+		return NULL;
+	}
 	return node;
 }
 
@@ -45,51 +61,77 @@ void scf_graph_node_free(scf_graph_node_t* node)
 void scf_graph_node_print(scf_graph_node_t* node)
 {
 	if (node) {
-		printf("node: %p, color: %d\n", node, node->color);
+		printf("node: %p, color: %d\n", node, (int)node->color);
 		int j;
 		for (j = 0; j < node->neighbors->size; j++) {
 			scf_graph_node_t* neighbor = node->neighbors->data[j];
-			printf("neighbor: %p, color: %d\n", neighbor, neighbor->color);
+			printf("neighbor: %p, color: %d\n", neighbor, (int)neighbor->color);
 		}
 		printf("\n");
 	}
 }
 
-void scf_graph_make_edge(scf_graph_node_t* node1, scf_graph_node_t* node2)
+int scf_graph_make_edge(scf_graph_node_t* node1, scf_graph_node_t* node2)
 {
-	scf_vector_add(node1->neighbors, node2);
+	if (!node1 || !node2)
+		return -EINVAL;
+
+	return scf_vector_add(node1->neighbors, node2);
 }
 
-void scf_graph_delete_node(scf_graph_t* graph, scf_graph_node_t* node)
+int scf_graph_delete_node(scf_graph_t* graph, scf_graph_node_t* node)
+{
+	if (!graph || !node)
+		return -EINVAL;
+
+	int j;
+	for (j = 0; j < node->neighbors->size; j++) {
+
+		scf_graph_node_t* neighbor = node->neighbors->data[j];
+
+		scf_logd("node %p, neighbor: %p, %d\n", node, neighbor, neighbor->neighbors->size);
+
+		// it may be not 2 side graph
+		scf_vector_del(neighbor->neighbors, node);
+	}
+
+	if (0 != scf_vector_del(graph->nodes, node))
+		return -1;
+	return 0;
+}
+
+int scf_graph_add_node(scf_graph_t* graph, scf_graph_node_t* node)
 {
 	int j;
 	for (j = 0; j < node->neighbors->size; j++) {
+
 		scf_graph_node_t* neighbor = node->neighbors->data[j];
-		assert(0 == scf_vector_del(neighbor->neighbors, node));
+
+		if (scf_vector_find(graph->nodes, neighbor)) {
+		
+			if (!scf_vector_find(neighbor->neighbors, node)) {
+
+				if (0 != scf_vector_add(neighbor->neighbors, node))
+					return -1;
+			} else
+				scf_logw("node %p already in neighbor: %p\n", node, neighbor);
+		} else
+			scf_logw("neighbor: %p of node: %p not in graph\n", neighbor, node);
 	}
 
-	scf_vector_del(graph->nodes, node);
+	if (0 != scf_vector_add(graph->nodes, node))
+		return -1;
+	return 0;
 }
 
-void scf_graph_add_node(scf_graph_t* graph, scf_graph_node_t* node)
-{
-	int j;
-	for (j = 0; j < node->neighbors->size; j++) {
-		scf_graph_node_t* neighbor = node->neighbors->data[j];
-		assert(scf_vector_find(graph->nodes, neighbor));
-		scf_vector_add(neighbor->neighbors, node);
-	}
-
-	scf_vector_add(graph->nodes, node);
-}
-
-void _scf_graph_k_color_delete(scf_graph_t* graph, int k, scf_vector_t* deleted_nodes)
+static int _kcolor_delete(scf_graph_t* graph, int k, scf_vector_t* deleted_nodes)
 {
 	while (graph->nodes->size > 0) {
 
 		int nb_deleted = 0;
 		int i = 0;
 		while (i < graph->nodes->size) {
+
 			scf_graph_node_t* node = graph->nodes->data[i];
 
 			if (node->neighbors->size >= k) {
@@ -97,50 +139,74 @@ void _scf_graph_k_color_delete(scf_graph_t* graph, int k, scf_vector_t* deleted_
 				continue;
 			}
 
-			//printf("%s(),%d, node: %p, neighbors: %d, k: %d\n", __func__, __LINE__, node, node->neighbors->size, k);
-			scf_graph_delete_node(graph, node);
-			scf_vector_add(deleted_nodes, node);
+			if (0 != scf_graph_delete_node(graph, node)) {
+				scf_loge("scf_graph_delete_node\n");
+				return -1;
+			}
+
+			if (0 != scf_vector_add(deleted_nodes, node)) {
+				scf_loge("scf_graph_delete_node\n");
+				return -1;
+			}
 			nb_deleted++;
 		}
 
-		if (0 == nb_deleted) {
+		if (0 == nb_deleted)
 			break;
-		}
 	}
+
+	return 0;
 }
 
-void _scf_graph_k_color_fill(scf_graph_t* graph, int k, scf_vector_t* colors, scf_vector_t* deleted_nodes)
+static int _kcolor_fill(scf_graph_t* graph, scf_vector_t* colors, scf_vector_t* deleted_nodes)
 {
-	assert(k == colors->size);
-
+	int k = colors->size;
 	int i;
+	int j;
+	scf_vector_t* colors2 = NULL;
+
 	for (i = deleted_nodes->size - 1; i >= 0; i--) {
 		scf_graph_node_t* node = deleted_nodes->data[i];
-//		printf("%s(),%d, node: %p, neighbor: %d, k: %d\n", __func__, __LINE__, node, node->neighbors->size, k);
+
 		assert(node->neighbors->size < k);
 
-		scf_vector_t* cloned_colors = scf_vector_clone(colors);
+		colors2 = scf_vector_clone(colors);
+		if (!colors2)
+			return -ENOMEM;
 
-		int j;
+		scf_logd("node: %p, neighbor: %d, k: %d\n", node, node->neighbors->size, k);
+
 		for (j = 0; j < node->neighbors->size; j++) {
 			scf_graph_node_t* neighbor = node->neighbors->data[j];
 
-			if (neighbor->color > 0) {
-				scf_vector_del(cloned_colors, (void*)(intptr_t)neighbor->color);
-			}
-			scf_vector_add(neighbor->neighbors, node);
+			if (neighbor->color > 0)
+				scf_vector_del(colors2, (void*)neighbor->color);
+
+			if (0 != scf_vector_add(neighbor->neighbors, node))
+				goto error;
 		}
-		assert(cloned_colors->size > 0);
 
-		node->color = (int)(intptr_t)(cloned_colors->data[0]);
-		scf_vector_add(graph->nodes, node);
+		assert(colors2->size >= 0);
+		if (0 == colors2->size)
+			goto error;
 
-		scf_vector_free(cloned_colors);
-		cloned_colors = NULL;
+		node->color = (intptr_t)(colors2->data[0]);
+		if (0 != scf_vector_add(graph->nodes, node))
+			goto error;
+
+		scf_vector_free(colors2);
+		colors2 = NULL;
 	}
+
+	return 0;
+
+error:
+	scf_vector_free(colors2);
+	colors2 = NULL;
+	return -1;
 }
 
-int _scf_graph_k_color_find_not_neighbor(scf_graph_t* graph, int k, scf_vector_t* pair)
+static int _kcolor_find_not_neighbor(scf_graph_t* graph, int k, scf_graph_node_t** pp0, scf_graph_node_t** pp1)
 {
 	assert(graph->nodes->size >= k);
 
@@ -165,112 +231,143 @@ int _scf_graph_k_color_find_not_neighbor(scf_graph_t* graph, int k, scf_vector_t
 		}
 
 		if (node1) {
-			scf_vector_add(pair, node0);
-			scf_vector_add(pair, node1);
+			*pp0 = node0;
+			*pp1 = node1;
 			return 0;
 		}
 	}
 	return -1;
 }
 
-int scf_graph_k_color(scf_graph_t* graph, int k, scf_vector_t* colors)
+static scf_graph_node_t* _max_neighbors(scf_graph_t* graph)
 {
-	assert(k == colors->size);
+	scf_graph_node_t* node_max = NULL;
+	int max = 0;
+	int i;
+	for (i = 0; i < graph->nodes->size; i++) {
+		scf_graph_node_t* node = graph->nodes->data[i];
 
+		if (!node_max || max < node->neighbors->size) {
+			node_max = node;
+			max      = node->neighbors->size;
+		}
+	}
+
+	scf_logi("max_neighbors: %d\n", max);
+
+	return node_max;
+}
+
+int scf_graph_kcolor(scf_graph_t* graph, scf_vector_t* colors)
+{
+	if (!graph || !colors || 0 == colors->size)
+		return -EINVAL;
+
+	int k   = colors->size;
+	int ret = -1;
+
+	scf_vector_t* colors2       = NULL;
 	scf_vector_t* deleted_nodes = scf_vector_alloc();
+	if (!deleted_nodes)
+		return -ENOMEM;
 
-	printf("%s(),%d, graph->nodes->size: %d\n", __func__, __LINE__, graph->nodes->size);
-	_scf_graph_k_color_delete(graph, k, deleted_nodes);
+	scf_logd("graph->nodes->size: %d, k: %d\n", graph->nodes->size, k);
+
+	ret = _kcolor_delete(graph, k, deleted_nodes);
+	if (ret < 0)
+		goto error;
 
 	if (0 == graph->nodes->size) {
-
-		_scf_graph_k_color_fill(graph, k, colors, deleted_nodes);
+		ret = _kcolor_fill(graph, colors, deleted_nodes);
+		if (ret < 0)
+			goto error;
 
 		scf_vector_free(deleted_nodes);
 		deleted_nodes = NULL;
-		printf("%s(),%d, graph->nodes->size: %d\n", __func__, __LINE__, graph->nodes->size);
+
+		scf_logd("graph->nodes->size: %d\n", graph->nodes->size);
 		return 0;
 	}
 
 	assert(graph->nodes->size > 0);
 	assert(graph->nodes->size >= k);
 
-	scf_vector_t* not_neighbor = scf_vector_alloc();
+	scf_graph_node_t* node0 = NULL;
+	scf_graph_node_t* node1 = NULL;
 
-	if (0 == _scf_graph_k_color_find_not_neighbor(graph, k, not_neighbor)) {
+	if (0 == _kcolor_find_not_neighbor(graph, k, &node0, &node1)) {
+		assert(node0);
+		assert(node1);
 
-		assert(2 == not_neighbor->size);
-
-		scf_graph_node_t* node0 = not_neighbor->data[0];
-		scf_graph_node_t* node1 = not_neighbor->data[1];
-
-		node0->color = (int)(intptr_t)(colors->data[0]);
+		node0->color = (intptr_t)(colors->data[0]);
 		node1->color = node0->color;
 
-		printf("%s(),%d, graph->nodes->size: %d\n", __func__, __LINE__, graph->nodes->size);
-		scf_graph_delete_node(graph, node0);
-		scf_graph_delete_node(graph, node1);
+		ret = scf_graph_delete_node(graph, node0);
+		if (ret < 0)
+			goto error;
 
-		scf_vector_t* cloned_colors = scf_vector_clone(colors);
-		scf_vector_del(cloned_colors, (void*)(intptr_t)node0->color);
+		ret = scf_graph_delete_node(graph, node1);
+		if (ret < 0)
+			goto error;
 
-		scf_graph_k_color(graph, k - 1, cloned_colors);
-
-		scf_graph_add_node(graph, node0);
-		scf_graph_add_node(graph, node1);
-		printf("%s(),%d, graph->nodes->size: %d\n", __func__, __LINE__, graph->nodes->size);
-	} else {
-		int i;
-		scf_graph_node_t* node_max = NULL;
-		int max_neighbors = 0;
-
-		for (i = 0; i < graph->nodes->size; i++) {
-			scf_graph_node_t* node = graph->nodes->data[i];
-
-			if (!node_max) {
-				node_max = node;
-				max_neighbors = node->neighbors->size;
-
-			} else if (max_neighbors < node->neighbors->size) {
-				node_max = node;
-				max_neighbors = node->neighbors->size;
-			}
-			printf("neighbors: %d\n", node->neighbors->size);
+		assert(!colors2);
+		colors2 = scf_vector_clone(colors);
+		if (!colors2) {
+			ret = -ENOMEM;
+			goto error;
 		}
-		printf("max_neighbors: %d\n", max_neighbors);
 
-		printf("%s(),%d, graph->nodes->size: %d\n", __func__, __LINE__, graph->nodes->size);
-		scf_graph_delete_node(graph, node_max);
+		ret = scf_vector_del(colors2, (void*)node0->color);
+		if (ret < 0)
+			goto error;
+
+		ret = scf_graph_kcolor(graph, colors2);
+		if (ret < 0)
+			goto error;
+
+		ret = scf_graph_add_node(graph, node0);
+		if (ret < 0)
+			goto error;
+
+		ret = scf_graph_add_node(graph, node1);
+		if (ret < 0)
+			goto error;
+
+		scf_vector_free(colors2);
+		colors2 = NULL;
+	} else {
+		scf_graph_node_t* node_max = _max_neighbors(graph);
+		assert(node_max);
+
+		ret = scf_graph_delete_node(graph, node_max);
+		if (ret < 0)
+			goto error;
 		node_max->color = -1;
 
-		scf_graph_k_color(graph, k, colors);
+		ret = scf_graph_kcolor(graph, colors);
+		if (ret < 0)
+			goto error;
 
-		scf_graph_add_node(graph, node_max);
-		printf("%s(),%d, graph->nodes->size: %d\n", __func__, __LINE__, graph->nodes->size);
+		ret = scf_graph_add_node(graph, node_max);
+		if (ret < 0)
+			goto error;
 	}
 
-	_scf_graph_k_color_fill(graph, k, colors, deleted_nodes);
+	ret = _kcolor_fill(graph, colors, deleted_nodes);
+	if (ret < 0)
+		goto error;
 
 	scf_vector_free(deleted_nodes);
 	deleted_nodes = NULL;
-	printf("%s(),%d, graph->nodes->size: %d\n", __func__, __LINE__, graph->nodes->size);
+
+	scf_logd("graph->nodes->size: %d\n", graph->nodes->size);
 	return 0;
+
+error:
+	if (colors2)
+		scf_vector_free(colors2);
+
+	scf_vector_free(deleted_nodes);
+	return ret;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

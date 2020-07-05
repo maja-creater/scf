@@ -3,6 +3,7 @@
 
 #include"scf_node.h"
 #include"scf_dag.h"
+#include"scf_basic_block.h"
 
 typedef struct scf_3ac_operator_s	scf_3ac_operator_t;
 typedef struct scf_3ac_operand_s	scf_3ac_operand_t;
@@ -20,11 +21,6 @@ struct scf_3ac_operand_s {
 	scf_3ac_code_t*		code; // for branch jump
 };
 
-typedef struct {
-	scf_dag_node_t*		dag_node;
-	int					active;
-} scf_3ac_active_var_t;
-
 struct scf_3ac_code_s {
 	scf_list_t			list; // for 3ac code list
 
@@ -39,57 +35,31 @@ struct scf_3ac_code_s {
 
 	scf_string_t*       extern_fname; // only for call external function
 
+	scf_basic_block_t*  basic_block;
 	int					basic_block_start;
+
 	scf_vector_t*		active_vars;
 
 	scf_vector_t*		instructions;
+	int                 inst_bytes;
+	int                 bb_offset;
 };
-
-typedef struct {
-	scf_list_t			dag_list_head;
-
-	scf_vector_t*		codes; // 3ac codes
-
-	scf_vector_t*		var_dag_nodes;
-
-	scf_vector_t*		prev_bbs;
-	scf_vector_t*		next_bbs;
-
-	uint32_t            jmp_flag:1;
-	uint32_t            call_flag:1;
-
-} scf_3ac_basic_block_t;
-
-typedef struct {
-	scf_list_t			_3ac_list_head;
-	scf_list_t			dag_list_head;
-
-
-	scf_vector_t*		basic_blocks;
-
-} scf_3ac_context_t;
 
 scf_3ac_operand_t*	scf_3ac_operand_alloc();
 void				scf_3ac_operand_free(scf_3ac_operand_t* operand);
 
 scf_3ac_code_t*		scf_3ac_code_alloc();
 void				scf_3ac_code_free(scf_3ac_code_t* code);
+void				scf_3ac_code_print(scf_3ac_code_t* c, scf_list_t* sentinel);
 
 scf_3ac_operator_t*	scf_3ac_find_operator(const int type);
 
-void 				_3ac_code_print(scf_list_t* h, scf_3ac_code_t* c);
-void				scf_3ac_code_print(scf_list_t* h);
+int                 scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag);
 
-void 				scf_3ac_code_to_dag(scf_list_t* h, scf_list_t* dag);
-void 				scf_dag_to_3ac_code(scf_dag_node_t* dag, scf_list_t* h);
+scf_3ac_code_t*     scf_3ac_alloc_by_src(int op_type, scf_dag_node_t* src);
+scf_3ac_code_t*     scf_3ac_alloc_by_dst(int op_type, scf_dag_node_t* dst);
 
-int 				scf_3ac_code_make_register_conflict_graph(scf_3ac_code_t* c, scf_graph_t* graph);
-void				scf_3ac_colored_graph_print(scf_graph_t* graph);
-
-scf_3ac_context_t*	scf_3ac_context_alloc();
-void				scf_3ac_context_free(scf_3ac_context_t* _3ac_ctx);
-int					scf_3ac_filter(scf_3ac_context_t* _3ac_ctx, scf_list_t* _3ac_dst_list, scf_list_t* _3ac_src_list);
-
+int					scf_3ac_split_basic_blocks(scf_list_t* list_head_3ac, scf_function_t* f);
 
 #endif
 

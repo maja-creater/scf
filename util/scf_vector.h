@@ -15,10 +15,15 @@ typedef struct {
 static inline scf_vector_t* scf_vector_alloc()
 {
 	scf_vector_t* v = calloc(1, sizeof(scf_vector_t));
-	assert(v);
+	if (!v)
+		return NULL;
 
 	v->data = calloc(NB_MEMBER_INC, sizeof(void*));
-	assert(v->data);
+	if (!v->data) {
+		free(v);
+		v = NULL;
+		return NULL;
+	}
 
 	v->capacity = NB_MEMBER_INC;
 	return v;
@@ -27,10 +32,15 @@ static inline scf_vector_t* scf_vector_alloc()
 static inline scf_vector_t* scf_vector_clone(scf_vector_t* origin)
 {
 	scf_vector_t* clone = calloc(1, sizeof(scf_vector_t));
-	assert(clone);
+	if (!clone)
+		return NULL;
 
 	clone->data = calloc(origin->capacity, sizeof(void*));
-	assert(clone->data);
+	if (!clone->data) {
+		free(clone);
+		clone = NULL;
+		return NULL;
+	}
 
 	clone->capacity = origin->capacity;
 	clone->size		= origin->size;
@@ -38,43 +48,53 @@ static inline scf_vector_t* scf_vector_clone(scf_vector_t* origin)
 	return clone;
 }
 
-static inline void scf_vector_add(scf_vector_t* v, void* node)
+static inline int scf_vector_add(scf_vector_t* v, void* node)
 {
-	assert(v);
+	if (!v || !v->data)
+		return -EINVAL;
+
 	assert(v->size <= v->capacity);
 
 	if (v->size == v->capacity) {
 		void* p = realloc(v->data, sizeof(void*) * (v->capacity + NB_MEMBER_INC));
-		assert(p);
+		if (!p)
+			return -ENOMEM;
+
 		v->data = p;
 		v->capacity += NB_MEMBER_INC;
 	}
 
 	v->data[v->size++] = node;
+	return 0;
 }
 
 static inline int scf_vector_del(scf_vector_t* v, void* node)
 {
-	assert(v);
+	if (!v || !v->data)
+		return -EINVAL;
+
 	assert(v->size <= v->capacity);
 
 	int i;
 	for (i = 0; i < v->size; i++) {
-		if (v->data[i] == node) {
-			int j;
-			for (j = i + 1; j < v->size; j++) {
-				v->data[j - 1] = v->data[j];
-			}
-			v->size--;
 
-			if (v->size + NB_MEMBER_INC * 2 < v->capacity) {
-				void* p = realloc(v->data, sizeof(void*) * (v->capacity - NB_MEMBER_INC));
-				assert(p);
+		if (v->data[i] != node)
+			continue;
+
+		int j;
+		for (j = i + 1; j < v->size; j++)
+			v->data[j - 1] = v->data[j];
+
+		v->size--;
+
+		if (v->size + NB_MEMBER_INC * 2 < v->capacity) {
+			void* p = realloc(v->data, sizeof(void*) * (v->capacity - NB_MEMBER_INC));
+			if (p) {
 				v->data = p;
 				v->capacity -= NB_MEMBER_INC;
 			}
-			return 0;
 		}
+		return 0;
 	}
 
 	return -1;
@@ -90,6 +110,13 @@ static inline void* scf_vector_find(const scf_vector_t* v, const void* node)
 	return NULL;
 }
 
+static inline int scf_vector_add_unique(scf_vector_t* v, void* node)
+{
+	if (!scf_vector_find(v, node))
+		return scf_vector_add(v, node);
+	return 0;
+}
+
 static inline void* scf_vector_find_cmp(const scf_vector_t* v, const void* node, int (*cmp)(const void*, const void*))
 {
 	int i;
@@ -102,24 +129,37 @@ static inline void* scf_vector_find_cmp(const scf_vector_t* v, const void* node,
 
 static inline void scf_vector_clear(scf_vector_t* v, void (*type_free)(void*))
 {
-	if (v && v->data) {
+	if (!v || !v->data)
+		return;
+
+	if (type_free) {
 		int i;
 		for (i = 0; i < v->size; i++) {
-			if (type_free)
+			if (v->data[i]) {
 				type_free(v->data[i]);
-
-			v->data[i] = NULL;
+				v->data[i] = NULL;
+			}
 		}
+	}
+
+	v->size = 0;
+
+	void* p = realloc(v->data, sizeof(void*) * NB_MEMBER_INC);
+	if (p) {
+		v->data = p;
+		v->capacity = NB_MEMBER_INC;
 	}
 }
 
 static inline void scf_vector_free(scf_vector_t* v)
 {
-	assert(v);
-	assert(v->data);
+	if (v) {
+		if (v->data)
+			free(v->data);
 
-	free(v->data);
-	free(v);
+		free(v);
+		v = NULL;
+	}
 }
 
 #endif

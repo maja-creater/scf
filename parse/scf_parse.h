@@ -20,6 +20,8 @@ struct scf_parse_s {
 
 	scf_dfa_t*		   dfa;
 	dfa_parse_data_t*  dfa_data;
+
+	scf_vector_t*      symtab;
 };
 
 typedef struct {
@@ -83,7 +85,7 @@ int scf_parse_close(scf_parse_t* parse);
 
 int scf_parse_parse(scf_parse_t* parse);
 
-int scf_parse_run(scf_parse_t* parse, const char* fname, const int argc, const scf_variable_t** argv, scf_variable_t** pret);
+int scf_parse_compile(scf_parse_t* parse, const char* path);
 
 #endif
 

@@ -9,10 +9,11 @@ typedef struct scf_elf_ops_s		scf_elf_ops_t;
 
 typedef struct {
 	char*		name;
+	uint64_t    st_size;
+	Elf64_Addr  st_value;
 
-	uint8_t		st_info;
 	uint16_t    st_shndx;
-
+	uint8_t		st_info;
 } scf_elf_sym_t;
 
 typedef struct {
@@ -31,7 +32,7 @@ typedef struct {
 
 	uint32_t	sh_type;
     uint64_t	sh_flags;
-	uint64_t   sh_addralign;
+	uint64_t    sh_addralign;
 } scf_elf_section_t;
 
 struct scf_elf_ops_s {

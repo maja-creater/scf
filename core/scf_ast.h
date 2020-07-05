@@ -11,19 +11,19 @@
 
 #define SCF_VAR_ALLOC_BY_TYPE(w, t, const_flag_, nb_pointers_, func_ptr_) \
 	({\
-		uint32_t        tmp_const_flag  = (t)->const_flag;\
+		uint32_t        tmp_const_flag  = (t)->node.const_flag;\
 		int             tmp_nb_pointers = (t)->nb_pointers;\
 		scf_function_t* tmp_func_ptr    = (t)->func_ptr;\
 		\
-		(t)->const_flag  = (const_flag_);\
-		(t)->nb_pointers = (nb_pointers_);\
-		(t)->func_ptr    = (func_ptr_);\
+		(t)->node.const_flag = (const_flag_);\
+		(t)->nb_pointers     = (nb_pointers_);\
+		(t)->func_ptr        = (func_ptr_);\
 		\
-		scf_variable_t* var = scf_variable_alloc((w), (t));\
+		scf_variable_t* var  = scf_variable_alloc((w), (t));\
 		\
-		(t)->const_flag  = tmp_const_flag;\
-		(t)->nb_pointers = tmp_nb_pointers;\
-		(t)->func_ptr    = tmp_func_ptr;\
+		(t)->node.const_flag = tmp_const_flag;\
+		(t)->nb_pointers     = tmp_nb_pointers;\
+		(t)->func_ptr        = tmp_func_ptr;\
 		var;\
 	 })
 

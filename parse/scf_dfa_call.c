@@ -67,6 +67,7 @@ static int _call_action_lp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 				return SCF_DFA_ERROR;
 			}
 
+			var_pf->const_flag = 1;
 			var_pf->const_literal_flag = 1;
 
 		} else {

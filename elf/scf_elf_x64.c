@@ -66,8 +66,10 @@ static int _x64_elf_add_sym(scf_elf_context_t* elf, const scf_elf_sym_t* sym)
 	}
 
 	s->name			= scf_string_cstr(sym->name);
-	s->sym.st_info	= sym->st_info;
+	s->sym.st_size  = sym->st_size;
+	s->sym.st_value = sym->st_value;
 	s->sym.st_shndx = sym->st_shndx;
+	s->sym.st_info	= sym->st_info;
 
 	scf_vector_add(x64->symbols, s);
 	return 0;

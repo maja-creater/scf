@@ -12,9 +12,6 @@ struct scf_block_s {
 
 	scf_lex_word_t*     w_start;
 	scf_lex_word_t*		w_end;
-
-	uint32_t            root_flag:1;
-	uint32_t            file_flag:1;
 };
 
 

@@ -59,24 +59,41 @@ int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
 			return SCF_DFA_ERROR;
 		}
 
-		if (0 == d->nb_pointers && d->current_type->type >= SCF_STRUCT) {
-			// if not pointer var, check if define recursive struct/union/class var
-			scf_block_t* b = parse->ast->current_block;
-			while (b) {
-				if (b->node.type >= SCF_STRUCT || SCF_FUNCTION == b->node.type)
-					break;
-				b = (scf_block_t*)b->node.parent;
-			}
+		scf_block_t* b = parse->ast->current_block;
+		while (b) {
+			if (b->node.type >= SCF_STRUCT || SCF_FUNCTION == b->node.type)
+				break;
+			b = (scf_block_t*)b->node.parent;
+		}
 
-			// if var is in a function, it's a local var,
-			// if not, check if define recursive type var
+		uint32_t global_flag;
+		uint32_t local_flag;
+		uint32_t member_flag;
 
-			if (b->node.type >= SCF_STRUCT
-					&& _check_recursive((scf_type_t*)b, d->current_type, d->current_identity) < 0) {
+		if (!b) {
+			local_flag  = 0;
+			global_flag = 1;
+			member_flag = 0;
 
-				scf_loge("recursive define when define var '%s', line: %d\n",
-						d->current_identity->text->data, d->current_identity->line);
-				return SCF_DFA_ERROR;
+		} else if (SCF_FUNCTION == b->node.type) {
+			local_flag  = 1;
+			global_flag = 0;
+			member_flag = 0;
+
+		} else if (b->node.type >= SCF_STRUCT) {
+			local_flag  = 0;
+			global_flag = 0;
+			member_flag = 1;
+
+			if (0 == d->nb_pointers && d->current_type->type >= SCF_STRUCT) {
+				// if not pointer var, check if define recursive struct/union/class var
+
+				if (_check_recursive((scf_type_t*)b, d->current_type, d->current_identity) < 0) {
+
+					scf_loge("recursive define when define var '%s', line: %d\n",
+							d->current_identity->text->data, d->current_identity->line);
+					return SCF_DFA_ERROR;
+				}
 			}
 		}
 
@@ -91,10 +108,14 @@ int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
 			scf_loge("alloc var failed\n");
 			return SCF_DFA_ERROR;
 		}
+		var->local_flag  = local_flag;
+		var->global_flag = global_flag;
+		var->member_flag = member_flag;
 
-		scf_logi("type: %d, nb_pointers: %d,nb_dimentions: %d, var: %s,line:%d,pos:%d\n\n",
+		scf_logi("type: %d, nb_pointers: %d,nb_dimentions: %d, var: %s,line:%d,pos:%d, local: %d, global: %d, member: %d\n\n",
 				var->type, var->nb_pointers, var->nb_dimentions,
-				var->w->text->data, var->w->line, var->w->pos);
+				var->w->text->data, var->w->line, var->w->pos,
+				var->local_flag, var->global_flag, var->member_flag);
 
 		scf_scope_push_var(parse->ast->current_block->scope, var);
 

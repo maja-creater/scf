@@ -94,8 +94,8 @@ void scf_string_free(scf_string_t* s)
 
 int	scf_string_cmp(const scf_string_t* s0, const scf_string_t* s1)
 {
-	assert(s0);
-	assert(s1);
+	if (!s0 || !s1 || !s0->data || !s1->data)
+		return -EINVAL;
 
 	if (s0->len < s1->len) {
 		return -1;
@@ -108,16 +108,16 @@ int	scf_string_cmp(const scf_string_t* s0, const scf_string_t* s1)
 
 int	scf_string_cmp_cstr(const scf_string_t* s0, const char* str)
 {
-	assert(s0);
-	assert(str);
+	if (!s0 || !s0->data || !str)
+		return -EINVAL;
 
 	return scf_string_cmp_cstr_len(s0, str, strlen(str));
 }
 
 int	scf_string_cmp_cstr_len(const scf_string_t* s0, const char* str, size_t len)
 {
-	assert(s0);
-	assert(str);
+	if (!s0 || !s0->data || !str)
+		return -EINVAL;
 
 	scf_string_t s1;
 	s1.capacity	= -1;
@@ -129,15 +129,15 @@ int	scf_string_cmp_cstr_len(const scf_string_t* s0, const char* str, size_t len)
 
 int	scf_string_copy(scf_string_t* s0, const scf_string_t* s1)
 {
-	assert(s0);
-	assert(s1);
+	if (!s0 || !s1 || !s0->data || !s1->data)
+		return -EINVAL;
+
 	assert(s0->capacity > 0);
 
 	if (s1->len > s0->capacity) {
 		char* p = realloc(s0->data, s1->len + 1);
-		if (!p) {
-			return -1;
-		}
+		if (!p)
+			return -ENOMEM;
 
 		s0->data = p;
 		s0->capacity = s1->len;
@@ -151,15 +151,15 @@ int	scf_string_copy(scf_string_t* s0, const scf_string_t* s1)
 
 int	scf_string_cat(scf_string_t* s0, const scf_string_t* s1)
 {
-	assert(s0);
-	assert(s1);
+	if (!s0 || !s1 || !s0->data || !s1->data)
+		return -EINVAL;
+
 	assert(s0->capacity > 0);
 
 	if (s0->len + s1->len > s0->capacity) {
 		char* p = realloc(s0->data, s0->len + s1->len + SCF_STRING_NUMBER_INC + 1);
-		if (!p) {
-			return -1;
-		}
+		if (!p)
+			return -ENOMEM;
 
 		s0->data = p;
 		s0->capacity = s0->len + s1->len + SCF_STRING_NUMBER_INC;
@@ -173,16 +173,16 @@ int	scf_string_cat(scf_string_t* s0, const scf_string_t* s1)
 
 int	scf_string_cat_cstr(scf_string_t* s0, const char* str)
 {
-	assert(s0);
-	assert(str);
+	if (!s0 || !s0->data || !str)
+		return -EINVAL;
 
 	return scf_string_cat_cstr_len(s0, str, strlen(str));
 }
 
 int	scf_string_cat_cstr_len(scf_string_t* s0, const char* str, size_t len)
 {
-	assert(s0);
-	assert(str);
+	if (!s0 || !s0->data || !str)
+		return -EINVAL;
 
 	scf_string_t s1;
 	s1.capacity	= -1;

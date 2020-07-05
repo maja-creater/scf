@@ -228,7 +228,7 @@ int	scf_dag_expr_calculate(scf_list_t* h, scf_dag_node_t* node)
 		return 0;
 	}
 
-	if (!node->nodes || 0 == node->nodes->size) {
+	if (!node->childs || 0 == node->childs->size) {
 		if (scf_type_is_var(node->type)) {
 //			printf("%s(),%d, node->var->w->text->data: %s\n", __func__, __LINE__, node->var->w->text->data);
 		}
@@ -237,7 +237,7 @@ int	scf_dag_expr_calculate(scf_list_t* h, scf_dag_node_t* node)
 	}
 
 	assert(scf_type_is_operator(node->type));
-	assert(node->nodes->size > 0);
+	assert(node->childs->size > 0);
 
 	scf_dag_operator_t* op = scf_dag_operator_find(node->type);
 	assert(op);
@@ -245,14 +245,14 @@ int	scf_dag_expr_calculate(scf_list_t* h, scf_dag_node_t* node)
 	if (SCF_OP_ASSOCIATIVITY_LEFT == op->associativity) {
 		// left associativity
 		int i;
-		for (i = 0; i < node->nodes->size; i++) {
-			if (scf_dag_expr_calculate(h, node->nodes->data[i]) < 0) {
+		for (i = 0; i < node->childs->size; i++) {
+			if (scf_dag_expr_calculate(h, node->childs->data[i]) < 0) {
 				printf("%s(),%d, error: \n", __func__, __LINE__);
 				return -1;
 			}
 		}
 
-		if (op->func(h, node, (scf_dag_node_t**)node->nodes->data, node->nodes->size) < 0) {
+		if (op->func(h, node, (scf_dag_node_t**)node->childs->data, node->childs->size) < 0) {
 			printf("%s(),%d, error: \n", __func__, __LINE__);
 			return -1;
 		}
@@ -260,14 +260,14 @@ int	scf_dag_expr_calculate(scf_list_t* h, scf_dag_node_t* node)
 	} else {
 		// right associativity
 		int i;
-		for (i = node->nodes->size - 1; i >= 0; i--) {
-			if (scf_dag_expr_calculate(h, node->nodes->data[i]) < 0) {
+		for (i = node->childs->size - 1; i >= 0; i--) {
+			if (scf_dag_expr_calculate(h, node->childs->data[i]) < 0) {
 				printf("%s(),%d, error: \n", __func__, __LINE__);
 				return -1;
 			}
 		}
 
-		if (op->func(h, node, (scf_dag_node_t**)node->nodes->data, node->nodes->size) < 0) {
+		if (op->func(h, node, (scf_dag_node_t**)node->childs->data, node->childs->size) < 0) {
 			printf("%s(),%d, error: \n", __func__, __LINE__);
 			return -1;
 		}

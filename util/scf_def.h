@@ -7,6 +7,33 @@
 #include<stddef.h>
 #include<string.h>
 #include<assert.h>
+#include<errno.h>
+
+// sign-extend low 'src_bits' of src to 64 bits
+static inline uint64_t scf_sign_extend(uint64_t src, int src_bits)
+{
+	uint64_t sign = src >> (src_bits - 1) & 0x1;
+	uint64_t mask = (~sign + 1) << (src_bits - 1);
+
+	src |= mask;
+	return src;
+}
+
+// zero-extend low 'src_bits' of src to 64 bits
+static inline uint64_t scf_zero_extend(uint64_t src, int src_bits)
+{
+	uint64_t mask = (1ULL << src_bits) - 1;
+
+	src &= mask;
+	return src;
+}
+
+#define SCF_XCHG(x, y) \
+	do {\
+		typeof(x) tmp = x; \
+		x = y; \
+		y = tmp; \
+	} while (0)
 
 #ifdef SCF_DEBUG
 #define scf_logd(fmt, ...) printf("%s(), %d, "fmt, __func__, __LINE__, ##__VA_ARGS__)

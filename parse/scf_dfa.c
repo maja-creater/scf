@@ -305,7 +305,7 @@ static int _scf_dfa_childs_parse_word(scf_dfa_t* dfa, scf_dfa_node_t** childs, i
 		i++;
 	}
 
-	scf_logi("SCF_DFA_NEXT_SYNTAX\n\n");
+	scf_logd("SCF_DFA_NEXT_SYNTAX\n\n");
 	return SCF_DFA_NEXT_SYNTAX;
 }
 
@@ -338,14 +338,14 @@ static int _scf_dfa_node_parse_word(scf_dfa_t* dfa, scf_dfa_node_t* node, scf_ve
 #if 1
 	scf_dfa_hook_t* h = dfa->hooks[SCF_DFA_HOOK_POST];
 	while (h) {
-		scf_logi("\033[32m post hook: %s\033[0m\n", h->node->name);
+		scf_logd("\033[32m post hook: %s\033[0m\n", h->node->name);
 		h = h->next;
 	}
 	printf("\n");
 
 	h = dfa->hooks[SCF_DFA_HOOK_END];
 	while (h) {
-		scf_logi("\033[32m end hook: %s\033[0m\n", h->node->name);
+		scf_logd("\033[32m end hook: %s\033[0m\n", h->node->name);
 		h = h->next;
 	}
 	printf("\n");
@@ -485,7 +485,7 @@ int scf_dfa_parse_word(scf_dfa_t* dfa, void* word, void* data)
 
 	for (i = 0; i < dfa->words->size; i++) {
 		scf_lex_word_t* w = dfa->words->data[i];
-		scf_logi("##free w: %p, w->type: %d, '%s'\n", w, w->type, w->text->data);
+		scf_logd("##free w: %p, w->type: %d, '%s'\n", w, w->type, w->text->data);
 
 		dfa->ops->free_word(dfa->words->data[i]);
 		dfa->words->data[i] = NULL;

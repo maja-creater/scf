@@ -37,11 +37,10 @@ enum scf_core_types {
 
 	SCF_OP_ASSIGN,		// = assign
 
-	SCF_OP_LT,			// < less than
-	SCF_OP_GT,			// > greater than
-
 	SCF_OP_EQ,			// == equal
 	SCF_OP_NE,			// != not equal
+	SCF_OP_LT,			// < less than
+	SCF_OP_GT,			// > greater than
 	SCF_OP_LE,			// <= less equal 
 	SCF_OP_GE,			// >= greater equal
 
@@ -60,6 +59,7 @@ enum scf_core_types {
 	SCF_OP_POINTER,     // -> struct member
 	SCF_OP_DOT,			// . dot
 
+	// 31
 	SCF_OP_BLOCK,		// statement block, first in fisr run
 	SCF_OP_IF,			// if statement
 	SCF_OP_FOR,			// for statement
@@ -70,34 +70,45 @@ enum scf_core_types {
 	SCF_OP_ERROR,       // error statement
 
 	SCF_OP_3AC_TEQ,		// test if 0
-	SCF_OP_3AC_JE,		// je, jmp if 0
-	SCF_OP_3AC_JNE,		// jne, jmp if not 0
+	SCF_OP_3AC_CMP,		// test if 0
+
+	SCF_OP_3AC_JZ,		// jz, jmp if 0
+	SCF_OP_3AC_JNZ,		// jnz, jmp if not 0
+	SCF_OP_3AC_JGT,		// jgt, jmp if not 0
+	SCF_OP_3AC_JLT,		// jlt, jmp if not 0
+	SCF_OP_3AC_JGE,		// jge, jmp if not 0
+	SCF_OP_3AC_JLE,		// jle, jmp if not 0
+
 	SCF_OP_3AC_CALL_EXTERN, // call extern function
-	SCF_OP_3AC_PUSH,    // push a var to stack, only for 3ac & native 
+
+	SCF_OP_3AC_PUSH,    // push a var to stack,  only for 3ac & native 
 	SCF_OP_3AC_POP,     // pop a var from stack, only for 3ac & native
+
+	SCF_OP_3AC_SAVE,     // save a var to memory,   only for 3ac & native
+	SCF_OP_3AC_LOAD,     // load a var from memory, only for 3ac & native
+
 	SCF_OP_GOTO,		// goto statement
 
 	SCF_VAR_CHAR,		// char variable
 
-	SCF_VAR_INT,		// int variable
-	SCF_VAR_FLOAT,      // float variable
-	SCF_VAR_DOUBLE,		// double variable
-	SCF_VAR_COMPLEX,    // complex variable
-
 	SCF_VAR_I8,
 	SCF_VAR_I16,
 	SCF_VAR_I32,
+	SCF_VAR_INT = SCF_VAR_I32,
 	SCF_VAR_I64,
+	SCF_VAR_INTPTR,
 
 	SCF_VAR_U8,
 	SCF_VAR_U16,
 	SCF_VAR_U32,
 	SCF_VAR_U64,
-
-	SCF_VAR_INTPTR,
 	SCF_VAR_UINTPTR,
 
 	SCF_FUNCTION_PTR, // function pointer
+
+	SCF_VAR_FLOAT,      // float variable
+	SCF_VAR_DOUBLE,		// double variable
+	SCF_VAR_COMPLEX,    // complex variable
 
 	SCF_VAR_VEC2,
 	SCF_VAR_VEC3,
@@ -116,10 +127,24 @@ enum scf_core_types {
 	SCF_STRUCT,			// struct type defined by user
 };
 
+static int scf_type_is_signed(int type)
+{
+	return type >= SCF_VAR_CHAR && type <= SCF_VAR_INTPTR;
+}
+
+static int scf_type_is_unsigned(int type)
+{
+	return (type >= SCF_VAR_U8 && type <= SCF_VAR_UINTPTR);
+}
+
 static int scf_type_is_integer(int type)
 {
-	return SCF_VAR_INT == type
-		|| (type >= SCF_VAR_I8 && type <= SCF_FUNCTION_PTR);
+	return (type >= SCF_VAR_CHAR && type <= SCF_VAR_UINTPTR);
+}
+
+static int scf_type_is_float(int type)
+{
+	return SCF_VAR_FLOAT == type || SCF_VAR_DOUBLE == type;
 }
 
 static int scf_type_is_number(int type)
@@ -135,6 +160,21 @@ static int scf_type_is_var(int type)
 static int scf_type_is_operator(int type)
 {
 	return type >= SCF_OP_ADD && type <= SCF_OP_GOTO;
+}
+
+static int scf_type_is_cmp_operator(int type)
+{
+	return type >= SCF_OP_EQ && type <= SCF_OP_GE;
+}
+
+static int scf_type_is_logic_operator(int type)
+{
+	return type >= SCF_OP_LOGIC_AND && type <= SCF_OP_LOGIC_NOT;
+}
+
+static int scf_type_is_jmp(int type)
+{
+	return type == SCF_OP_GOTO || (type >= SCF_OP_3AC_JZ && type <= SCF_OP_3AC_JLE);
 }
 
 #endif

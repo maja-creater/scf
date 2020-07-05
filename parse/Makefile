@@ -8,11 +8,14 @@ CFILES += scf_parse2.c
 CFILES += scf_parse_test.c
 CFILES += scf_operator_handler_semantic.c
 CFILES += scf_operator_handler_expr.c
+CFILES += scf_operator_handler_const.c
 
 CFILES += ../native/scf_native.c
-CFILES += ../native/x64/scf_native_x64.c
+CFILES += ../native/x64/scf_x64.c
 CFILES += ../native/x64/scf_x64_inst.c
-CFILES += ../native/x64/scf_x64_3ac.c
+CFILES += ../native/x64/scf_x64_inst_util.c
+CFILES += ../native/x64/scf_x64_rcg.c
+CFILES += ../native/x64/scf_x64_graph.c
 
 CFILES += ../elf/scf_elf.c
 CFILES += ../elf/scf_elf_x64.c
@@ -31,15 +34,23 @@ CFILES += ../core/scf_function.c
 
 CFILES += ../core/scf_operator.c
 CFILES += ../core/scf_operator_handler.c
+
 CFILES += ../core/scf_type_cast.c
+CFILES += ../core/scf_type_cast_i32.c
+CFILES += ../core/scf_type_cast_i64.c
+CFILES += ../core/scf_type_cast_float.c
+CFILES += ../core/scf_type_cast_double.c
 
 CFILES += ../core/scf_operator_handler_3ac.c
 
 CFILES += ../core/scf_dag.c
 CFILES += ../core/scf_operator_dag.c
+CFILES += ../core/scf_basic_block.c
 CFILES += ../core/scf_3ac.c
 
 CFILES += ../core/scf_ast.c
+
+CFILES += ../core/scf_calculate.c
 
 CFILES += scf_dfa.c
 CFILES += scf_dfa_parse.c

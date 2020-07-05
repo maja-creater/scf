@@ -105,25 +105,25 @@ static int _sizeof_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 		d->expr = NULL;
 
 	} else if (d->current_type) {
-		scf_type_t* t = scf_block_find_type_type(parse->ast->current_block, SCF_VAR_INTPTR);
+		scf_type_t* t = scf_block_find_type_type(parse->ast->current_block, SCF_VAR_INT);
 		assert(t);
 
-		scf_variable_t* v = scf_variable_alloc(sd->_sizeof->w, t);
+		scf_variable_t* v = SCF_VAR_ALLOC_BY_TYPE(sd->_sizeof->w, t, 1, 0, NULL);
 		if (!v) {
 			scf_loge("\n");
 			return SCF_DFA_ERROR;
 		}
 
-		scf_node_t* n = scf_node_alloc(NULL, SCF_VAR_INTPTR, v);
+		scf_node_t* n = scf_node_alloc(NULL, SCF_VAR_INT, v);
 		if (!n) {
 			scf_loge("\n");
 			return SCF_DFA_ERROR;
 		}
 
 		if (d->nb_pointers > 0)
-			v->data.i64 = t->size;
+			v->data.i = t->size;
 		else
-			v->data.i64 = d->current_type->size;
+			v->data.i = d->current_type->size;
 
 		scf_node_free(sd->_sizeof);
 		sd->_sizeof = n;

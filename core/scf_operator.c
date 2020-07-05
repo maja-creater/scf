@@ -25,10 +25,11 @@ static scf_operator_t	base_operators[] = {
 	{SCF_OP_SUB, 			"-", 		5, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
 
 	{SCF_OP_EQ, 			"==", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_NE,             "!=",       7, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
 	{SCF_OP_GT, 			">", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
 	{SCF_OP_LT, 			"<", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
-//	{SCF_OP_GE, 			">=", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
-//	{SCF_OP_LE, 			"<=", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_GE, 			">=", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_LE, 			"<=", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
 
 
 	{SCF_OP_ASSIGN, 		"=", 		10, 2,	SCF_OP_ASSOCIATIVITY_RIGHT},

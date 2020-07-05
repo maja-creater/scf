@@ -20,9 +20,6 @@ struct scf_type_s {
 	scf_lex_word_t*     w_start;
 	scf_lex_word_t*		w_end;
 
-	uint32_t            root_flag:1;
-	uint32_t            file_flag:1;
-
 	// list for scope's type_list_head
 	scf_list_t			list;
 
@@ -30,7 +27,7 @@ struct scf_type_s {
 	scf_lex_word_t*		w;
 
 	int					nb_pointers;
-	int					array_capacity;
+//	int					array_capacity;
 
 	scf_function_t*     func_ptr; // only used for function pointer type
 
@@ -38,10 +35,6 @@ struct scf_type_s {
 	int					offset; // only used for member var of struct or class
 
 	scf_type_t*			parent; // pointed to parent type includes this
-
-	uint32_t            const_flag:1;
-	uint32_t            class_flag:1;
-	uint32_t            union_flag:1;
 };
 
 scf_type_t*		scf_type_alloc(scf_lex_word_t* w, const char* name, int type, int size);

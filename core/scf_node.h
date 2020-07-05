@@ -30,7 +30,13 @@ struct scf_node_s {
 
 	scf_variable_t*		result;
 
-	int					_3ac_already;
+	uint32_t            root_flag   :1; // set when node is root block
+	uint32_t            file_flag   :1; // set when node is a file block
+	uint32_t            class_flag  :1; // set when node is a class type
+	uint32_t            union_flag  :1; // set when node is a union type
+	uint32_t            define_flag :1; // set when node is a function & is defined not only declared
+	uint32_t            const_flag  :1; // set when node is a const type
+	uint32_t            _3ac_done   :1; // set when node's 3ac code is made
 };
 
 struct scf_label_s {
@@ -47,15 +53,20 @@ struct scf_label_s {
 
 scf_node_t*		scf_node_alloc(scf_lex_word_t* w, int type, scf_variable_t* var);
 scf_node_t*		scf_node_alloc_label(scf_label_t* l);
+
 int				scf_node_add_child(scf_node_t* parent, scf_node_t* child);
+
 void			scf_node_free(scf_node_t* node);
 void			scf_node_free_data(scf_node_t* node);
+void			scf_node_move_data(scf_node_t* dst, scf_node_t* src);
+
+void            scf_node_print(scf_node_t* node);
 
 scf_variable_t* _scf_operand_get(scf_node_t* node);
 scf_function_t* _scf_function_get(scf_node_t* node);
 
-typedef void*	(*scf_node_find_pt)(scf_node_t* node, void* arg, scf_vector_t* vec);
-void*			scf_node_search_bfs(scf_node_t* root, scf_node_find_pt find, void* arg, scf_vector_t* vec);
+typedef int     (*scf_node_find_pt)(scf_node_t* node, void* arg, scf_vector_t* results);
+int             scf_node_search_bfs(scf_node_t* root, void* arg, scf_vector_t* results, int max, scf_node_find_pt find);
 
 scf_label_t*	scf_label_alloc(scf_lex_word_t* w);
 void			scf_label_free(scf_label_t* l);

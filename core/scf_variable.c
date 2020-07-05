@@ -10,7 +10,7 @@ scf_variable_t*	scf_variable_alloc(scf_lex_word_t* w, scf_type_t* t)
 	var->refs = 1;
 	var->type = t->type;
 
-	var->const_flag  = t->const_flag;
+	var->const_flag  = t->node.const_flag;
 	var->nb_pointers = t->nb_pointers;
 	var->func_ptr    = t->func_ptr;
 
@@ -73,6 +73,12 @@ scf_variable_t*	scf_variable_clone(scf_variable_t* var)
 	return var;
 }
 
+scf_variable_t*	scf_variable_ref(scf_variable_t* var)
+{
+	var->refs++;
+	return var;
+}
+
 void scf_variable_free(scf_variable_t* var)
 {
 	assert(var);
@@ -92,6 +98,11 @@ void scf_variable_free(scf_variable_t* var)
 	if (SCF_VAR_STRING == var->type) {
 		scf_string_free(var->data.s);
 		var->data.s = NULL;
+	}
+
+	if (var->signature) {
+		scf_string_free(var->signature);
+		var->signature = NULL;
 	}
 
 	free(var);
@@ -210,5 +221,47 @@ int scf_variable_same_type(scf_variable_t* v0, scf_variable_t* v1)
 	}
 
 	return 1;
+}
+
+void scf_variable_sign_extend(scf_variable_t* v, int bytes)
+{
+	if (bytes <= v->size)
+		return;
+
+	bytes = bytes > 8 ? 8 : bytes;
+
+	v->data.u64 = scf_sign_extend(v->data.u64, v->size << 3);
+
+	v->size = bytes;
+}
+
+void scf_variable_zero_extend(scf_variable_t* v, int bytes)
+{
+	if (bytes <= v->size)
+		return;
+
+	bytes = bytes > 8 ? 8 : bytes;
+
+	v->data.u64 = scf_zero_extend(v->data.u64, v->size << 3);
+
+	v->size = bytes;
+}
+
+void scf_variable_extend_bytes(scf_variable_t* v, int bytes)
+{
+	if (scf_type_is_signed(v->type))
+		scf_variable_sign_extend(v, bytes);
+	else
+		scf_variable_zero_extend(v, bytes);
+}
+
+void scf_variable_extend_std(scf_variable_t* v, scf_variable_t* std)
+{
+	if (scf_type_is_signed(v->type))
+		scf_variable_sign_extend(v, std->size);
+	else
+		scf_variable_zero_extend(v, std->size);
+
+	v->type = std->type;
 }
 
