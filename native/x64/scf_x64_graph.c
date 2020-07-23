@@ -14,11 +14,10 @@ static int _x64_color_select(scf_graph_node_t* node, scf_vector_t* colors)
 	for (i = 0; i < colors->size; i++) {
 		intptr_t c     = (intptr_t)(colors->data[i]);
 		int      bytes = X64_COLOR_BYTES(c);
+		uint32_t type  = X64_COLOR_TYPE(c);
 
-		intptr_t major = X64_COLOR_MAJOR(c);
-		intptr_t minor = X64_COLOR_MINOR(c);
-
-		if (bytes == rn->dag_node->var->size)
+		if (bytes == rn->dag_node->var->size
+				&& type == scf_type_is_float(rn->dag_node->var->type))
 			return c;
 	}
 
@@ -334,15 +333,17 @@ static int _x64_graph_kcolor(scf_graph_t* graph, int k, scf_vector_t* colors)
 
 			node0->color   = _x64_color_select(node0, colors2);
 
-			intptr_t major = X64_COLOR_MAJOR(node0->color);
-			intptr_t minor = (1 << rn1->dag_node->var->size) - 1; 
-			node1->color = X64_COLOR(major, minor);
+			intptr_t type  = X64_COLOR_TYPE(node0->color);
+			intptr_t id    = X64_COLOR_ID(node0->color);
+			intptr_t mask  = (1 << rn1->dag_node->var->size) - 1; 
+			node1->color = X64_COLOR(type, id, mask);
 		} else {
 			node1->color   = _x64_color_select(node1, colors2);
 
-			intptr_t major = X64_COLOR_MAJOR(node1->color);
-			intptr_t minor = (1 << rn0->dag_node->var->size) - 1; 
-			node0->color = X64_COLOR(major, minor);
+			intptr_t type  = X64_COLOR_TYPE(node0->color);
+			intptr_t id    = X64_COLOR_ID(node0->color);
+			intptr_t mask  = (1 << rn0->dag_node->var->size) - 1; 
+			node0->color   = X64_COLOR(type, id, mask);
 		}
 
 		ret = scf_graph_delete_node(graph, node0);

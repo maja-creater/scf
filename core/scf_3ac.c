@@ -11,7 +11,8 @@ static scf_3ac_operator_t _3ac_operators[] = {
 
 	{SCF_OP_TYPE_CAST, 	    "cast"},
 
-	{SCF_OP_LOGIC_NOT, 		"not"},
+	{SCF_OP_LOGIC_NOT, 		"logic_not"},
+	{SCF_OP_BIT_NOT,        "not"},
 	{SCF_OP_NEG, 			"neg"},
 	{SCF_OP_POSITIVE, 		"positive"},
 
@@ -23,6 +24,9 @@ static scf_3ac_operator_t _3ac_operators[] = {
 
 	{SCF_OP_ADD, 			"add"},
 	{SCF_OP_SUB, 			"sub"},
+
+	{SCF_OP_BIT_AND,        "and"},
+	{SCF_OP_BIT_OR,         "or"},
 
 	{SCF_OP_EQ, 			"eq"},
 	{SCF_OP_NE,             "neq"},
@@ -38,6 +42,12 @@ static scf_3ac_operator_t _3ac_operators[] = {
 
 	{SCF_OP_3AC_TEQ,         "teq"},
 	{SCF_OP_3AC_CMP,         "cmp"},
+
+	{SCF_OP_3AC_SETZ,        "setz"},
+	{SCF_OP_3AC_SETNZ,       "setnz"},
+
+	{SCF_OP_3AC_DEREFERENCE_LV,	"dereference_lv"},
+	{SCF_OP_3AC_ARRAY_INDEX_LV,	"array_index_lv"},
 
 	{SCF_OP_3AC_JZ,          "jz"},
 	{SCF_OP_3AC_JNZ,         "jnz"},
@@ -371,6 +381,7 @@ int scf_3ac_split_basic_blocks(scf_list_t* list_head_3ac, scf_function_t* f)
 		}
 
 		if (SCF_OP_CALL == c->op->type
+				|| SCF_OP_RETURN == c->op->type
 				|| SCF_OP_3AC_CALL_EXTERN == c->op->type) {
 
 			l2	= scf_list_next(&c->list);
@@ -427,6 +438,9 @@ int scf_3ac_split_basic_blocks(scf_list_t* list_head_3ac, scf_function_t* f)
 
 			if (SCF_OP_CALL == c->op->type || SCF_OP_3AC_CALL_EXTERN == c->op->type)
 				bb->call_flag = 1;
+
+			if (SCF_OP_RETURN == c->op->type)
+				bb->ret_flag = 1;
 
 			if (scf_type_is_jmp(c->op->type)) {
 				bb->jmp_flag = 1;

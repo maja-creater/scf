@@ -6,46 +6,70 @@
 extern scf_native_ops_t native_ops_x64;
 
 scf_register_x64_t	x64_registers[] = {
-	{0, 1, "al",    X64_COLOR(0, 0x1), NULL},
-	{0, 2, "ax",    X64_COLOR(0, 0x3), NULL},
-	{0, 4, "eax",   X64_COLOR(0, 0xf), NULL},
-	{0, 8, "rax",   X64_COLOR(0, 0xff), NULL},
+	{0, 1, "al",    X64_COLOR(0, 0, 0x1),  NULL},
+	{0, 2, "ax",    X64_COLOR(0, 0, 0x3),  NULL},
+	{0, 4, "eax",   X64_COLOR(0, 0, 0xf),  NULL},
+	{0, 8, "rax",   X64_COLOR(0, 0, 0xff), NULL},
 
-	{1, 1, "cl",    X64_COLOR(1, 0x1), NULL},
-	{1, 2, "cx",    X64_COLOR(1, 0x3), NULL},
-	{1, 4, "ecx",   X64_COLOR(1, 0xf), NULL},
-	{1, 8, "rcx",   X64_COLOR(1, 0xff), NULL},
+	{1, 1, "cl",    X64_COLOR(0, 1, 0x1),  NULL},
+	{1, 2, "cx",    X64_COLOR(0, 1, 0x3),  NULL},
+	{1, 4, "ecx",   X64_COLOR(0, 1, 0xf),  NULL},
+	{1, 8, "rcx",   X64_COLOR(0, 1, 0xff), NULL},
 
-	{2, 1, "dl",    X64_COLOR(2, 0x1), NULL},
-	{2, 2, "dx",    X64_COLOR(2, 0x3), NULL},
-	{2, 4, "edx",   X64_COLOR(2, 0xf), NULL},
-	{2, 8, "rdx",   X64_COLOR(2, 0xff), NULL},
+	{2, 1, "dl",    X64_COLOR(0, 2, 0x1),  NULL},
+	{2, 2, "dx",    X64_COLOR(0, 2, 0x3),  NULL},
+	{2, 4, "edx",   X64_COLOR(0, 2, 0xf),  NULL},
+	{2, 8, "rdx",   X64_COLOR(0, 2, 0xff), NULL},
 
-	{3, 1, "bl",    X64_COLOR(3, 0x1), NULL},
-	{3, 2, "bx",    X64_COLOR(3, 0x3), NULL},
-	{3, 4, "ebx",   X64_COLOR(3, 0xf), NULL},
-	{3, 8, "rbx",   X64_COLOR(3, 0xff), NULL},
-#if 1
-	{4, 2, "sp",    X64_COLOR(4, 0x3), NULL},
-	{4, 4, "esp",   X64_COLOR(4, 0xf), NULL},
-	{4, 8, "rsp",   X64_COLOR(4, 0xff), NULL},
+	{3, 1, "bl",    X64_COLOR(0, 3, 0x1),  NULL},
+	{3, 2, "bx",    X64_COLOR(0, 3, 0x3),  NULL},
+	{3, 4, "ebx",   X64_COLOR(0, 3, 0xf),  NULL},
+	{3, 8, "rbx",   X64_COLOR(0, 3, 0xff), NULL},
 
-	{5, 2, "bp",    X64_COLOR(5, 0x3), NULL},
-	{5, 4, "ebp",   X64_COLOR(5, 0xf), NULL},
-	{5, 8, "rbp",   X64_COLOR(5, 0xff), NULL},
+	{4, 2, "sp",    X64_COLOR(0, 4, 0x3),  NULL},
+	{4, 4, "esp",   X64_COLOR(0, 4, 0xf),  NULL},
+	{4, 8, "rsp",   X64_COLOR(0, 4, 0xff), NULL},
 
-	{6, 2, "si",    X64_COLOR(6, 0x3), NULL},
-	{6, 4, "esi",   X64_COLOR(6, 0xf), NULL},
-	{6, 8, "rsi",   X64_COLOR(6, 0xff), NULL},
+	{5, 2, "bp",    X64_COLOR(0, 5, 0x3),  NULL},
+	{5, 4, "ebp",   X64_COLOR(0, 5, 0xf),  NULL},
+	{5, 8, "rbp",   X64_COLOR(0, 5, 0xff), NULL},
 
-	{7, 2, "di",    X64_COLOR(7, 0x3), NULL},
-	{7, 4, "edi",   X64_COLOR(7, 0xf), NULL},
-	{7, 8, "rdi",   X64_COLOR(7, 0xff), NULL},
-#endif
-	{4, 1, "ah",    X64_COLOR(0, 0x2), NULL},
-	{5, 1, "ch",    X64_COLOR(1, 0x2), NULL},
-	{6, 1, "dh",    X64_COLOR(2, 0x2), NULL},
-	{7, 1, "bh",    X64_COLOR(3, 0x2), NULL},
+	{6, 2, "si",    X64_COLOR(0, 6, 0x3),  NULL},
+	{6, 4, "esi",   X64_COLOR(0, 6, 0xf),  NULL},
+	{6, 8, "rsi",   X64_COLOR(0, 6, 0xff), NULL},
+
+	{7, 2, "di",    X64_COLOR(0, 7, 0x3),  NULL},
+	{7, 4, "edi",   X64_COLOR(0, 7, 0xf),  NULL},
+	{7, 8, "rdi",   X64_COLOR(0, 7, 0xff), NULL},
+
+	{4, 1, "ah",    X64_COLOR(0, 0, 0x2),  NULL},
+	{5, 1, "ch",    X64_COLOR(0, 1, 0x2),  NULL},
+	{6, 1, "dh",    X64_COLOR(0, 2, 0x2),  NULL},
+	{7, 1, "bh",    X64_COLOR(0, 3, 0x2),  NULL},
+
+	{0, 4, "mm0",    X64_COLOR(1, 0, 0xf),  NULL},
+	{0, 8, "xmm0",   X64_COLOR(1, 0, 0xff), NULL},
+
+	{1, 4, "mm1",    X64_COLOR(1, 1, 0xf),  NULL},
+	{1, 8, "xmm1",   X64_COLOR(1, 1, 0xff), NULL},
+
+	{2, 4, "mm2",    X64_COLOR(1, 2, 0xf),  NULL},
+	{2, 8, "xmm2",   X64_COLOR(1, 2, 0xff), NULL},
+
+	{3, 4, "mm3",    X64_COLOR(1, 3, 0xf),  NULL},
+	{3, 8, "xmm3",   X64_COLOR(1, 3, 0xff), NULL},
+
+	{4, 4, "mm4",    X64_COLOR(1, 4, 0xf),  NULL},
+	{4, 8, "xmm4",   X64_COLOR(1, 4, 0xff), NULL},
+
+	{5, 4, "mm5",    X64_COLOR(1, 5, 0xf),  NULL},
+	{5, 8, "xmm5",   X64_COLOR(1, 5, 0xff), NULL},
+
+	{6, 4, "mm6",    X64_COLOR(1, 6, 0xf),  NULL},
+	{6, 8, "xmm6",   X64_COLOR(1, 6, 0xff), NULL},
+
+	{7, 4, "mm7",    X64_COLOR(1, 7, 0xf),  NULL},
+	{7, 8, "xmm7",   X64_COLOR(1, 7, 0xff), NULL},
 };
 
 scf_x64_OpCode_t	x64_OpCodes[] = {
@@ -68,6 +92,32 @@ scf_x64_OpCode_t	x64_OpCodes[] = {
 	{SCF_X64_XOR,  "xor",  2, {0x35, 0x0, 0x0},1,  2,2, SCF_X64_I2G, 0,0, 1,{0,0}},
 	{SCF_X64_XOR,  "xor",  2, {0x35, 0x0, 0x0},1,  4,4, SCF_X64_I2G, 0,0, 1,{0,0}},
 	{SCF_X64_XOR,  "xor",  2, {0x35, 0x0, 0x0},1,  4,8, SCF_X64_I2G, 0,0, 1,{0,0}},
+
+	{SCF_X64_AND,  "and",  2, {0x20, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
+	{SCF_X64_AND,  "and",  2, {0x21, 0x0, 0x0},1,  2,2, SCF_X64_G2E, 0,0, 0,{0,0}},
+	{SCF_X64_AND,  "and",  2, {0x21, 0x0, 0x0},1,  4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
+	{SCF_X64_AND,  "and",  2, {0x21, 0x0, 0x0},1,  8,8, SCF_X64_G2E, 0,0, 0,{0,0}},
+	{SCF_X64_AND,  "and",  2, {0x22, 0x0, 0x0},1,  1,1, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_AND,  "and",  2, {0x23, 0x0, 0x0},1,  2,2, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_AND,  "and",  2, {0x23, 0x0, 0x0},1,  4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_AND,  "and",  2, {0x23, 0x0, 0x0},1,  8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_AND,  "and",  2, {0x80, 0x0, 0x0},1,  1,1, SCF_X64_I2E, 4,1, 0,{0,0}},
+	{SCF_X64_AND,  "and",  2, {0x81, 0x0, 0x0},1,  2,2, SCF_X64_I2E, 4,1, 0,{0,0}},
+	{SCF_X64_AND,  "and",  2, {0x81, 0x0, 0x0},1,  4,4, SCF_X64_I2E, 4,1, 0,{0,0}},
+	{SCF_X64_AND,  "and",  2, {0x81, 0x0, 0x0},1,  4,8, SCF_X64_I2E, 4,1, 0,{0,0}},
+
+	{SCF_X64_OR,   "or",   2, {0x08, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
+	{SCF_X64_OR,   "or",   2, {0x09, 0x0, 0x0},1,  2,2, SCF_X64_G2E, 0,0, 0,{0,0}},
+	{SCF_X64_OR,   "or",   2, {0x09, 0x0, 0x0},1,  4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
+	{SCF_X64_OR,   "or",   2, {0x09, 0x0, 0x0},1,  8,8, SCF_X64_G2E, 0,0, 0,{0,0}},
+	{SCF_X64_OR,   "or",   2, {0x0a, 0x0, 0x0},1,  1,1, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_OR,   "or",   2, {0x0b, 0x0, 0x0},1,  2,2, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_OR,   "or",   2, {0x0b, 0x0, 0x0},1,  4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_OR,   "or",   2, {0x0b, 0x0, 0x0},1,  8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_OR,   "or",   2, {0x80, 0x0, 0x0},1,  1,1, SCF_X64_I2E, 1,1, 0,{0,0}},
+	{SCF_X64_OR,   "or",   2, {0x81, 0x0, 0x0},1,  2,2, SCF_X64_I2E, 1,1, 0,{0,0}},
+	{SCF_X64_OR,   "or",   2, {0x81, 0x0, 0x0},1,  4,4, SCF_X64_I2E, 1,1, 0,{0,0}},
+	{SCF_X64_OR,   "or",   2, {0x81, 0x0, 0x0},1,  4,8, SCF_X64_I2E, 1,1, 0,{0,0}},
 
 	{SCF_X64_CALL, "call", 5, {0xe8, 0x0, 0x0},1,  4,4, SCF_X64_I,   0,0, 0,{0,0}},
 	{SCF_X64_CALL, "call", 2, {0xff, 0x0, 0x0},1,  8,8, SCF_X64_E,   2,1, 0,{0,0}},
@@ -146,6 +196,13 @@ scf_x64_OpCode_t	x64_OpCodes[] = {
 	{SCF_X64_NEG,  "neg",  2, {0xf7, 0x0, 0x0},1,  4,4, SCF_X64_E,   3,1, 0,{0,0}},
 	{SCF_X64_NEG,  "neg",  2, {0xf7, 0x0, 0x0},1,  8,8, SCF_X64_E,   3,1, 0,{0,0}},
 
+	{SCF_X64_NOT,  "not",  2, {0xf6, 0x0, 0x0},1,  1,1, SCF_X64_E,   2,1, 0,{0,0}},
+	{SCF_X64_NOT,  "not",  2, {0xf7, 0x0, 0x0},1,  2,2, SCF_X64_E,   2,1, 0,{0,0}},
+	{SCF_X64_NOT,  "not",  2, {0xf7, 0x0, 0x0},1,  4,4, SCF_X64_E,   2,1, 0,{0,0}},
+	{SCF_X64_NOT,  "not",  2, {0xf7, 0x0, 0x0},1,  8,8, SCF_X64_E,   2,1, 0,{0,0}},
+
+	{SCF_X64_LEA,  "lea",  1, {0x8d, 0x0, 0x0},1,  8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
+
 	{SCF_X64_MOV,  "mov",  2, {0x88, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
 	{SCF_X64_MOV,  "mov",  2, {0x89, 0x0, 0x0},1,  2,2, SCF_X64_G2E, 0,0, 0,{0,0}},
 	{SCF_X64_MOV,  "mov",  2, {0x89, 0x0, 0x0},1,  4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
@@ -194,6 +251,16 @@ scf_x64_OpCode_t	x64_OpCodes[] = {
 	{SCF_X64_CMP,  "cmp",  2, {0x83, 0x0, 0x0},1,  1,4, SCF_X64_I2E, 7,1, 0,{0,0}},
 	{SCF_X64_CMP,  "cmp",  2, {0x83, 0x0, 0x0},1,  1,8, SCF_X64_I2E, 7,1, 0,{0,0}},
 
+	{SCF_X64_TEST, "test", 2, {0x84, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
+	{SCF_X64_TEST, "test", 2, {0x85, 0x0, 0x0},1,  2,2, SCF_X64_G2E, 0,0, 0,{0,0}},
+	{SCF_X64_TEST, "test", 2, {0x85, 0x0, 0x0},1,  4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
+	{SCF_X64_TEST, "test", 2, {0x85, 0x0, 0x0},1,  8,8, SCF_X64_G2E, 0,0, 0,{0,0}},
+
+	{SCF_X64_TEST, "test", 2, {0xf6, 0x0, 0x0},1,  1,1, SCF_X64_I2E, 0,1, 0,{0,0}},
+	{SCF_X64_TEST, "test", 2, {0xf7, 0x0, 0x0},1,  2,2, SCF_X64_I2E, 0,1, 0,{0,0}},
+	{SCF_X64_TEST, "test", 2, {0xf7, 0x0, 0x0},1,  4,4, SCF_X64_I2E, 0,1, 0,{0,0}},
+	{SCF_X64_TEST, "test", 2, {0xf7, 0x0, 0x0},1,  4,8, SCF_X64_I2E, 0,1, 0,{0,0}},
+
 	{SCF_X64_SETZ,  "setz",  3, {0x0f, 0x94, 0x0},2,  1,1, SCF_X64_E, 0,0, 0,{0,0}},
 	{SCF_X64_SETNZ, "setnz", 3, {0x0f, 0x95, 0x0},2,  1,1, SCF_X64_E, 0,0, 0,{0,0}},
 
@@ -202,6 +269,35 @@ scf_x64_OpCode_t	x64_OpCodes[] = {
 
 	{SCF_X64_SETL,  "setl",  3, {0x0f, 0x9c, 0x0},2,  1,1, SCF_X64_E, 0,0, 0,{0,0}},
 	{SCF_X64_SETLE, "setle", 3, {0x0f, 0x9e, 0x0},2,  1,1, SCF_X64_E, 0,0, 0,{0,0}},
+
+	{SCF_X64_ADDSS, "addss", 4, {0xf3, 0x0f, 0x58},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_ADDSD, "addsd", 8, {0xf2, 0x0f, 0x58},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
+
+	{SCF_X64_SUBSS, "subss", 4, {0xf3, 0x0f, 0x5c},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_SUBSD, "subsd", 8, {0xf2, 0x0f, 0x5c},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
+
+	{SCF_X64_MULSS, "mulss", 4, {0xf3, 0x0f, 0x59},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_MULSD, "mulsd", 8, {0xf2, 0x0f, 0x59},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
+
+	{SCF_X64_DIVSS, "divss", 4, {0xf3, 0x0f, 0x5e},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_DIVSD, "divsd", 8, {0xf2, 0x0f, 0x5e},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
+
+	{SCF_X64_MOVSS, "movss", 4, {0xf3, 0x0f, 0x10},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_MOVSS, "movss", 4, {0xf3, 0x0f, 0x11},3, 4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
+	{SCF_X64_MOVSD, "movsd", 8, {0xf2, 0x0f, 0x10},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_MOVSD, "movsd", 8, {0xf2, 0x0f, 0x11},3, 8,8, SCF_X64_G2E, 0,0, 0,{0,0}},
+
+	{SCF_X64_UCOMISS, "ucomiss", 3, {0x0f, 0x2e, 0},   2, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_UCOMISD, "ucomisd", 4, {0x66, 0x0f, 0x2e},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
+
+	{SCF_X64_CVTSS2SD, "cvtss2sd", 4, {0xf3, 0x0f, 0x5a},3, 4,8, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_CVTSD2SS, "cvtsd2ss", 4, {0xf2, 0x0f, 0x5a},3, 8,4, SCF_X64_E2G, 0,0, 0,{0,0}},
+
+	{SCF_X64_CVTSI2SS, "cvtsi2ss", 4, {0xf3, 0x0f, 0x2a},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_CVTSI2SD, "cvtsi2sd", 4, {0xf2, 0x0f, 0x2a},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
+
+	{SCF_X64_CVTTSS2SI, "cvttss2si", 4, {0xf3, 0x0f, 0x2c},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_CVTTSD2SI, "cvttsd2si", 8, {0xf2, 0x0f, 0x2c},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
 
 	{SCF_X64_JZ,   "jz",   2, {0x74, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
 	{SCF_X64_JZ,   "jz",   6, {0x0f, 0x84, 0x0},2, 4,4, SCF_X64_I, 0,0, 0,{0,0}},
@@ -324,7 +420,7 @@ scf_register_x64_t* x64_find_register(const char* name)
 	return NULL;
 }
 
-scf_register_x64_t* x64_find_register_id_bytes(uint32_t id, int bytes)
+scf_register_x64_t* x64_find_register_type_id_bytes(uint32_t type, uint32_t id, int bytes)
 {
 	int i;
 	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
@@ -459,23 +555,26 @@ static void _x64_rcg_node_printf(x64_rcg_node_t* rn)
 {
 	if (rn->dag_node) {
 		if (rn->dag_node->var->w) {
-			scf_logw("v_%d_%d/%s, color: %ld, major: %ld, minor: %ld\n",
+			scf_logw("v_%d_%d/%s, color: %ld, type: %ld, id: %ld, mask: %ld\n",
 					rn->dag_node->var->w->line, rn->dag_node->var->w->pos,
 					rn->dag_node->var->w->text->data,
 					rn->dag_node->color,
-					X64_COLOR_MAJOR(rn->dag_node->color),
-					X64_COLOR_MINOR(rn->dag_node->color));
+					X64_COLOR_TYPE(rn->dag_node->color),
+					X64_COLOR_ID(rn->dag_node->color),
+					X64_COLOR_MASK(rn->dag_node->color));
 		} else {
-			scf_logw("v_%#lx, color: %ld, major: %ld, minor: %ld\n",
+			scf_logw("v_%#lx, color: %ld, type: %ld, id: %ld, mask: %ld\n",
 					(uintptr_t)rn->dag_node->var & 0xffff, rn->dag_node->color,
-					X64_COLOR_MAJOR(rn->dag_node->color),
-					X64_COLOR_MINOR(rn->dag_node->color));
+					X64_COLOR_TYPE(rn->dag_node->color),
+					X64_COLOR_ID(rn->dag_node->color),
+					X64_COLOR_MASK(rn->dag_node->color));
 		}
 	} else if (rn->reg) {
-		scf_logw("r/%s, color: %ld, major: %ld, minor: %ld\n",
+		scf_logw("r/%s, color: %ld, type: %ld, major: %ld, minor: %ld\n",
 				rn->reg->name, rn->reg->color,
-				X64_COLOR_MAJOR(rn->reg->color),
-				X64_COLOR_MINOR(rn->reg->color));
+				X64_COLOR_TYPE(rn->reg->color),
+				X64_COLOR_ID(rn->reg->color),
+				X64_COLOR_MASK(rn->reg->color));
 	}
 }
 
@@ -523,7 +622,13 @@ int x64_overflow_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f
 				scf_instruction_t* inst;
 				scf_rela_t*        rela = NULL;
 
-				mov  = x64_find_OpCode(SCF_X64_MOV, r2->bytes, r2->bytes, SCF_X64_G2E);
+				if (SCF_VAR_FLOAT == dn->var->type)
+					mov  = x64_find_OpCode(SCF_X64_MOVSS, r2->bytes, r2->bytes, SCF_X64_G2E);
+				else if (SCF_VAR_DOUBLE == dn->var->type)
+					mov  = x64_find_OpCode(SCF_X64_MOVSD, r2->bytes, r2->bytes, SCF_X64_G2E);
+				else
+					mov  = x64_find_OpCode(SCF_X64_MOV, r2->bytes, r2->bytes, SCF_X64_G2E);
+
 				inst = x64_make_inst_G2M(&rela, mov, dn->var, NULL, r2);
 				X64_INST_ADD_CHECK(c->instructions, inst);
 				X64_RELA_ADD_CHECK(f->data_relas, rela, c, dn->var, NULL);
@@ -532,9 +637,10 @@ int x64_overflow_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f
 				dn->var->arg_flag = 0;
 
 			} else {
-				scf_logw("r2: %s, color: %ld:%ld, temp var not save, ", r2->name,
-						X64_COLOR_MAJOR(r2->color),
-						X64_COLOR_MINOR(r2->color));
+				scf_logw("r2: %s, color: %ld:%ld:%ld, temp var not save, ", r2->name,
+						X64_COLOR_TYPE(r2->color),
+						X64_COLOR_ID(r2->color),
+						X64_COLOR_MASK(r2->color));
 				if (dn->var->w)
 					printf("v_%d_%d/%s\n", dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
 				else
@@ -575,7 +681,7 @@ int x64_reg_cached_vars(scf_register_x64_t* r)
 	return nb_vars;
 }
 
-scf_register_x64_t* x64_select_overflowed_reg(scf_3ac_code_t* c, int bytes)
+scf_register_x64_t* x64_select_overflowed_reg(scf_3ac_code_t* c, uint32_t type, int bytes)
 {
 	scf_register_x64_t* active_regs[sizeof(x64_registers) / sizeof(x64_registers[0])];
 	scf_register_x64_t* free_regs[  sizeof(x64_registers) / sizeof(x64_registers[0])];
@@ -592,7 +698,7 @@ scf_register_x64_t* x64_select_overflowed_reg(scf_3ac_code_t* c, int bytes)
 		if (SCF_X64_REG_RSP == r->id || SCF_X64_REG_RBP == r->id)
 			continue;
 
-		if (r->bytes < bytes)
+		if (r->bytes < bytes || X64_COLOR_TYPE(r->color) != type)
 			continue;
 
 		for (j = 0; j < c->active_vars->size; j++) {
@@ -682,7 +788,7 @@ static int _x64_select_regs(scf_native_t* ctx, scf_basic_block_t* bb, scf_functi
 			dn = scf_list_data(l, scf_dag_node_t, list);
 
 			if (dn->var == v) {
-				r = x64_find_register_id_bytes(x64_abi_regs[i], v->size);
+				r = x64_find_register_type_id_bytes(0, x64_abi_regs[i], v->size);
 				dn->color = r->color;
 				break;
 			}
@@ -696,7 +802,7 @@ static int _x64_select_regs(scf_native_t* ctx, scf_basic_block_t* bb, scf_functi
 				goto error;
 			}
 
-			r = x64_find_register_id_bytes(x64_abi_regs[i], v->size);
+			r = x64_find_register_type_id_bytes(0, x64_abi_regs[i], v->size);
 			dn->color = r->color;
 			scf_list_add_tail(&bb->dag_list_head, &dn->list);
 		}
@@ -849,7 +955,7 @@ static int _x64_make_insts_for_list(scf_native_t* ctx, scf_list_t* h, int bb_off
 	return bb_offset;
 }
 
-static void _x64_make_inst_for_jmps(scf_native_t* ctx, scf_function_t* f)
+static void _x64_set_offset_for_jmps(scf_native_t* ctx, scf_function_t* f)
 {
 	int nb_jmps = f->jmps->size;
 	while (nb_jmps > 0) {
@@ -964,32 +1070,30 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 			return ret;
 
 		int bb_offset = 0;
-#if 1
+
 		ret = _x64_make_insts_for_list(ctx, &bb->load_list_head, bb_offset);
 		if (ret < 0)
 			return ret;
 		bb_offset = ret;
-#endif
+
 		ret = _x64_make_insts_for_list(ctx, &bb->code_list_head, bb_offset);
 		if (ret < 0)
 			return ret;
 		bb_offset = ret;
-#if 1
-		ret = _x64_make_insts_for_list(ctx, &bb->save_list_head, bb_offset);
-		if (ret < 0)
-			return ret;
-		bb_offset = ret;
-#endif
+
+		if (!bb->ret_flag) {
+			ret = _x64_make_insts_for_list(ctx, &bb->save_list_head, bb_offset);
+			if (ret < 0)
+				return ret;
+			bb_offset = ret;
+		}
+
 		bb->code_bytes = bb_offset;
 	}
 
-	_x64_make_inst_for_jmps(ctx, f);
-	scf_logw("\n");
+	_x64_set_offset_for_jmps( ctx, f);
 	_x64_set_offset_for_relas(ctx, f, f->text_relas);
-
-	scf_logw("\n");
 	_x64_set_offset_for_relas(ctx, f, f->data_relas);
-	scf_logw("\n");
 
 	return 0;
 }

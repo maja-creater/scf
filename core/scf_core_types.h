@@ -72,6 +72,12 @@ enum scf_core_types {
 	SCF_OP_3AC_TEQ,		// test if 0
 	SCF_OP_3AC_CMP,		// test if 0
 
+	SCF_OP_3AC_SETZ,
+	SCF_OP_3AC_SETNZ,
+
+	SCF_OP_3AC_DEREFERENCE_LV, // left value, update the value of pointer
+	SCF_OP_3AC_ARRAY_INDEX_LV, // left value, update the value of array in index
+
 	SCF_OP_3AC_JZ,		// jz, jmp if 0
 	SCF_OP_3AC_JNZ,		// jnz, jmp if not 0
 	SCF_OP_3AC_JGT,		// jgt, jmp if not 0

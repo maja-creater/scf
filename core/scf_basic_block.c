@@ -217,13 +217,21 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 				if (scf_type_is_operator(src->dag_node->type)
 						|| !scf_variable_const(src->dag_node->var)) {
 
-					scf_logw("type: %d, var: %s, const_flag: %d, const_literal_flag: %d, nb_pointers: %d\n",
-							src->dag_node->type,
-							src->dag_node->var->w->text->data,
-							src->dag_node->var->const_flag,
-							src->dag_node->var->const_literal_flag,
-							src->dag_node->var->nb_pointers
-							);
+					if (src->dag_node->var->w) {
+						scf_logw("type: %d, var: %s, const_flag: %d, const_literal_flag: %d, nb_pointers: %d\n",
+								src->dag_node->type,
+								src->dag_node->var->w->text->data,
+								src->dag_node->var->const_flag,
+								src->dag_node->var->const_literal_flag,
+								src->dag_node->var->nb_pointers);
+					} else {
+						scf_logw("type: %d, var: %#lx, const_flag: %d, const_literal_flag: %d, nb_pointers: %d\n",
+								src->dag_node->type,
+								0xffff & (uintptr_t)src->dag_node->var,
+								src->dag_node->var->const_flag,
+								src->dag_node->var->const_literal_flag,
+								src->dag_node->var->nb_pointers);
+					}
 
 					ret = scf_vector_add_unique(bb->var_dag_nodes, src->dag_node);
 					if (ret < 0)

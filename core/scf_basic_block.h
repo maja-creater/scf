@@ -27,6 +27,7 @@ struct scf_basic_block_s
 
 	uint32_t        jmp_flag:1;
 	uint32_t        call_flag:1;
+	uint32_t        ret_flag:1;
 };
 
 

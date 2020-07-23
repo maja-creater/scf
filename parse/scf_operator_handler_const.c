@@ -448,82 +448,21 @@ static int _scf_op_const_expr(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, 
 
 static int _scf_op_const_neg(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
-	assert(1 == nb_nodes);
-
-	scf_handler_data_t* d = data;
-
-	scf_variable_t* v0 = _scf_operand_get(nodes[0]);
-
-	assert(v0);
-
-	if (scf_type_is_number(v0->type)) {
-
-		scf_type_t*	t = scf_ast_find_type_type(ast, v0->type);
-
-		return 0;
-	}
-
-	printf("%s(),%d, error: \n", __func__, __LINE__);
-	return -1;
+	return 0;
 }
 
 static int _scf_op_const_positive(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
-	printf("%s(),%d\n", __func__, __LINE__);
-	assert(1 == nb_nodes);
-
-	scf_handler_data_t* d = data;
-
-	scf_variable_t* v0 = _scf_operand_get(nodes[0]);
-
-	assert(v0);
-
-	if (scf_type_is_number(v0->type)) {
-
-		scf_type_t*	t = scf_ast_find_type_type(ast, v0->type);
-
-		return 0;
-	}
-
-	printf("%s(),%d, error: \n", __func__, __LINE__);
-	return -1;
+	return 0;
 }
 
 static int _scf_op_const_dereference(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
-	assert(1 == nb_nodes);
-
-	scf_handler_data_t* d = data;
-
-	scf_variable_t* v0 = _scf_operand_get(nodes[0]);
-	assert(v0);
-
-	scf_logi("v0->nb_pointers: %d\n", v0->nb_pointers);
-
-	if (v0->nb_pointers <= 0) {
-		scf_loge("var is not a pointer\n");
-		return -EINVAL;
-	}
-
-	scf_type_t*	t = scf_ast_find_type_type(ast, v0->type);
-
-	scf_lex_word_t* w = nodes[0]->parent->w;
 	return 0;
 }
 
 static int _scf_op_const_address_of(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
-	printf("%s(),%d\n", __func__, __LINE__);
-	assert(1 == nb_nodes);
-
-	scf_handler_data_t* d = data;
-
-	scf_variable_t* v0 = _scf_operand_get(nodes[0]);
-	assert(v0);
-
-	scf_type_t*	t = scf_ast_find_type_type(ast, v0->type);
-
-	scf_lex_word_t* w = nodes[0]->parent->w;
 	return 0;
 }
 
@@ -568,19 +507,61 @@ static int _scf_op_const_sizeof(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 	return -1;
 }
 
-static int _scf_op_const_logic_not(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+static int _scf_op_const_unary(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
-	printf("%s(),%d\n", __func__, __LINE__);
 	assert(1 == nb_nodes);
 
-	scf_handler_data_t* d = data;
+	scf_handler_data_t* d  = data;
 
-	scf_variable_t* v0 = _scf_operand_get(nodes[0]);
+	scf_variable_t* v0     = _scf_operand_get(nodes[0]);
+	scf_node_t*     parent = nodes[0]->parent;
 
 	assert(v0);
 
-	printf("%s(),%d, error: \n", __func__, __LINE__);
-	return -1;
+	if (scf_type_is_number(v0->type)) {
+
+		if (!v0->const_flag)
+			return 0;
+
+		scf_calculate_t* cal = scf_find_base_calculate(parent->type, v0->type, v0->type);
+		if (!cal) {
+			scf_loge("type %d not support\n", v0->type);
+			return -EINVAL;
+		}
+
+		scf_variable_t* r = NULL;
+		int ret = cal->func(ast, &r, v0, NULL);
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
+		r->const_flag = 1;
+
+		SCF_XCHG(r->w, parent->w);
+
+		scf_logi("r: %p\n", r);
+		scf_logi("r->data.i64: %ld\n", r->data.i64);
+
+		scf_node_free_data(parent);
+		parent->type = r->type;
+		parent->var  = r;
+
+	} else {
+		scf_loge("type %d not support\n", v0->type);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int _scf_op_const_bit_not(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	return _scf_op_const_unary(ast, nodes, nb_nodes, data);
+}
+
+static int _scf_op_const_logic_not(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	return _scf_op_const_unary(ast, nodes, nb_nodes, data);
 }
 
 static int _scf_op_const_binary(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
@@ -694,6 +675,26 @@ static int _scf_op_const_le(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, vo
 	return _scf_op_const_cmp(ast, nodes, nb_nodes, data);
 }
 
+static int _scf_op_const_logic_and(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	return _scf_op_const_binary(ast, nodes, nb_nodes, data);
+}
+
+static int _scf_op_const_logic_or(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	return _scf_op_const_binary(ast, nodes, nb_nodes, data);
+}
+
+static int _scf_op_const_bit_and(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	return _scf_op_const_binary(ast, nodes, nb_nodes, data);
+}
+
+static int _scf_op_const_bit_or(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	return _scf_op_const_binary(ast, nodes, nb_nodes, data);
+}
+
 scf_operator_handler_t const_operator_handlers[] = {
 	{{NULL, NULL}, SCF_OP_EXPR,			-1, 	-1, -1, _scf_op_const_expr},
 	{{NULL, NULL}, SCF_OP_CALL,			-1, 	-1, -1, _scf_op_const_call},
@@ -705,6 +706,7 @@ scf_operator_handler_t const_operator_handlers[] = {
 	{{NULL, NULL}, SCF_OP_SIZEOF,       -1,     -1, -1, _scf_op_const_sizeof},
 	{{NULL, NULL}, SCF_OP_TYPE_CAST,	-1, 	-1, -1, _scf_op_const_type_cast},
 	{{NULL, NULL}, SCF_OP_LOGIC_NOT,	-1, 	-1, -1, _scf_op_const_logic_not},
+	{{NULL, NULL}, SCF_OP_BIT_NOT,      -1,     -1, -1, _scf_op_const_bit_not},
 	{{NULL, NULL}, SCF_OP_NEG,			-1, 	-1, -1, _scf_op_const_neg},
 	{{NULL, NULL}, SCF_OP_POSITIVE,		-1, 	-1, -1, _scf_op_const_positive},
 
@@ -717,6 +719,9 @@ scf_operator_handler_t const_operator_handlers[] = {
 	{{NULL, NULL}, SCF_OP_ADD,			-1, 	-1, -1, _scf_op_const_add},
 	{{NULL, NULL}, SCF_OP_SUB,			-1, 	-1, -1, _scf_op_const_sub},
 
+	{{NULL, NULL}, SCF_OP_BIT_AND,      -1,     -1, -1, _scf_op_const_bit_and},
+	{{NULL, NULL}, SCF_OP_BIT_OR,       -1,     -1, -1, _scf_op_const_bit_or},
+
 	{{NULL, NULL}, SCF_OP_EQ,			-1, 	-1, -1, _scf_op_const_eq},
 	{{NULL, NULL}, SCF_OP_NE,           -1,     -1, -1, _scf_op_const_ne},
 	{{NULL, NULL}, SCF_OP_GT,			-1, 	-1, -1, _scf_op_const_gt},
@@ -724,6 +729,8 @@ scf_operator_handler_t const_operator_handlers[] = {
 	{{NULL, NULL}, SCF_OP_GE,			-1, 	-1, -1, _scf_op_const_ge},
 	{{NULL, NULL}, SCF_OP_LE,			-1, 	-1, -1, _scf_op_const_le},
 
+	{{NULL, NULL}, SCF_OP_LOGIC_AND,    -1,     -1, -1, _scf_op_const_logic_and},
+	{{NULL, NULL}, SCF_OP_LOGIC_OR,     -1,     -1, -1, _scf_op_const_logic_or},
 
 	{{NULL, NULL}, SCF_OP_ASSIGN,		-1, 	-1, -1, _scf_op_const_assign},
 

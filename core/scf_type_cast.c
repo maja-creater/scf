@@ -123,7 +123,11 @@ int scf_type_cast_check(scf_ast_t* ast, scf_variable_t* dst, scf_variable_t* src
 	}
 
 	if (SCF_VAR_FLOAT <= src->type && SCF_VAR_COMPLEX >= src->type) {
+
 		if (SCF_VAR_FLOAT <= dst->type && SCF_VAR_COMPLEX >= dst->type)
+			return 0;
+
+		if (scf_type_is_integer(dst->type))
 			return 0;
 	}
 

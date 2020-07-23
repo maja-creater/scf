@@ -11,6 +11,7 @@ static scf_operator_t	base_operators[] = {
 	{SCF_OP_CREATE, 		"create", 	2, -1,	SCF_OP_ASSOCIATIVITY_RIGHT},
 	{SCF_OP_TYPE_CAST, 		"(", 		2, 2,	SCF_OP_ASSOCIATIVITY_RIGHT},
 	{SCF_OP_LOGIC_NOT, 		"!", 		2, 1,	SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_BIT_NOT,        "~",        2, 1,   SCF_OP_ASSOCIATIVITY_RIGHT},
 	{SCF_OP_NEG, 			"-", 		2, 1,	SCF_OP_ASSOCIATIVITY_RIGHT},
 	{SCF_OP_POSITIVE, 		"+", 		2, 1,	SCF_OP_ASSOCIATIVITY_RIGHT},
 	{SCF_OP_SIZEOF,         "sizeof",   2, 1,   SCF_OP_ASSOCIATIVITY_RIGHT},
@@ -24,13 +25,18 @@ static scf_operator_t	base_operators[] = {
 	{SCF_OP_ADD, 			"+", 		5, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
 	{SCF_OP_SUB, 			"-", 		5, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
 
-	{SCF_OP_EQ, 			"==", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
-	{SCF_OP_NE,             "!=",       7, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
-	{SCF_OP_GT, 			">", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
-	{SCF_OP_LT, 			"<", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
-	{SCF_OP_GE, 			">=", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
-	{SCF_OP_LE, 			"<=", 		7, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_BIT_AND,        "&",        7, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_BIT_OR,         "|",        7, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
 
+	{SCF_OP_EQ, 			"==", 		8, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_NE,             "!=",       8, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_GT, 			">", 		8, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_LT, 			"<", 		8, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_GE, 			">=", 		8, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_LE, 			"<=", 		8, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+
+	{SCF_OP_LOGIC_AND,      "&&",       9, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_LOGIC_OR,       "||",       9, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
 
 	{SCF_OP_ASSIGN, 		"=", 		10, 2,	SCF_OP_ASSOCIATIVITY_RIGHT},
 

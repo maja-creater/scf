@@ -6,9 +6,10 @@
 #include"scf_graph.h"
 #include"scf_elf.h"
 
-#define X64_COLOR(major, minor)     ((major) << 16 | (minor))
-#define X64_COLOR_MAJOR(c)          ((c) >> 16)
-#define X64_COLOR_MINOR(c)          ((c) & 0xffff)
+#define X64_COLOR(type, id, mask)   ((type) << 24 | (id) << 16 | (mask))
+#define X64_COLOR_TYPE(c)           ((c) >> 24)
+#define X64_COLOR_ID(c)             (((c) >> 16) & 0xff)
+#define X64_COLOR_MASK(c)           ((c) & 0xffff)
 #define X64_COLOR_CONFLICT(c0, c1)  ( (c0) >> 16 == (c1) >> 16 && (c0) & (c1) & 0xffff )
 
 #define X64_COLOR_BYTES(c) \
@@ -132,11 +133,11 @@ int scf_x64_select(scf_native_t* ctx);
 int scf_x64_graph_kcolor(scf_graph_t* graph, int k, scf_vector_t* colors);
 
 scf_register_x64_t*	x64_find_register(const char* name);
-scf_register_x64_t* x64_find_register_id_bytes(uint32_t id, int bytes);
+scf_register_x64_t* x64_find_register_type_id_bytes(uint32_t type, uint32_t id, int bytes);
 scf_register_x64_t* x64_find_register_color(intptr_t color);
 scf_register_x64_t*	x64_find_abi_register(int index, int bytes);
 
-scf_register_x64_t* x64_select_overflowed_reg(scf_3ac_code_t* c, int bytes);
+scf_register_x64_t* x64_select_overflowed_reg(scf_3ac_code_t* c, uint32_t type, int bytes);
 
 int                 x64_overflow_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f);
 
@@ -158,6 +159,14 @@ scf_instruction_t* x64_make_inst_M2G(scf_rela_t** prela, scf_x64_OpCode_t* OpCod
 
 scf_instruction_t* x64_make_inst_G2E(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_dst, scf_register_x64_t* r_src);
 scf_instruction_t* x64_make_inst_E2G(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_dst, scf_register_x64_t* r_src);
+
+scf_instruction_t* x64_make_inst_P2G(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_dst, scf_register_x64_t* r_base, int32_t offset);
+scf_instruction_t* x64_make_inst_G2P(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_base, int32_t offset, scf_register_x64_t* r_src);
+scf_instruction_t* x64_make_inst_I2P(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_base, int32_t offset, uint8_t* imm, int size);
+
+scf_instruction_t* x64_make_inst_SIB2G(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_dst,  scf_register_x64_t* r_base,  scf_register_x64_t* r_index, int32_t scale, int32_t disp);
+scf_instruction_t* x64_make_inst_G2SIB(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_base, scf_register_x64_t* r_index, int32_t scale, int32_t disp, scf_register_x64_t* r_src);
+scf_instruction_t* x64_make_inst_I2SIB(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_base, scf_register_x64_t* r_index, int32_t scale, int32_t disp, uint8_t* imm, int32_t size);
 
 #endif
 
