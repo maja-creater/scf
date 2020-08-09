@@ -21,9 +21,13 @@ static scf_3ac_operator_t _3ac_operators[] = {
 
 	{SCF_OP_MUL, 			"mul"},
 	{SCF_OP_DIV, 			"div"},
+	{SCF_OP_MOD,            "mod"},
 
 	{SCF_OP_ADD, 			"add"},
 	{SCF_OP_SUB, 			"sub"},
+
+	{SCF_OP_SHL,            "shl"},
+	{SCF_OP_SHR,            "shr"},
 
 	{SCF_OP_BIT_AND,        "and"},
 	{SCF_OP_BIT_OR,         "or"},
@@ -35,7 +39,16 @@ static scf_3ac_operator_t _3ac_operators[] = {
 	{SCF_OP_GE, 			"ge"},
 	{SCF_OP_LE, 			"le"},
 
-	{SCF_OP_ASSIGN, 		 "assign"},
+	{SCF_OP_ASSIGN,         "assign"},
+	{SCF_OP_ADD_ASSIGN,     "+="},
+	{SCF_OP_SUB_ASSIGN,     "-="},
+	{SCF_OP_MUL_ASSIGN,     "*="},
+	{SCF_OP_DIV_ASSIGN,     "/="},
+	{SCF_OP_MOD_ASSIGN,     "%="},
+	{SCF_OP_SHL_ASSIGN,     "<<="},
+	{SCF_OP_SHR_ASSIGN,     ">>="},
+	{SCF_OP_AND_ASSIGN,     "&="},
+	{SCF_OP_OR_ASSIGN,      "|="},
 
 	{SCF_OP_RETURN,			 "return"},
 	{SCF_OP_GOTO,			 "jmp"},
@@ -43,11 +56,10 @@ static scf_3ac_operator_t _3ac_operators[] = {
 	{SCF_OP_3AC_TEQ,         "teq"},
 	{SCF_OP_3AC_CMP,         "cmp"},
 
+	{SCF_OP_3AC_LEA,         "lea"},
+
 	{SCF_OP_3AC_SETZ,        "setz"},
 	{SCF_OP_3AC_SETNZ,       "setnz"},
-
-	{SCF_OP_3AC_DEREFERENCE_LV,	"dereference_lv"},
-	{SCF_OP_3AC_ARRAY_INDEX_LV,	"array_index_lv"},
 
 	{SCF_OP_3AC_JZ,          "jz"},
 	{SCF_OP_3AC_JNZ,         "jnz"},
@@ -61,6 +73,26 @@ static scf_3ac_operator_t _3ac_operators[] = {
 	{SCF_OP_3AC_POP,         "pop"},
 	{SCF_OP_3AC_SAVE,        "save"},
 	{SCF_OP_3AC_LOAD,        "load"},
+
+	{SCF_OP_3AC_ASSIGN_DEREFERENCE,	    "dereference="},
+	{SCF_OP_3AC_ASSIGN_ARRAY_INDEX,	    "array_index="},
+	{SCF_OP_3AC_ASSIGN_POINTER,	        "pointer="},
+
+	{SCF_OP_3AC_ADD_ASSIGN_DEREFERENCE,	"dereference+="},
+	{SCF_OP_3AC_ADD_ASSIGN_ARRAY_INDEX,	"array_index+="},
+	{SCF_OP_3AC_ADD_ASSIGN_POINTER,	    "pointer+="},
+
+	{SCF_OP_3AC_SUB_ASSIGN_DEREFERENCE,	"dereference-="},
+	{SCF_OP_3AC_SUB_ASSIGN_ARRAY_INDEX,	"array_index-="},
+	{SCF_OP_3AC_SUB_ASSIGN_POINTER,	    "pointer-="},
+
+	{SCF_OP_3AC_AND_ASSIGN_DEREFERENCE, "dereference&="},
+	{SCF_OP_3AC_AND_ASSIGN_ARRAY_INDEX, "array_index&="},
+	{SCF_OP_3AC_AND_ASSIGN_POINTER,     "pointer&="},
+
+	{SCF_OP_3AC_OR_ASSIGN_DEREFERENCE,  "dereference|="},
+	{SCF_OP_3AC_OR_ASSIGN_ARRAY_INDEX,  "array_index|="},
+	{SCF_OP_3AC_OR_ASSIGN_POINTER,      "pointer|="},
 };
 
 scf_3ac_operator_t*	scf_3ac_find_operator(const int type)
@@ -290,7 +322,7 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 {
 	int ret = 0;
 
-	if (SCF_OP_ASSIGN == c->op->type) {
+	if (scf_type_is_assign(c->op->type)) {
 
 		scf_3ac_operand_t* src = c->srcs->data[0];
 
@@ -302,7 +334,7 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 		if (ret < 0)
 			return ret;
 
-		scf_dag_node_t* dag_assign = scf_dag_node_alloc(SCF_OP_ASSIGN, NULL);
+		scf_dag_node_t* dag_assign = scf_dag_node_alloc(c->op->type, NULL);
 		scf_list_add_tail(dag, &dag_assign->list);
 
 		ret = scf_dag_node_add_child(dag_assign, c->dst->dag_node);
@@ -378,6 +410,18 @@ int scf_3ac_split_basic_blocks(scf_list_t* list_head_3ac, scf_function_t* f)
 		if (!start) {
 			c->basic_block_start = 1;
 			start = 1;
+		}
+
+		if (SCF_OP_3AC_ASSIGN_DEREFERENCE == c->op->type
+				|| SCF_OP_3AC_ASSIGN_ARRAY_INDEX == c->op->type
+				|| SCF_OP_3AC_ASSIGN_POINTER     == c->op->type) {
+
+			l2	= scf_list_next(&c->list);
+			if (l2 != scf_list_sentinel(list_head_3ac)) {
+				n2 = scf_list_data(l2, scf_3ac_code_t, list);
+				n2->basic_block_start = 1;
+			}
+			continue;
 		}
 
 		if (SCF_OP_CALL == c->op->type

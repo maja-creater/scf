@@ -1,272 +1,47 @@
 #include"scf_x64.h"
 
-static int _x64_inst_float_OpCode_type(int OpCode_type, int var_type)
+#define X64_INST_OP3_CHECK() \
+	if (!c->dst || !c->dst->dag_node) \
+		return -EINVAL; \
+	\
+	if (!c->srcs || c->srcs->size != 2) \
+		return -EINVAL; \
+	\
+	scf_x64_context_t* x64  = ctx->priv; \
+	scf_function_t*    f    = x64->f; \
+	\
+	scf_3ac_operand_t* dst  = c->dst; \
+	scf_3ac_operand_t* src0 = c->srcs->data[0]; \
+	scf_3ac_operand_t* src1 = c->srcs->data[1]; \
+	\
+	if (!src0 || !src0->dag_node) \
+		return -EINVAL; \
+	\
+	if (!src1 || !src1->dag_node) \
+		return -EINVAL; \
+	\
+	if (src0->dag_node->var->size != src1->dag_node->var->size) \
+		return -EINVAL; \
+
+static int _x64_inst_float_op2(int OpCode_type, scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t* c, scf_function_t* f)
 {
-	if (SCF_VAR_FLOAT == var_type) {
-
-		switch (OpCode_type) {
-			case SCF_X64_ADD:
-				return SCF_X64_ADDSS;
-				break;
-			case SCF_X64_SUB:
-				return SCF_X64_SUBSS;
-				break;
-			case SCF_X64_MUL:
-				return SCF_X64_MULSS;
-				break;
-			case SCF_X64_DIV:
-				return SCF_X64_DIVSS;
-				break;
-
-			default:
-				break;
-		};
-	} else {
-		switch (OpCode_type) {
-			case SCF_X64_ADD:
-				return SCF_X64_ADDSD;
-				break;
-			case SCF_X64_SUB:
-				return SCF_X64_SUBSD;
-				break;
-			case SCF_X64_MUL:
-				return SCF_X64_MULSD;
-				break;
-			case SCF_X64_DIV:
-				return SCF_X64_DIVSD;
-				break;
-
-			default:
-				break;
-		};
+	if (0 == src->color) {
+		src->color = -1;
+		src->var->global_flag = 1;
 	}
 
-	return -1;
-}
-
-static int _x64_inst_op2_imm(int OpCode_type, scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t* c, scf_function_t* f)
-{
-	scf_x64_OpCode_t*   OpCode;
-	scf_instruction_t*  inst;
-	scf_register_x64_t* rd;
-	scf_register_x64_t* rs;
-
-	assert(scf_variable_const(src->var));
-
-	int src_size = src->var->size > dst->var->size ? dst->var->size : src->var->size;
-
-	if (dst->color > 0) {
-		rd     = x64_find_register_color(dst->color);
-		OpCode = x64_find_OpCode(OpCode_type, src_size, dst->var->size, SCF_X64_I2G);
-
-		if (!OpCode) {
-			OpCode = x64_find_OpCode(OpCode_type, src_size, dst->var->size, SCF_X64_I2E);
-			if (!OpCode)
-				return -EINVAL;
-
-			inst = x64_make_inst_I2E(OpCode, rd, (uint8_t*)&src->var->data, src_size);
-		} else {
-			inst = x64_make_inst_I2G(OpCode, rd, (uint8_t*)&src->var->data, src_size);
-		}
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		return 0;
-	}
-
-	OpCode = x64_find_OpCode(OpCode_type, src_size, dst->var->size, SCF_X64_I2E);
-	if (!OpCode)
-		return -EINVAL;
-
-	scf_rela_t* rela = NULL;
-
-	inst = x64_make_inst_I2M(&rela, OpCode, dst->var, NULL, (uint8_t*)&src->var->data, src_size);
-	X64_INST_ADD_CHECK(c->instructions, inst);
-	X64_RELA_ADD_CHECK(f->data_relas, rela, c, dst->var, NULL);
-
-	return 0;
-}
-
-static int _x64_inst_select_reg(scf_register_x64_t** preg, scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f, int load_flag)
-{
-	scf_x64_OpCode_t*   mov;
-	scf_instruction_t*  inst;
-	scf_register_x64_t* r;
-	int ret;
-	int type;
-
-	if (0 == dn->color)
-		return -EINVAL;
-
-	if (dn->color > 0) {
-		scf_logw("\n");
-		*preg = x64_find_register_color(dn->color);
-		return 0;
-	}
-
-	type = scf_type_is_float(dn->var->type) && 0 == dn->var->nb_pointers;
-
-	r    = x64_select_overflowed_reg(c, type, dn->var->size);
-	scf_logw("r->name: %s\n", r->name);
-
-	ret = x64_overflow_reg(r, c, f);
-	if (ret < 0) {
-		scf_loge("overflow reg failed\n");
-		return ret;
-	}
-	assert(0 == r->dag_nodes->size);
-
-	scf_logw("dn->var->size: %d, r->bytes: %d\n", dn->var->size, r->bytes);
-
-	ret = scf_vector_add(r->dag_nodes, dn);
-	if (ret < 0) {
+	OpCode_type = x64_float_OpCode_type(OpCode_type, src->var->type);
+	if (OpCode_type < 0) {
 		scf_loge("\n");
-		return ret;
-	}
-	dn->color = r->color;
-
-	if (load_flag) {
-		scf_rela_t* rela = NULL;
-
-		if (type) {
-			if (SCF_VAR_FLOAT == dn->var->type)
-				mov  = x64_find_OpCode(SCF_X64_MOVSS, dn->var->size, dn->var->size, SCF_X64_E2G);
-			else
-				mov  = x64_find_OpCode(SCF_X64_MOVSD, dn->var->size, dn->var->size, SCF_X64_E2G);
-		} else
-			mov  = x64_find_OpCode(SCF_X64_MOV, dn->var->size, dn->var->size, SCF_X64_E2G);
-
-		inst = x64_make_inst_M2G(&rela, mov, r, NULL, dn->var);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, dn->var, NULL);
+		return -1;
 	}
 
-	*preg = r;
-	return 0;
-}
-
-static int _x64_inst_op_movx(scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t* c, scf_function_t* f)
-{
-	scf_x64_OpCode_t*   movx;
-	scf_x64_OpCode_t*   mov;
-	scf_x64_OpCode_t*   push;
-	scf_x64_OpCode_t*   pop;
-	scf_x64_OpCode_t*   xor;
-
-	scf_instruction_t*  inst;
-	scf_register_x64_t* rs;
-	scf_register_x64_t* rd = NULL;
-
-	int ret = _x64_inst_select_reg(&rd, dst, c, f, 0);
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-	assert(dst->color > 0);
-
-	if (scf_type_is_signed(src->var->type)) {
-		movx = x64_find_OpCode(SCF_X64_MOVSX, src->var->size, dst->var->size, SCF_X64_E2G);
-
-	} else if (src->var->size <= 2) {
-		movx = x64_find_OpCode(SCF_X64_MOVZX, src->var->size, dst->var->size, SCF_X64_E2G);
-
-	} else {
-		assert(4 == src->var->size);
-		xor  = x64_find_OpCode(SCF_X64_XOR, 8, 8, SCF_X64_G2E);
-		inst = x64_make_inst_G2E(xor, rd, rd);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-		movx = x64_find_OpCode(SCF_X64_MOV, 4, 4, SCF_X64_E2G);
-	}
-
-	if (src->color > 0) {
-		rs   = x64_find_register_color(src->color);
-		inst = x64_make_inst_E2G(movx, rd, rs);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-	} else if (0 == src->color) {
-		// get the rd's low bits register
-		rs   = x64_find_register_type_id_bytes(0, rd->id, src->var->size);
-
-		mov  = x64_find_OpCode(SCF_X64_MOV, src->var->size, src->var->size, SCF_X64_I2G);
-		inst = x64_make_inst_I2G(mov, rs, (uint8_t*)&src->var->data, src->var->size);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-		inst = x64_make_inst_E2G(movx, rd, rs);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-	} else {
-		scf_rela_t* rela = NULL;
-
-		inst = x64_make_inst_M2G(&rela, movx, rd, NULL, src->var);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, src->var, NULL);
-	}
-
-	return 0;
-}
-
-static int _x64_inst_op2(int OpCode_type, scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t* c, scf_function_t* f)
-{
-	assert(0 != dst->color);
-
-	scf_x64_OpCode_t*   OpCode = NULL;
-	scf_register_x64_t* rs     = NULL;
-	scf_register_x64_t* rd     = NULL;
-	scf_instruction_t*  inst   = NULL;
-	scf_rela_t*         rela   = NULL;
-
-	if (0 == src->color)
-		return _x64_inst_op2_imm(OpCode_type, dst, src, c, f);
-
-	int src_size = src->var->size > dst->var->size ? dst->var->size : src->var->size;
-
-	int ret = _x64_inst_select_reg(&rd, dst, c, f, 0);
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-	assert(dst->color > 0);
-
-	if (src->color > 0) {
-		rs = x64_find_register_color(src->color);
-
-		OpCode = x64_find_OpCode(OpCode_type, src_size, dst->var->size, SCF_X64_G2E);
-		if (OpCode) {
-			inst = x64_make_inst_G2E(OpCode, rd, rs);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-
-		} else {
-			OpCode = x64_find_OpCode(OpCode_type, src_size, dst->var->size, SCF_X64_E2G);
-			if (!OpCode) {
-				scf_loge("OpCode_type: %d, size: %d, size: %d\n", OpCode_type, src->var->size, dst->var->size);
-				return -EINVAL;
-			}
-
-			inst = x64_make_inst_E2G(OpCode, rd, rs);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-		}
-	} else {
-		OpCode = x64_find_OpCode(OpCode_type, src_size, dst->var->size, SCF_X64_E2G);
-		if (!OpCode) {
-			scf_loge("OpCode_type: %d, size: %d, size: %d\n", OpCode_type, src->var->size, dst->var->size);
-			return -EINVAL;
-		}
-
-		inst = x64_make_inst_M2G(&rela, OpCode, rd, NULL, src->var);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, src->var, NULL);
-	}
-
-	return 0;
+	return x64_inst_op2(OpCode_type, dst, src, c, f);
 }
 
 static int _x64_inst_float_op3(int OpCode_type, scf_dag_node_t* dst, scf_dag_node_t* src0, scf_dag_node_t* src1, scf_3ac_code_t* c, scf_function_t* f)
 {
 	int ret  = 0;
-
-	scf_register_x64_t* rs0  = NULL;
-	scf_register_x64_t* rs1  = NULL;
-	scf_instruction_t*  inst = NULL;
-	scf_x64_OpCode_t*   OpCode;
 
 	if (0 == src0->color) {
 		src0->color = -1;
@@ -279,108 +54,22 @@ static int _x64_inst_float_op3(int OpCode_type, scf_dag_node_t* dst, scf_dag_nod
 	}
 
 	if (SCF_VAR_FLOAT == src0->var->type)
-		ret = _x64_inst_op2(SCF_X64_MOVSS, dst, src0, c, f);
+		ret = x64_inst_op2(SCF_X64_MOVSS, dst, src0, c, f);
 	else
-		ret = _x64_inst_op2(SCF_X64_MOVSD, dst, src0, c, f);
+		ret = x64_inst_op2(SCF_X64_MOVSD, dst, src0, c, f);
 
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
 	}
 
-	OpCode_type = _x64_inst_float_OpCode_type(OpCode_type, src0->var->type);
+	OpCode_type = x64_float_OpCode_type(OpCode_type, src0->var->type);
 	if (OpCode_type < 0) {
 		scf_loge("\n");
 		return -1;
 	}
 
-	return _x64_inst_op2(OpCode_type, dst, src1, c, f);
-}
-
-static int _x64_inst_float_cast(scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t* c, scf_function_t* f)
-{
-	scf_x64_OpCode_t*   OpCode;
-
-	scf_instruction_t*  inst;
-	scf_register_x64_t* rs = NULL;
-	scf_register_x64_t* rd = NULL;
-
-	int ret = _x64_inst_select_reg(&rd, dst, c, f, 0);
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-	assert(dst->color > 0);
-
-	int OpCode_type;
-	if (scf_type_is_float(dst->var->type)) {
-		if (scf_type_is_float(src->var->type)) {
-
-			if (SCF_VAR_FLOAT == src->var->type)
-				OpCode_type = SCF_X64_CVTSS2SD;
-			else
-				OpCode_type = SCF_X64_CVTSD2SS;
-
-		} else {
-			if (SCF_VAR_FLOAT == dst->var->type)
-				OpCode_type = SCF_X64_CVTSI2SS;
-			else
-				OpCode_type = SCF_X64_CVTSI2SD;
-		}
-	} else {
-		if (SCF_VAR_FLOAT == src->var->type)
-			OpCode_type = SCF_X64_CVTTSS2SI;
-		else
-			OpCode_type = SCF_X64_CVTTSD2SI;
-	}
-
-	if (0 == src->color) {
-		src->color = -1;
-		src->var->global_flag = 1;
-
-		ret = _x64_inst_select_reg(&rs, src, c, f, 1);
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
-		}
-		assert(src->color > 0);
-
-		OpCode = x64_find_OpCode(OpCode_type, src->var->size, dst->var->size, SCF_X64_E2G);
-		if (!OpCode) {
-			scf_loge("OpCode_type: %d, size: %d->%d\n", OpCode_type, src->var->size, dst->var->size);
-			return -EINVAL;
-		}
-		scf_logw("OpCode: %s,%d\n", OpCode->name, OpCode->type);
-
-		inst   = x64_make_inst_E2G(OpCode, rd, rs);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-	} else if (src->color > 0) {
-		OpCode = x64_find_OpCode(OpCode_type, src->var->size, dst->var->size, SCF_X64_E2G);
-		if (!OpCode) {
-			scf_loge("\n");
-			return -EINVAL;
-		}
-
-		rs   = x64_find_register_color(src->color);
-		inst = x64_make_inst_G2E(OpCode, rd, rs);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-	} else {
-		scf_rela_t* rela = NULL;
-
-		OpCode = x64_find_OpCode(OpCode_type, src->var->size, dst->var->size, SCF_X64_E2G);
-		if (!OpCode) {
-			scf_loge("\n");
-			return -EINVAL;
-		}
-
-		inst   = x64_make_inst_M2G(&rela, OpCode, rd, NULL, src->var);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, src->var, NULL);
-	}
-
-	return 0;
+	return x64_inst_op2(OpCode_type, dst, src1, c, f);
 }
 
 static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
@@ -489,262 +178,6 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	return 0;
 }
 
-static int _x64_inst_array_index_lv_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	if (!c->srcs || c->srcs->size != 3)
-		return -EINVAL;
-
-	scf_x64_context_t*  x64   = ctx->priv;
-	scf_function_t*     f     = x64->f;
-
-	scf_3ac_operand_t*  base  = c->srcs->data[0];
-	scf_3ac_operand_t*  index = c->srcs->data[1];
-	scf_3ac_operand_t*  src   = c->srcs->data[2];
-
-	if (!base || !base->dag_node)
-		return -EINVAL;
-
-	if (!index || !index->dag_node)
-		return -EINVAL;
-
-	if (!src || !src->dag_node)
-		return -EINVAL;
-
-	if (!c->instructions) {
-		c->instructions = scf_vector_alloc();
-		if (!c->instructions)
-			return -ENOMEM;
-	}
-
-	scf_variable_t*     vb    = base ->dag_node->var;
-	scf_variable_t*     vi    = index->dag_node->var;
-	scf_variable_t*     vs    = src  ->dag_node->var;
-
-	scf_register_x64_t* rb    = NULL;
-	scf_register_x64_t* ri    = NULL;
-	scf_register_x64_t* rs    = NULL;
-
-	scf_x64_OpCode_t*   lea;
-	scf_x64_OpCode_t*   mov;
-	scf_instruction_t*  inst;
-
-	int ret;
-
-	int32_t disp = 0;
-	if (vb->local_flag) {
-		rb   = x64_find_register("rbp");
-		disp = vb->bp_offset;
-
-	} else if (vb->global_flag) {
-		scf_rela_t* rela = NULL;
-
-		ret  = _x64_inst_select_reg(&rb, base->dag_node, c, f, 0);
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
-		}
-
-		lea  = x64_find_OpCode(SCF_X64_LEA, 8, 8, SCF_X64_E2G);
-		inst = x64_make_inst_M2G(&rela, lea, rb, NULL, vb);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, vb, NULL);
-
-	} else {
-		ret = _x64_inst_select_reg(&rb, base->dag_node, c, f, 0);
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
-		}
-	}
-
-	int32_t scale = vb->size;
-	if (scale > 8) {
-		scf_loge("\n");
-		return -EINVAL;
-	}
-
-	int is_float = scf_type_is_float(vs->type) && 0 == vs->nb_pointers;
-	if (is_float) {
-		if (SCF_VAR_FLOAT == vs->type)
-			mov  = x64_find_OpCode(SCF_X64_MOVSS, vs->size, vs->size, SCF_X64_G2E);
-		else if (SCF_VAR_DOUBLE == vs->type)
-			mov  = x64_find_OpCode(SCF_X64_MOVSD, vs->size, vs->size, SCF_X64_G2E);
-
-		int load_flag = 0;
-		if (0 == src->dag_node->color) {
-			src->dag_node->color = -1;
-			vs->global_flag      =  1;
-			load_flag            =  1;
-		}
-
-		ret = _x64_inst_select_reg(&rs, src->dag_node, c, f, load_flag);
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
-		}
-	} else {
-		if (0 == src->dag_node->color) {
-			if (vs->size > 4) {
-				src->dag_node->color = -1;
-
-				ret = _x64_inst_select_reg(&rs, src->dag_node, c, f, 0);
-				if (ret < 0) {
-					scf_loge("\n");
-					return ret;
-				}
-
-				mov  = x64_find_OpCode(SCF_X64_MOV, vs->size, vs->size, SCF_X64_I2G);
-				inst = x64_make_inst_I2G(mov, rs, (uint8_t*)&vs->data, vs->size);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-			}
-		} else {
-			ret = _x64_inst_select_reg(&rs, src->dag_node, c, f, 0);
-			if (ret < 0) {
-				scf_loge("\n");
-				return ret;
-			}
-		}
-
-		mov  = x64_find_OpCode(SCF_X64_MOV, vs->size, vs->size, SCF_X64_G2E);
-	}
-
-	if (0 == index->dag_node->color) {
-		if (vi->size > 4) {
-			scf_loge("\n");
-			return -EINVAL;
-		}
-
-		disp += vi->data.i * scale;
-
-		if (rs)
-			inst = x64_make_inst_G2P(mov, rb, disp, rs);
-		else
-			inst = x64_make_inst_I2P(mov, rb, disp, (uint8_t*)&vs->data, vs->size);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-	} else {
-		ret = _x64_inst_select_reg(&ri, index->dag_node, c, f, 1);
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
-		}
-
-		if (rs)
-			inst = x64_make_inst_G2SIB(mov, rb, ri, scale, disp, rs);
-		else
-			inst = x64_make_inst_I2SIB(mov, rb, ri, scale, disp, (uint8_t*)&vs->data, vs->size);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-	}
-	return 0;
-}
-
-static int _x64_inst_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	if (!c->dst || !c->dst->dag_node)
-		return -EINVAL;
-
-	if (!c->srcs || c->srcs->size != 2)
-		return -EINVAL;
-
-	scf_x64_context_t*  x64    = ctx->priv;
-	scf_function_t*     f      = x64->f;
-
-	scf_3ac_operand_t*  base   = c->srcs->data[0];
-	scf_3ac_operand_t*  index  = c->srcs->data[1];
-
-	if (!base || !base->dag_node)
-		return -EINVAL;
-
-	if (!index || !index->dag_node)
-		return -EINVAL;
-
-	if (!c->instructions) {
-		c->instructions = scf_vector_alloc();
-		if (!c->instructions)
-			return -ENOMEM;
-	}
-
-	scf_variable_t*     vd     = c->dst->dag_node->var;
-	scf_variable_t*     vb     = base  ->dag_node->var;
-	scf_variable_t*     vi     = index ->dag_node->var;
-
-	scf_register_x64_t* rd     = NULL;
-	scf_register_x64_t* rb     = NULL;
-	scf_register_x64_t* ri     = NULL;
-
-	scf_x64_OpCode_t*   lea;
-	scf_x64_OpCode_t*   mov;
-	scf_instruction_t*  inst;
-
-	int ret = _x64_inst_select_reg(&rd, c->dst->dag_node, c, f, 0);
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-
-	int32_t disp = 0;
-	if (vb->local_flag) {
-		rb   = x64_find_register("rbp");
-		disp = vb->bp_offset; 
-
-	} else if (vb->global_flag) {
-		scf_rela_t* rela = NULL;
-
-		ret = _x64_inst_select_reg(&rb, base->dag_node, c, f, 0);
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
-		}
-
-		lea  = x64_find_OpCode(SCF_X64_LEA, 8, 8, SCF_X64_E2G);
-		inst = x64_make_inst_M2G(&rela, lea, rb, NULL, vb);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, vb, NULL);
-
-	} else {
-		ret = _x64_inst_select_reg(&rb, base->dag_node, c, f, 0);
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
-		}
-	}
-
-	int32_t scale = vb->size;
-	if (scale > 8) {
-		scf_loge("\n");
-		return -EINVAL;
-	}
-
-	if (SCF_VAR_FLOAT == vd->type)
-		mov  = x64_find_OpCode(SCF_X64_MOVSS, rd->bytes, rd->bytes, SCF_X64_E2G);
-	else if (SCF_VAR_DOUBLE == vd->type)
-		mov  = x64_find_OpCode(SCF_X64_MOVSD, rd->bytes, rd->bytes, SCF_X64_E2G);
-	else
-		mov  = x64_find_OpCode(SCF_X64_MOV,   rd->bytes, rd->bytes, SCF_X64_E2G);
-
-	if (0 == index->dag_node->color) {
-		if (vi->size > 4) {
-			scf_loge("\n");
-			return -EINVAL;
-		}
-
-		disp += vi->data.i * scale;
-		inst = x64_make_inst_P2G(mov, rd, rb, disp);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-	} else {
-		ret = _x64_inst_select_reg(&ri, index->dag_node, c, f, 1);
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
-		}
-
-		inst = x64_make_inst_SIB2G(mov, rd, rb, ri, scale, disp);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-	}
-	return 0;
-}
-
 static int _x64_inst_unary(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 {
 	if (!c->dst || !c->dst->dag_node)
@@ -766,7 +199,7 @@ static int _x64_inst_unary(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type
 			return -ENOMEM;
 	}
 
-	int ret = _x64_inst_op2(SCF_X64_MOV, c->dst->dag_node, src->dag_node, c, f);
+	int ret = x64_inst_op2(SCF_X64_MOV, c->dst->dag_node, src->dag_node, c, f);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -775,6 +208,7 @@ static int _x64_inst_unary(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type
 	scf_instruction_t*  inst   = NULL;
 	scf_register_x64_t* rd     = NULL;
 	scf_variable_t*     var    = c->dst->dag_node->var;
+
 	scf_x64_OpCode_t*   OpCode = x64_find_OpCode(OpCode_type, var->size, var->size, SCF_X64_E);
 	if (!OpCode) {
 		scf_loge("\n");
@@ -782,7 +216,7 @@ static int _x64_inst_unary(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type
 	}
 
 	if (c->dst->dag_node->color > 0) {
-		rd   = x64_find_register_color(c->dst->dag_node->color);
+		X64_SELECT_REG_CHECK(&rd, c->dst->dag_node, c, f, 0);
 		inst = x64_make_inst_E(OpCode, rd);
 		X64_INST_ADD_CHECK(c->instructions, inst);
 
@@ -807,34 +241,35 @@ static int _x64_inst_neg_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	return _x64_inst_unary(ctx, c, SCF_X64_NEG);
 }
 
-static int _x64_inst_dereference_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+static int _x64_inst_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 {
-	if (!c->dst || !c->dst->dag_node) {
-		scf_loge("\n");
+	return x64_inst_pointer(ctx, c);
+}
+
+static int _x64_inst_assign_array_index(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
+{
+	if (!c->srcs || c->srcs->size != 4)
 		return -EINVAL;
-	}
 
-	if (!c->srcs || c->srcs->size != 1) {
-		scf_loge("\n");
+	scf_x64_context_t*  x64    = ctx->priv;
+	scf_function_t*     f      = x64->f;
+
+	scf_3ac_operand_t*  base   = c->srcs->data[0];
+	scf_3ac_operand_t*  index  = c->srcs->data[1];
+	scf_3ac_operand_t*  scale  = c->srcs->data[2];
+	scf_3ac_operand_t*  src    = c->srcs->data[3];
+
+	if (!base || !base->dag_node)
 		return -EINVAL;
-	}
 
-	scf_x64_context_t*  x64  = ctx->priv;
-	scf_function_t*     f    = x64->f;
-
-	scf_3ac_operand_t*  dst  = c->dst;
-	scf_3ac_operand_t*  src  = c->srcs->data[0];
-	scf_register_x64_t* rd   = NULL;
-	scf_register_x64_t* rs   = NULL;
-
-	scf_x64_OpCode_t*   mov;
-	scf_instruction_t*  inst;
-
-	if (!src || !src->dag_node) {
-		scf_loge("\n");
+	if (!index || !index->dag_node)
 		return -EINVAL;
-	}
-	assert(src->dag_node->var->nb_pointers > 0);
+
+	if (!scale || !scale->dag_node)
+		return -EINVAL;
+
+	if (!src || !src->dag_node)
+		return -EINVAL;
 
 	if (!c->instructions) {
 		c->instructions = scf_vector_alloc();
@@ -842,60 +277,93 @@ static int _x64_inst_dereference_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 			return -ENOMEM;
 	}
 
-	int ret = _x64_inst_select_reg(&rd, dst->dag_node, c, f, 0);
+	scf_variable_t*     vb   = base->dag_node->var;
+	scf_variable_t*     vs   = src ->dag_node->var;
+
+	scf_register_x64_t* rs   = NULL;
+	x64_sib_t           sib  = {0};
+
+	scf_x64_OpCode_t*   OpCode;
+	scf_instruction_t*  inst;
+
+	int size = x64_variable_size(vs);
+
+	int ret  = x64_array_index_reg(&sib, base->dag_node, index->dag_node, scale->dag_node, c, f);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
 	}
-	assert(dst->dag_node->color > 0);
 
-	ret = _x64_inst_select_reg(&rs, src->dag_node, c, f, 0);
+	if (vb->nb_dimentions > 1) {
+		OpCode = x64_find_OpCode(SCF_X64_LEA, size, size, SCF_X64_E2G);
+	} else {
+		int is_float = scf_variable_float(vs);
+		if (is_float) {
+			OpCode_type = x64_float_OpCode_type(OpCode_type, vs->type);
+			OpCode      = x64_find_OpCode(OpCode_type, size, size, SCF_X64_G2E);
+
+			if (0 == src->dag_node->color) {
+				src->dag_node->color = -1;
+				vs->global_flag      =  1;
+			}
+		} else if (0 == src->dag_node->color) {
+			OpCode = x64_find_OpCode(OpCode_type, size, size, SCF_X64_I2E);
+
+			if (sib.index)
+				inst = x64_make_inst_I2SIB(OpCode, sib.base, sib.index, sib.scale, sib.disp, (uint8_t*)&vs->data, size);
+			else
+				inst = x64_make_inst_I2P(OpCode, sib.base, sib.disp, (uint8_t*)&vs->data, size);
+			X64_INST_ADD_CHECK(c->instructions, inst);
+			return 0;
+		} else {
+			OpCode = x64_find_OpCode(OpCode_type, size, size, SCF_X64_G2E);
+		}
+	}
+
+	if (!OpCode) {
+		scf_loge("\n");
+		return -EINVAL;
+	}
+
+	ret = x64_select_reg(&rs, src->dag_node, c, f, 1);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
 	}
-	assert(src->dag_node->color > 0);
 
-	if (SCF_VAR_FLOAT == src->dag_node->var->type)
-		mov  = x64_find_OpCode(SCF_X64_MOVSS, rd->bytes, rd->bytes, SCF_X64_E2G);
-	else if (SCF_VAR_DOUBLE == src->dag_node->var->type)
-		mov  = x64_find_OpCode(SCF_X64_MOVSD, rd->bytes, rd->bytes, SCF_X64_E2G);
-	else
-		mov  = x64_find_OpCode(SCF_X64_MOV, rd->bytes, rd->bytes, SCF_X64_E2G);
-
-	inst = x64_make_inst_P2G(mov, rd, rs, 0);
-	X64_INST_ADD_CHECK(c->instructions, inst);
+	if (sib.index) {
+		inst = x64_make_inst_G2SIB(OpCode, sib.base, sib.index, sib.scale, sib.disp, rs);
+		X64_INST_ADD_CHECK(c->instructions, inst);
+	} else {
+		inst = x64_make_inst_G2P(OpCode, sib.base, sib.disp, rs);
+		X64_INST_ADD_CHECK(c->instructions, inst);
+	}
 	return 0;
 }
 
-static int _x64_inst_dereference_lv_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+static int _x64_inst_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 {
-	if (!c->dst || !c->dst->dag_node) {
-		scf_loge("\n");
+	if (!c->dst || !c->dst->dag_node)
 		return -EINVAL;
-	}
 
-	if (!c->srcs || c->srcs->size != 1) {
-		scf_loge("\n");
+	if (!c->srcs || c->srcs->size != 3)
 		return -EINVAL;
-	}
 
-	scf_x64_context_t*  x64  = ctx->priv;
-	scf_function_t*     f    = x64->f;
+	scf_x64_context_t*  x64    = ctx->priv;
+	scf_function_t*     f      = x64->f;
 
-	scf_3ac_operand_t*  dst  = c->dst;
-	scf_3ac_operand_t*  src  = c->srcs->data[0];
-	scf_register_x64_t* rd   = NULL;
-	scf_register_x64_t* rs   = NULL;
+	scf_3ac_operand_t*  base   = c->srcs->data[0];
+	scf_3ac_operand_t*  index  = c->srcs->data[1];
+	scf_3ac_operand_t*  scale  = c->srcs->data[2];
 
-	scf_x64_OpCode_t*   mov;
-	scf_instruction_t*  inst;
-
-	if (!src || !src->dag_node) {
-		scf_loge("\n");
+	if (!base || !base->dag_node)
 		return -EINVAL;
-	}
-	assert(dst->dag_node->var->nb_pointers > 0);
+
+	if (!index || !index->dag_node)
+		return -EINVAL;
+
+	if (!scale || !scale->dag_node)
+		return -EINVAL;
 
 	if (!c->instructions) {
 		c->instructions = scf_vector_alloc();
@@ -903,59 +371,61 @@ static int _x64_inst_dereference_lv_handler(scf_native_t* ctx, scf_3ac_code_t* c
 			return -ENOMEM;
 	}
 
-	int ret = _x64_inst_select_reg(&rd, dst->dag_node, c, f, 0);
+	scf_variable_t*     vd  = c->dst->dag_node->var;
+	scf_variable_t*     vb  = base  ->dag_node->var;
+	scf_variable_t*     vi  = index ->dag_node->var;
+	scf_variable_t*     vs  = scale ->dag_node->var;
+
+	scf_register_x64_t* rd  = NULL;
+	x64_sib_t           sib = {0};
+
+	scf_x64_OpCode_t*   OpCode;
+	scf_instruction_t*  inst;
+
+	int ret = x64_select_reg(&rd, c->dst->dag_node, c, f, 0);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
 	}
-	assert(dst->dag_node->color > 0);
 
-	scf_variable_t* v = src->dag_node->var;
-
-	int load_flag = 0;
-	int mov_flag  = 0;
-	int is_float  = scf_type_is_float(v->type) && 0 == v->nb_pointers;
-	if (is_float) {
-		if (0 == src->dag_node->color) {
-			src->dag_node->color = -1;
-			v->global_flag       = 1;
-			load_flag            = 1;
-		}
-	} else if (0 == src->dag_node->color) {
-		if (v->size <= 4) {
-			mov  = x64_find_OpCode(SCF_X64_MOV, v->size, v->size, SCF_X64_I2E);
-			inst = x64_make_inst_I2P(mov, rd, 0, (uint8_t*)&v->data, v->size);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-			return 0;
-		}
-
-		src->dag_node->color = -1;
-		mov_flag = 1;
-	}
-
-	ret = _x64_inst_select_reg(&rs, src->dag_node, c, f, load_flag);
+	ret = x64_array_index_reg(&sib, base->dag_node, index->dag_node, scale->dag_node, c, f);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
 	}
-	assert(src->dag_node->color > 0);
 
-	if (mov_flag) {
-		mov  = x64_find_OpCode(SCF_X64_MOV, v->size, v->size, SCF_X64_I2G);
-		inst = x64_make_inst_I2G(mov, rs, (uint8_t*)&v->data, v->size);
+	if (vb->nb_dimentions > 1) {
+		OpCode = x64_find_OpCode(SCF_X64_LEA, rd->bytes, rd->bytes, SCF_X64_E2G);
+
+	} else {
+		int is_float = scf_variable_float(vd);
+		if (is_float) {
+			if (SCF_VAR_FLOAT == vd->type)
+				OpCode = x64_find_OpCode(SCF_X64_MOVSS, rd->bytes, rd->bytes, SCF_X64_E2G);
+			else if (SCF_VAR_DOUBLE == vd->type)
+				OpCode = x64_find_OpCode(SCF_X64_MOVSD, rd->bytes, rd->bytes, SCF_X64_E2G);
+		} else
+			OpCode = x64_find_OpCode(SCF_X64_MOV,   rd->bytes, rd->bytes, SCF_X64_E2G);
+	}
+
+	if (!OpCode) {
+		scf_loge("\n");
+		return -EINVAL;
+	}
+
+	if (sib.index) {
+		inst = x64_make_inst_SIB2G(OpCode, rd, sib.base, sib.index, sib.scale, sib.disp);
+		X64_INST_ADD_CHECK(c->instructions, inst);
+	} else {
+		inst = x64_make_inst_P2G(OpCode, rd, sib.base, sib.disp);
 		X64_INST_ADD_CHECK(c->instructions, inst);
 	}
-
-	if (SCF_VAR_FLOAT == src->dag_node->var->type)
-		mov  = x64_find_OpCode(SCF_X64_MOVSS, 4, 4, SCF_X64_G2E);
-	else if (SCF_VAR_DOUBLE == src->dag_node->var->type)
-		mov  = x64_find_OpCode(SCF_X64_MOVSD, 8, 8, SCF_X64_G2E);
-	else
-		mov  = x64_find_OpCode(SCF_X64_MOV, rd->bytes, rd->bytes, SCF_X64_G2E);
-
-	inst = x64_make_inst_G2P(mov, rd, 0, rs);
-	X64_INST_ADD_CHECK(c->instructions, inst);
 	return 0;
+}
+
+static int _x64_inst_dereference_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	return x64_inst_dereference(ctx, c);
 }
 
 static int _x64_inst_address_of_handler(scf_native_t* ctx, scf_3ac_code_t* c)
@@ -993,7 +463,7 @@ static int _x64_inst_address_of_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 			return -ENOMEM;
 	}
 
-	int ret = _x64_inst_select_reg(&rd, dst->dag_node, c, f, 0);
+	int ret = x64_select_reg(&rd, dst->dag_node, c, f, 0);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -1007,44 +477,9 @@ static int _x64_inst_address_of_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	return 0;
 }
 
-static int _x64_inst_div_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+static int _div_mod(scf_native_t* ctx, scf_3ac_code_t* c, int mod_flag)
 {
-	if (!c->dst || !c->dst->dag_node) {
-		scf_loge("\n");
-		return -EINVAL;
-	}
-
-	if (!c->srcs || c->srcs->size != 2) {
-		scf_loge("\n");
-		return -EINVAL;
-	}
-
-	scf_x64_context_t*  x64  = ctx->priv;
-	scf_function_t*     f    = x64->f;
-
-	scf_3ac_operand_t* dst  = c->dst;
-	scf_3ac_operand_t* src0 = c->srcs->data[0];
-	scf_3ac_operand_t* src1 = c->srcs->data[1];
-
-	if (!src0 || !src0->dag_node) {
-		scf_loge("\n");
-		return -EINVAL;
-	}
-
-	if (!src1 || !src1->dag_node) {
-		scf_loge("\n");
-		return -EINVAL;
-	}
-
-	if (src0->dag_node->var->size != src1->dag_node->var->size) {
-		scf_loge("\n");
-		return -EINVAL;
-	}
-
-	if (src0->dag_node->var->size < 4) {
-		scf_loge("\n");
-		return -EINVAL;
-	}
+	X64_INST_OP3_CHECK()
 
 	if (!c->instructions) {
 		c->instructions = scf_vector_alloc();
@@ -1052,176 +487,34 @@ static int _x64_inst_div_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 			return -ENOMEM;
 	}
 
-	if (scf_type_is_float(src0->dag_node->var->type)) {
+	if (scf_variable_float(src0->dag_node->var)) {
 
-		assert(scf_type_is_float(src1->dag_node->var->type));
-		assert(scf_type_is_float(dst->dag_node->var->type));
+		assert(scf_variable_float(src1->dag_node->var));
+		assert(scf_variable_float(dst->dag_node->var));
 
 		return _x64_inst_float_op3(SCF_X64_DIV, dst->dag_node, src0->dag_node, src1->dag_node, c, f);
 	}
 
-	int size = src0->dag_node->var->size;
+	int ret = x64_inst_op2(SCF_X64_MOV, dst->dag_node, src0->dag_node, c, f);
+	if (ret < 0)
+		return ret;
 
-	scf_register_x64_t* rs0  = NULL;
-	scf_register_x64_t* rs1  = NULL;
-	scf_register_x64_t* rd   = NULL;
-	scf_instruction_t*  inst = NULL;
+	return x64_inst_int_div(dst->dag_node, src1->dag_node, c, f, mod_flag);
+}
 
-	scf_x64_OpCode_t*	push = x64_find_OpCode(SCF_X64_PUSH, 8,8, SCF_X64_G);
-	scf_x64_OpCode_t* 	pop  = x64_find_OpCode(SCF_X64_POP,  8,8, SCF_X64_G);
-	scf_register_x64_t* ax   = x64_find_register_type_id_bytes(0, SCF_X64_REG_AX, size);
-	scf_register_x64_t* dx   = x64_find_register_type_id_bytes(0, SCF_X64_REG_DX, size);
-	scf_x64_OpCode_t* 	mov  = NULL;
-	scf_x64_OpCode_t* 	cdq  = NULL;
-	scf_x64_OpCode_t* 	xor  = NULL;
-	scf_x64_OpCode_t* 	div  = NULL;
-	scf_x64_OpCode_t* 	cx   = NULL;
+static int _x64_inst_div_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	return _div_mod(ctx, c, 0);
+}
 
-	if (src0->dag_node->color > 0) {
-		if (X64_COLOR_CONFLICT(src0->dag_node->color, ax->color)
-				|| X64_COLOR_CONFLICT(src0->dag_node->color, dx->color)) {
-			scf_loge("register select BUG\n");
-			return -1;
-		}
-	}
-
-	if (src1->dag_node->color > 0) {
-		if (X64_COLOR_CONFLICT(src1->dag_node->color, ax->color)
-				|| X64_COLOR_CONFLICT(src1->dag_node->color, dx->color)) {
-			scf_loge("register select BUG\n");
-			return -1;
-		}
-	}
-
-	if (dst->dag_node->color > 0) {
-		rd = x64_find_register_color(dst->dag_node->color);
-
-		if (rd->id != ax->id) {
-			inst = x64_make_inst_G(push, ax);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-		}
-
-		if (rd->id != dx->id) {
-			inst = x64_make_inst_G(push, dx);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-		}
-	} else {
-		inst = x64_make_inst_G(push, ax);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-		inst = x64_make_inst_G(push, dx);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-	}
-
-	if (src0->dag_node->color > 0) {
-		rs0 = x64_find_register_color(src0->dag_node->color);
-
-		if (rs0->id != ax->id) {
-			mov  = x64_find_OpCode(SCF_X64_MOV,  size, size, SCF_X64_G2E);
-			inst = x64_make_inst_G2E(mov, ax, rs0);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-		}
-	} else if (0 == src0->dag_node->color) {
-		mov  = x64_find_OpCode(SCF_X64_MOV,  size, size, SCF_X64_I2G);
-		inst = x64_make_inst_I2G(mov, ax, (uint8_t*)&src0->dag_node->var->data, size);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-	} else {
-		scf_rela_t* rela = NULL;
-
-		mov  = x64_find_OpCode(SCF_X64_MOV,  size, size, SCF_X64_E2G);
-		inst = x64_make_inst_M2G(&rela, mov, ax, NULL, src0->dag_node->var);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, src0->dag_node->var, NULL);
-	}
-
-	if (scf_type_is_signed(src0->dag_node->var->type)) {
-		cdq  = x64_find_OpCode_by_type(SCF_X64_CDQ);
-		inst = x64_make_inst_G(cdq, ax);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-	} else {
-		xor  = x64_find_OpCode(SCF_X64_XOR,  size, size, SCF_X64_G2E);
-		inst = x64_make_inst_G2E(cdq, dx, dx);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-	}
-
-	if (scf_type_is_signed(src0->dag_node->var->type)
-			|| scf_type_is_signed(src1->dag_node->var->type))
-		div = x64_find_OpCode(SCF_X64_IDIV,  size, size, SCF_X64_E);
-	else
-		div = x64_find_OpCode(SCF_X64_DIV,  size, size, SCF_X64_E);
-
-	if (src1->dag_node->color > 0) {
-		rs1 = x64_find_register_color(src1->dag_node->color);
-		inst = x64_make_inst_E(div, rs1);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-	} else if (0 == src1->dag_node->color) {
-		return -EINVAL;
-	} else {
-		scf_rela_t* rela = NULL;
-
-		inst = x64_make_inst_M(&rela, div, src1->dag_node->var, NULL);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, src1->dag_node->var, NULL);
-	}
-
-	if (rd) {
-		if (rd->id != ax->id) {
-			mov  = x64_find_OpCode(SCF_X64_MOV, rd->bytes, rd->bytes, SCF_X64_G2E);
-			inst = x64_make_inst_G2E(mov, rd, ax);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-
-			inst = x64_make_inst_G(pop, ax);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-		}
-
-		if (rd->id != dx->id) {
-			inst = x64_make_inst_G(pop, dx);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-		}
-	} else {
-		scf_rela_t* rela = NULL;
-
-		mov  = x64_find_OpCode(SCF_X64_MOV, dst->dag_node->var->size, dst->dag_node->var->size, SCF_X64_G2E);
-		inst = x64_make_inst_G2M(&rela, mov, dst->dag_node->var, NULL, ax);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, dst->dag_node->var, NULL);
-
-		inst = x64_make_inst_G(pop, dx);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-		inst = x64_make_inst_G(pop, ax);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-	}
-
-	return 0;
+static int _x64_inst_mod_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	return _div_mod(ctx, c, 1);
 }
 
 static int _x64_inst_mul_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 {
-	if (!c->dst || !c->dst->dag_node)
-		return -EINVAL;
-
-	if (!c->srcs || c->srcs->size != 2)
-		return -EINVAL;
-
-	scf_x64_context_t* x64  = ctx->priv;
-	scf_function_t*    f    = x64->f;
-
-	scf_3ac_operand_t* dst  = c->dst;
-	scf_3ac_operand_t* src0 = c->srcs->data[0];
-	scf_3ac_operand_t* src1 = c->srcs->data[1];
-
-	if (!src0 || !src0->dag_node)
-		return -EINVAL;
-
-	if (!src1 || !src1->dag_node)
-		return -EINVAL;
-
-	if (src0->dag_node->var->size != src1->dag_node->var->size)
-		return -EINVAL;
-
-	if (src0->dag_node->var->size < 4)
-		return -EINVAL;
+	X64_INST_OP3_CHECK()
 
 	if (!c->instructions) {
 		c->instructions = scf_vector_alloc();
@@ -1229,322 +522,23 @@ static int _x64_inst_mul_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 			return -ENOMEM;
 	}
 
-	if (scf_type_is_float(src0->dag_node->var->type)) {
+	if (scf_variable_float(src0->dag_node->var)) {
 
-		assert(scf_type_is_float(src1->dag_node->var->type));
-		assert(scf_type_is_float(dst->dag_node->var->type));
+		assert(scf_variable_float(src1->dag_node->var));
+		assert(scf_variable_float(dst->dag_node->var));
 
 		return _x64_inst_float_op3(SCF_X64_MUL, dst->dag_node, src0->dag_node, src1->dag_node, c, f);
 	}
 
-	scf_register_x64_t* rs0  = NULL;
-	scf_register_x64_t* rs1  = NULL;
-	scf_register_x64_t* rd   = NULL;
-	scf_instruction_t*  inst = NULL;
-
-	int size = src0->dag_node->var->size;
-
-	scf_x64_OpCode_t*	push_OpCode = x64_find_OpCode(SCF_X64_PUSH, 8,8, SCF_X64_G);
-	scf_x64_OpCode_t* 	pop_OpCode  = x64_find_OpCode(SCF_X64_POP,  8,8, SCF_X64_G);
-	scf_x64_OpCode_t* 	mov_OpCode  = x64_find_OpCode(SCF_X64_MOV,  size, size, SCF_X64_G2E);
-	scf_register_x64_t* ax          = x64_find_register_type_id_bytes(0, SCF_X64_REG_AX, size);
-	scf_register_x64_t* dx          = x64_find_register_type_id_bytes(0, SCF_X64_REG_DX, size);
-	scf_x64_OpCode_t* 	mul_OpCode  = NULL;
-
-	if (scf_type_is_signed(src0->dag_node->var->type)
-			|| scf_type_is_signed(src1->dag_node->var->type))
-		mul_OpCode = x64_find_OpCode(SCF_X64_IMUL,  size, size, SCF_X64_E);
-	else
-		mul_OpCode = x64_find_OpCode(SCF_X64_MUL,  size, size, SCF_X64_E);
-
-	if (dst->dag_node->color > 0) {
-		rd = x64_find_register_color(dst->dag_node->color);
-
-		// ax means: al, ax, eax, rax, they have same id
-		// dx means: dl, dx, edx, rdx, they have same id
-		// if dst not in ax, save ax
-		// if dst not in dx, save dx
-		// if dst not in ax & dx, save ax & dx
-		if (rd->id != ax->id) {
-			inst = x64_make_inst_G(push_OpCode, ax);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-		}
-
-		if (rd->id != dx->id) {
-			inst = x64_make_inst_G(push_OpCode, dx);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-		}
-	} else {
-		// if dst in momery, save ax & dx
-		inst = x64_make_inst_G(push_OpCode, ax);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-		inst = x64_make_inst_G(push_OpCode, dx);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-	}
-
-	if (src0->dag_node->color > 0) {
-		rs0 = x64_find_register_color(src0->dag_node->color);
-
-		if (src1->dag_node->color > 0) {
-			rs1 = x64_find_register_color(src1->dag_node->color);
-
-			// ax & dx already saved above
-			if (rs0->id == ax->id) {
-				inst = x64_make_inst_E(mul_OpCode, rs1);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-
-				scf_logw("\n");
-
-			} else if (rs1->id == ax->id) {
-				inst = x64_make_inst_E(mul_OpCode, rs0);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-				scf_logw("\n");
-
-			} else {
-				inst = x64_make_inst_G2E(mov_OpCode, ax, rs0);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-
-				inst = x64_make_inst_E(mul_OpCode, rs1);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-			}
-		} else {
-			if (rs0->id != ax->id) {
-				inst = x64_make_inst_G2E(mov_OpCode, ax, rs0);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-			}
-
-			if (0 == src1->dag_node->color) {
-				assert(scf_variable_const(src1->dag_node->var));
-
-				// dx already saved above
-				inst = x64_make_inst_I2G(mov_OpCode, dx, (uint8_t*)&src1->dag_node->var->data, size);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-
-				inst = x64_make_inst_E(mul_OpCode, dx);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-			} else {
-				scf_rela_t* rela = NULL;
-
-				inst = x64_make_inst_M(&rela, mul_OpCode, src1->dag_node->var, NULL);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-				X64_RELA_ADD_CHECK(f->data_relas, rela, c, src1->dag_node->var, NULL);
-			}
-		}
-	} else {
-		if (src1->dag_node->color > 0) {
-			rs1 = x64_find_register_color(src1->dag_node->color);
-
-			if (rs1->id != ax->id) {
-				inst = x64_make_inst_G2E(mov_OpCode, ax, rs1);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-			}
-
-			if (0 == src0->dag_node->color) {
-				assert(scf_variable_const(src0->dag_node->var));
-
-				inst = x64_make_inst_I2G(mov_OpCode, dx, (uint8_t*)&src0->dag_node->var->data, size);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-
-				inst = x64_make_inst_E(mul_OpCode, dx);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-			} else {
-				scf_rela_t* rela = NULL;
-
-				inst = x64_make_inst_M(&rela, mul_OpCode, src0->dag_node->var, NULL);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-				X64_RELA_ADD_CHECK(f->data_relas, rela, c, src0->dag_node->var, NULL);
-			}
-		} else {
-			if (0 == src0->dag_node->color) {
-				assert(scf_variable_const(src0->dag_node->var));
-
-				inst = x64_make_inst_I2G(mov_OpCode, ax, (uint8_t*)&src0->dag_node->var->data, size);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-			} else {
-				scf_rela_t* rela = NULL;
-
-				inst = x64_make_inst_M2G(&rela, mov_OpCode, ax, NULL, src0->dag_node->var);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-				X64_RELA_ADD_CHECK(f->data_relas, rela, c, src0->dag_node->var, NULL);
-			}
-
-			if (0 == src1->dag_node->color) {
-				assert(scf_variable_const(src1->dag_node->var));
-
-				inst = x64_make_inst_I2G(mov_OpCode, dx, (uint8_t*)&src1->dag_node->var->data, size);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-
-				inst = x64_make_inst_E(mul_OpCode, dx);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-			} else {
-				scf_rela_t* rela = NULL;
-
-				inst = x64_make_inst_M(&rela, mul_OpCode, src1->dag_node->var, NULL);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-				X64_RELA_ADD_CHECK(f->data_relas, rela, c, src1->dag_node->var, NULL);
-			}
-		}
-	}
-
-	if (rd) {
-		if (rd->id != ax->id) {
-			inst = x64_make_inst_G2E(mov_OpCode, rd, ax);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-
-			inst = x64_make_inst_G(pop_OpCode, ax);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-		}
-
-		if (rd->id != dx->id) {
-			inst = x64_make_inst_G(pop_OpCode, dx);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-		}
-	} else {
-		scf_rela_t* rela = NULL;
-		inst = x64_make_inst_G2M(&rela, mov_OpCode, dst->dag_node->var, NULL, ax);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, dst->dag_node->var, NULL);
-
-		inst = x64_make_inst_G(pop_OpCode, dx);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-		inst = x64_make_inst_G(pop_OpCode, ax);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-	}
-	return 0;
+	int ret = x64_inst_op2(SCF_X64_MOV, dst->dag_node, src0->dag_node, c, f);
+	if (ret < 0)
+		return ret;
+	return x64_inst_int_mul(dst->dag_node, src1->dag_node, c, f);
 }
-
-static int _x64_inst_op3_rrm(int OpCode_type, scf_register_x64_t* rd, scf_register_x64_t* rs0, scf_dag_node_t* src1, scf_3ac_code_t* c, scf_function_t* f)
-{
-	int size = rs0->bytes;
-
-	scf_x64_OpCode_t* 	op;
-	scf_instruction_t*  inst;
-	scf_x64_OpCode_t* 	mov  = x64_find_OpCode(SCF_X64_MOV,  size, size, SCF_X64_G2E);
-	scf_rela_t*         rela = NULL;
-
-	if (rs0->id != rd->id) {
-		inst = x64_make_inst_G2E(mov, rd, rs0);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-	}
-
-	if (0 == src1->color) {
-		assert(scf_variable_const(src1->var));
-
-		op   = x64_find_OpCode(OpCode_type, size, size, SCF_X64_I2E);
-		inst = x64_make_inst_I2E(op, rd, (uint8_t*)&src1->var->data, size);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-	} else {
-		op   = x64_find_OpCode(OpCode_type, size, size, SCF_X64_E2G);
-		inst = x64_make_inst_M2G(&rela, op, rd, NULL, src1->var);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, src1->var, NULL);
-	}
-
-	return 0;
-}
-
-static int _x64_inst_op3_rrr(int OpCode_type, scf_register_x64_t* rd, scf_register_x64_t* rs0, scf_register_x64_t* rs1, scf_vector_t* instructions)
-{
-	int size = rs0->bytes;
-
-	scf_x64_OpCode_t* 	op  = x64_find_OpCode(OpCode_type, size, size, SCF_X64_G2E);
-	scf_x64_OpCode_t* 	mov = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_G2E);
-	scf_instruction_t*  inst;
-
-	if (rd->id == rs0->id) {
-		inst = x64_make_inst_G2E(op, rd, rs1);
-		X64_INST_ADD_CHECK(instructions, inst);
-
-	} else if (rd->id == rs1->id) {
-		inst = x64_make_inst_G2E(op, rd, rs0);
-		X64_INST_ADD_CHECK(instructions, inst);
-
-		if (SCF_X64_SUB == OpCode_type) {
-			op   = x64_find_OpCode(SCF_X64_NEG, size, size, SCF_X64_E);
-			inst = x64_make_inst_E(op, rd);
-			X64_INST_ADD_CHECK(instructions, inst);
-		}
-	} else {
-		inst = x64_make_inst_G2E(mov, rd, rs0);
-		X64_INST_ADD_CHECK(instructions, inst);
-
-		inst = x64_make_inst_G2E(op, rd, rs1);
-		X64_INST_ADD_CHECK(instructions, inst);
-	}
-	return 0;
-}
-
-static int _x64_inst_op3_rmm(int OpCode_type, scf_register_x64_t* rd, scf_dag_node_t* src0, scf_dag_node_t* src1, scf_3ac_code_t* c, scf_function_t* f)
-{
-	int size = src0->var->size;
-
-	scf_x64_OpCode_t* 	op;
-	scf_x64_OpCode_t* 	mov;
-	scf_instruction_t*  inst;
-
-	if (0 == src0->color) {
-		assert(scf_variable_const(src0->var));
-
-		mov  = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_I2G);
-		inst = x64_make_inst_I2G(mov, rd, (uint8_t*)&src0->var->data, size);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-	} else {
-		scf_rela_t* rela = NULL;
-
-		mov  = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_E2G);
-		inst = x64_make_inst_M2G(&rela, mov, rd, NULL, src0->var);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, src0->var, NULL);
-	}
-
-	if (0 == src1->color) {
-		assert(scf_variable_const(src1->var));
-
-		op   = x64_find_OpCode(OpCode_type, size, size, SCF_X64_I2E);
-		inst = x64_make_inst_I2E(op, rd, (uint8_t*)&src1->var->data, size);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-	} else {
-		scf_rela_t* rela = NULL;
-
-		op   = x64_find_OpCode(OpCode_type, size, size, SCF_X64_E2G);
-		inst = x64_make_inst_M2G(&rela, op, rd, NULL, src1->var);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, src1->var, NULL);
-	}
-
-	return 0;
-}
-
 
 static int _x64_inst_op3(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 {
-	if (!c->dst || !c->dst->dag_node)
-		return -EINVAL;
-
-	if (!c->srcs || c->srcs->size != 2)
-		return -EINVAL;
-
-	scf_x64_context_t* x64  = ctx->priv;
-	scf_function_t*    f    = x64->f;
-	scf_3ac_operand_t* src0 = c->srcs->data[0];
-	scf_3ac_operand_t* src1 = c->srcs->data[1];
-	scf_3ac_operand_t* dst  = c->dst;
-
-	if (!src0 || !src0->dag_node)
-		return -EINVAL;
-
-	if (!src1 || !src1->dag_node)
-		return -EINVAL;
-
-	if (src0->dag_node->var->size != src1->dag_node->var->size)
-		return -EINVAL;
-
-	if (src0->dag_node->var->size != dst->dag_node->var->size)
-		return -EINVAL;
+	X64_INST_OP3_CHECK()
 
 	if (!c->instructions) {
 		c->instructions = scf_vector_alloc();
@@ -1552,433 +546,70 @@ static int _x64_inst_op3(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 			return -ENOMEM;
 	}
 
-	if (scf_type_is_float(src0->dag_node->var->type)) {
+	if (scf_variable_float(src0->dag_node->var)) {
 
-		assert(scf_type_is_float(src1->dag_node->var->type));
-		assert(scf_type_is_float(dst->dag_node->var->type));
+		assert(scf_variable_float(src1->dag_node->var));
+		assert(scf_variable_float(dst->dag_node->var));
 
 		return _x64_inst_float_op3(OpCode_type, dst->dag_node, src0->dag_node, src1->dag_node, c, f);
 	}
 
-	int size = src0->dag_node->var->size;
-	int ret = 0;
-
-	scf_register_x64_t* rs0  = NULL;
-	scf_register_x64_t* rs1  = NULL;
-	scf_register_x64_t* rd   = NULL;
-	scf_instruction_t*  inst = NULL;
-
-	ret = _x64_inst_select_reg(&rd, c->dst->dag_node, c, f, 0);
-	if (ret < 0) {
-		scf_loge("\n");
+	int ret = x64_inst_op2(SCF_X64_MOV, dst->dag_node, src0->dag_node, c, f);
+	if (ret < 0)
 		return ret;
-	}
-	assert(c->dst->dag_node->color > 0);
-
-	if (src0->dag_node->color > 0) {
-		rs0 = x64_find_register_color(src0->dag_node->color);
-
-		if (src1->dag_node->color > 0) {
-			rs1 = x64_find_register_color(src1->dag_node->color);
-			ret = _x64_inst_op3_rrr(OpCode_type, rd, rs0, rs1, c->instructions);
-		} else {
-			ret = _x64_inst_op3_rrm(OpCode_type, rd, rs0, src1->dag_node, c, f);
-		}
-	} else if (src1->dag_node->color > 0) {
-		rs1 = x64_find_register_color(src1->dag_node->color);
-		ret = _x64_inst_op3_rrm(OpCode_type, rd, rs1, src0->dag_node, c, f);
-	} else
-		ret = _x64_inst_op3_rmm(OpCode_type, rd, src0->dag_node, src1->dag_node, c, f);
-
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-
-	return 0;
+	return x64_inst_op2(OpCode_type, dst->dag_node, src1->dag_node, c, f);
 }
 
-static int _x64_inst_add_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	return _x64_inst_op3(ctx, c, SCF_X64_ADD);
+#define X64_INST_OP3(name, op) \
+static int _x64_inst_##name##_handler(scf_native_t* ctx, scf_3ac_code_t* c) \
+{ \
+	return _x64_inst_op3(ctx, c, SCF_X64_##op); \
 }
+X64_INST_OP3(add,     ADD)
+X64_INST_OP3(sub,     SUB)
+X64_INST_OP3(bit_and, AND)
+X64_INST_OP3(bit_or,  OR)
 
-static int _x64_inst_sub_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	return _x64_inst_op3(ctx, c, SCF_X64_SUB);
-}
-
-static int _x64_inst_bit_and_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	return _x64_inst_op3(ctx, c, SCF_X64_AND);
-}
-
-static int _x64_inst_bit_or_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	return _x64_inst_op3(ctx, c, SCF_X64_OR);
-}
-
-static int _x64_inst_cmp(scf_dag_node_t* src0, scf_dag_node_t* src1, scf_3ac_code_t* c, scf_function_t* f)
-{
-	if (0 == src0->color) {
-		scf_loge("src0 should be a var\n");
-		if (src0->var->w)
-			scf_loge("src0: '%s'\n", src0->var->w->text->data);
-		else
-			scf_loge("src0: v_%#lx\n", 0xffff & (uintptr_t)src0->var);
-		return -EINVAL;
-	}
-
-	scf_x64_OpCode_t*   cmp;
-	scf_instruction_t*  inst;
-	scf_register_x64_t* rs1;
-	scf_register_x64_t* rs0  = NULL;
-	scf_rela_t*         rela = NULL;
-
-	int ret = _x64_inst_select_reg(&rs0, src0, c, f, 1);
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-	assert(src0->color > 0);
-
-	if (scf_type_is_float(src0->var->type)) {
-		assert(scf_type_is_float(src1->var->type));
-
-		if (SCF_VAR_FLOAT == src0->var->type)
-			cmp = x64_find_OpCode(SCF_X64_UCOMISS, rs0->bytes, src1->var->size, SCF_X64_E2G);
-		else
-			cmp = x64_find_OpCode(SCF_X64_UCOMISD, rs0->bytes, src1->var->size, SCF_X64_E2G);
-
-		if (0 == src1->color) {
-			src1->color = -1;
-			src1->var->global_flag = 1;
-
-			ret = _x64_inst_select_reg(&rs1, src1, c, f, 1);
-			if (ret < 0) {
-				scf_loge("\n");
-				return ret;
-			}
-			assert(src1->color > 0);
-
-			inst = x64_make_inst_E2G(cmp, rs0, rs1);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-
-		} else if (src1->color > 0) {
-			rs1 = x64_find_register_color(src1->color);
-			inst = x64_make_inst_E2G(cmp, rs0, rs1);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-
-		} else {
-			inst = x64_make_inst_M2G(&rela, cmp, rs0, NULL, src1->var);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-			X64_RELA_ADD_CHECK(f->data_relas, rela, c, src1->var, NULL);
-		}
-		return 0;
-	}
-
-	if (src1->color > 0) {
-		rs1  = x64_find_register_color(src1->color);
-		cmp  = x64_find_OpCode(SCF_X64_CMP, rs0->bytes, rs1->bytes, SCF_X64_G2E);
-		inst = x64_make_inst_G2E(cmp, rs0, rs1);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-	} else if (0 == src1->color) {
-		cmp  = x64_find_OpCode(SCF_X64_CMP, rs0->bytes, src1->var->size, SCF_X64_I2E);
-		inst = x64_make_inst_I2E(cmp, rs0, (uint8_t*)&src1->var->data, src1->var->size);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-	} else {
-		cmp  = x64_find_OpCode(SCF_X64_CMP, rs0->bytes, src1->var->size, SCF_X64_G2E);
-		inst = x64_make_inst_G2M(&rela, cmp, src1->var, NULL, rs0);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, src1->var, NULL);
-	}
-
-	return 0;
-}
-
-static int _x64_inst_cmp_set(int setcc_type, scf_dag_node_t* dst, scf_3ac_code_t* c, scf_function_t* f)
-{
-	scf_x64_OpCode_t* setcc = x64_find_OpCode(setcc_type, 1,1, SCF_X64_E);
-	if (!setcc)
-		return -EINVAL;
-
-	scf_x64_OpCode_t*   mov;
-	scf_instruction_t*  inst;
-	scf_register_x64_t* rd;
-	scf_rela_t*         rela = NULL;
-
-	if (dst->color > 0) {
-		rd   = x64_find_register_color(dst->color);
-
-		if (rd->bytes > 1) {
-			uint64_t imm      = 0;
-
-			mov = x64_find_OpCode(SCF_X64_MOV, rd->bytes, rd->bytes, SCF_X64_I2G);
-			inst = x64_make_inst_I2G(mov, rd, (uint8_t*)&imm, rd->bytes);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-		}
-
-		inst = x64_make_inst_E(setcc, rd);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-	} else {
-		if (dst->var->size > 1) {
-			uint64_t imm      = 0;
-			int      imm_size = dst->var->size > 4 ? 4 : dst->var->size;
-
-			mov = x64_find_OpCode(SCF_X64_MOV, imm_size, dst->var->size, SCF_X64_I2E);
-			inst = x64_make_inst_I2M(&rela, mov, dst->var, NULL, (uint8_t*)&imm, imm_size);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-			X64_RELA_ADD_CHECK(f->data_relas, rela, c, dst->var, NULL);
-
-			rela = NULL;
-		}
-
-		inst = x64_make_inst_M(&rela, setcc, dst->var, NULL);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, dst->var, NULL);
-	}
-	return 0;
-}
 
 static int _x64_inst_teq_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 {
-	if (!c->srcs || c->srcs->size != 1)
-		return -EINVAL;
-
-	scf_x64_context_t*  x64  = ctx->priv;
-	scf_function_t*     f    = x64->f;
-	scf_3ac_operand_t*  src  = c->srcs->data[0];
-	scf_variable_t*     var  = src->dag_node->var;
-
-	scf_x64_OpCode_t*   test;
-	scf_instruction_t*  inst;
-	scf_register_x64_t* rs;
-
-	if (!src || !src->dag_node)
-		return -EINVAL;
-
-	if (!c->instructions) {
-		c->instructions = scf_vector_alloc();
-		if (!c->instructions)
-			return -ENOMEM;
-	}
-
-	if (0 == src->dag_node->color) {
-		scf_loge("\n");
-		return -1;
-	}
-
-	if (src->dag_node->color > 0) {
-		test = x64_find_OpCode(SCF_X64_TEST, var->size, var->size, SCF_X64_G2E);
-		rs   = x64_find_register_color(src->dag_node->color);
-		inst = x64_make_inst_G2E(test, rs, rs);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
-	} else {
-		scf_rela_t* rela = NULL;
-		int         size = var->size > 4 ? 4 : var->size;
-		uint32_t    imm  = 0xffffffff;
-
-		test = x64_find_OpCode(SCF_X64_TEST, size, var->size, SCF_X64_I2E);
-		inst = x64_make_inst_I2M(&rela, test, var, NULL, (uint8_t*)&imm, size);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, var, NULL);
-	}
-
-	return 0;
+	return x64_inst_teq(ctx, c);
 }
 
 static int _x64_inst_logic_not_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 {
-	if (!c->dst || !c->dst->dag_node)
-		return -EINVAL;
-
-	scf_x64_context_t* x64 = ctx->priv;
-	scf_function_t*    f   = x64->f;
-
-	int ret = _x64_inst_teq_handler(ctx, c);
-	if (ret < 0) {
-		scf_loge("\n");
-		return -1;
-	}
-
-	ret = _x64_inst_cmp_set(SCF_X64_SETZ, c->dst->dag_node, c, f);
+	int ret = x64_inst_teq(ctx, c);
 	if (ret < 0)
 		return ret;
-	return 0;
+
+	return x64_inst_set(ctx, c, SCF_X64_SETZ);
 }
 
 static int _x64_inst_cmp_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 {
-	if (!c->srcs || c->srcs->size != 2)
-		return -EINVAL;
-
-	scf_x64_context_t* x64  = ctx->priv;
-	scf_function_t*    f    = x64->f;
-	scf_3ac_operand_t* src0 = c->srcs->data[0];
-	scf_3ac_operand_t* src1 = c->srcs->data[1];
-
-	if (!src0 || !src0->dag_node)
-		return -EINVAL;
-
-	if (!src1 || !src1->dag_node)
-		return -EINVAL;
-
-	if (src0->dag_node->var->size != src1->dag_node->var->size)
-		return -EINVAL;
-
-	if (!c->instructions) {
-		c->instructions = scf_vector_alloc();
-		if (!c->instructions)
-			return -ENOMEM;
-	}
-
-	return _x64_inst_cmp(src0->dag_node, src1->dag_node, c, f);
+	return x64_inst_cmp(ctx, c);
 }
 
-static int _x64_inst_set(scf_native_t* ctx, scf_3ac_code_t* c, int setcc_type)
-{
-	if (!c->dst || !c->dst->dag_node)
-		return -EINVAL;
-
-	if (0 == c->dst->dag_node->color)
-		return -EINVAL;
-
-	if (!c->instructions) {
-		c->instructions = scf_vector_alloc();
-		if (!c->instructions)
-			return -ENOMEM;
-	}
-
-	scf_x64_context_t* x64 = ctx->priv;
-	scf_function_t*    f   = x64->f;
-
-	int ret = _x64_inst_cmp_set(setcc_type, c->dst->dag_node, c, f);
-	if (ret < 0)
-		return ret;
-	return 0;
+#define X64_INST_SET(name, op) \
+static int _x64_inst_##name##_handler(scf_native_t* ctx, scf_3ac_code_t* c) \
+{ \
+	return x64_inst_set(ctx, c, SCF_X64_##op); \
 }
+X64_INST_SET(setz,  SETZ)
+X64_INST_SET(setnz, SETNZ)
 
-static int _x64_inst_setz_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	return _x64_inst_set(ctx, c, SCF_X64_SETZ);
+
+#define X64_INST_CMP_SET(name, op) \
+static int _x64_inst_##name##_handler(scf_native_t* ctx, scf_3ac_code_t* c) \
+{ \
+	return x64_inst_cmp_set(ctx, c, SCF_X64_##op); \
 }
-
-static int _x64_inst_setnz_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	return _x64_inst_set(ctx, c, SCF_X64_SETNZ);
-}
-
-static int _x64_inst_eq_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	if (!c->dst || !c->dst->dag_node)
-		return -EINVAL;
-
-	scf_x64_context_t* x64 = ctx->priv;
-	scf_function_t*    f   = x64->f;
-
-	int ret = _x64_inst_cmp_handler(ctx, c);
-	if (ret < 0)
-		return ret;
-
-	ret = _x64_inst_cmp_set(SCF_X64_SETZ, c->dst->dag_node, c, f);
-	if (ret < 0)
-		return ret;
-	return 0;
-}
-
-static int _x64_inst_ne_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	if (!c->dst || !c->dst->dag_node)
-		return -EINVAL;
-
-	scf_x64_context_t* x64 = ctx->priv;
-	scf_function_t*    f   = x64->f;
-
-	int ret = _x64_inst_cmp_handler(ctx, c);
-	if (ret < 0)
-		return ret;
-
-	ret = _x64_inst_cmp_set(SCF_X64_SETNZ, c->dst->dag_node, c, f);
-	if (ret < 0)
-		return ret;
-	return 0;
-}
-
-static int _x64_inst_gt_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	if (!c->dst || !c->dst->dag_node)
-		return -EINVAL;
-
-	scf_x64_context_t* x64 = ctx->priv;
-	scf_function_t*    f   = x64->f;
-
-	int ret = _x64_inst_cmp_handler(ctx, c);
-	if (ret < 0)
-		return ret;
-
-	ret = _x64_inst_cmp_set(SCF_X64_SETG, c->dst->dag_node, c, f);
-	if (ret < 0)
-		return ret;
-	return 0;
-}
-
-static int _x64_inst_ge_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	if (!c->dst || !c->dst->dag_node)
-		return -EINVAL;
-
-	scf_x64_context_t* x64 = ctx->priv;
-	scf_function_t*    f   = x64->f;
-
-	int ret = _x64_inst_cmp_handler(ctx, c);
-	if (ret < 0)
-		return ret;
-
-	ret = _x64_inst_cmp_set(SCF_X64_SETGE, c->dst->dag_node, c, f);
-	if (ret < 0)
-		return ret;
-	return 0;
-}
-
-static int _x64_inst_lt_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	if (!c->dst || !c->dst->dag_node)
-		return -EINVAL;
-
-	scf_x64_context_t* x64 = ctx->priv;
-	scf_function_t*    f   = x64->f;
-
-	int ret = _x64_inst_cmp_handler(ctx, c);
-	if (ret < 0)
-		return ret;
-
-	ret = _x64_inst_cmp_set(SCF_X64_SETL, c->dst->dag_node, c, f);
-	if (ret < 0)
-		return ret;
-	return 0;
-}
-
-static int _x64_inst_le_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	if (!c->dst || !c->dst->dag_node)
-		return -EINVAL;
-
-	scf_x64_context_t* x64 = ctx->priv;
-	scf_function_t*    f   = x64->f;
-
-	int ret = _x64_inst_cmp_handler(ctx, c);
-	if (ret < 0)
-		return ret;
-
-	ret = _x64_inst_cmp_set(SCF_X64_SETLE, c->dst->dag_node, c, f);
-	if (ret < 0)
-		return ret;
-	return 0;
-}
+X64_INST_CMP_SET(eq, SETZ)
+X64_INST_CMP_SET(ne, SETNZ)
+X64_INST_CMP_SET(gt, SETG)
+X64_INST_CMP_SET(ge, SETGE)
+X64_INST_CMP_SET(lt, SETL)
+X64_INST_CMP_SET(le, SETLE)
 
 static int _x64_inst_cast_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 {
@@ -2005,17 +636,29 @@ static int _x64_inst_cast_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 			return -ENOMEM;
 	}
 
-	if (scf_type_is_float(src->dag_node->var->type)
-			|| scf_type_is_float(dst->dag_node->var->type))
-		return _x64_inst_float_cast(dst->dag_node, src->dag_node, c, f);
+	scf_x64_OpCode_t*   lea;
+	scf_instruction_t*  inst;
 
-	if (src->dag_node->var->size < dst->dag_node->var->size)
-		return _x64_inst_op_movx(dst->dag_node, src->dag_node, c, f);
+	scf_register_x64_t* rd   = NULL;
+	scf_rela_t*         rela = NULL;
 
-	return _x64_inst_op2(SCF_X64_MOV, dst->dag_node, src->dag_node, c, f);
+	scf_variable_t*     vd   = dst->dag_node->var;
+	scf_variable_t*     vs   = src->dag_node->var;
+
+	int src_size = x64_variable_size(vs);
+	int dst_size = x64_variable_size(vd);
+
+	if (scf_variable_float(vs) || scf_variable_float(vd))
+		return x64_inst_float_cast(dst->dag_node, src->dag_node, c, f);
+
+	if (src_size < dst_size)
+		return x64_inst_movx(dst->dag_node, src->dag_node, c, f);
+
+	scf_logw("src_size: %d, dst_size: %d\n", src_size, dst_size);
+	return x64_inst_op2(SCF_X64_MOV, dst->dag_node, src->dag_node, c, f);
 }
 
-static int _x64_inst_assign_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+static int _x64_inst_mul_assign_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 {
 	if (!c->dst || !c->dst->dag_node)
 		return -EINVAL;
@@ -2023,11 +666,16 @@ static int _x64_inst_assign_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	if (!c->srcs || c->srcs->size != 1)
 		return -EINVAL;
 
-	scf_x64_context_t* x64 = ctx->priv;
-	scf_function_t*    f   = x64->f;
-	scf_3ac_operand_t* src = c->srcs->data[0];
+	scf_x64_context_t* x64  = ctx->priv;
+	scf_function_t*    f    = x64->f;
+
+	scf_3ac_operand_t* dst  = c->dst;
+	scf_3ac_operand_t* src  = c->srcs->data[0];
 
 	if (!src || !src->dag_node)
+		return -EINVAL;
+
+	if (src->dag_node->var->size != dst->dag_node->var->size)
 		return -EINVAL;
 
 	if (!c->instructions) {
@@ -2036,17 +684,67 @@ static int _x64_inst_assign_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 			return -ENOMEM;
 	}
 
-	if (0 == src->dag_node->var->nb_pointers) {
-		if (SCF_VAR_FLOAT == src->dag_node->var->type) {
-			return _x64_inst_op2(SCF_X64_MOVSS, c->dst->dag_node, src->dag_node, c, f);
+	if (scf_variable_float(src->dag_node->var)) {
 
-		} else if (SCF_VAR_DOUBLE == src->dag_node->var->type) {
-			return _x64_inst_op2(SCF_X64_MOVSD, c->dst->dag_node, src->dag_node, c, f);
-		}
+		assert(scf_variable_float(dst->dag_node->var));
+
+		return _x64_inst_float_op2(SCF_X64_MUL, dst->dag_node, src->dag_node, c, f);
 	}
 
-	scf_logw("\n");
-	return _x64_inst_op2(SCF_X64_MOV, c->dst->dag_node, src->dag_node, c, f);
+	return x64_inst_int_mul(dst->dag_node, src->dag_node, c, f);
+}
+
+static int _div_mod_assign(scf_native_t* ctx, scf_3ac_code_t* c, int mod_flag)
+{
+	if (!c->dst || !c->dst->dag_node) {
+		scf_loge("\n");
+		return -EINVAL;
+	}
+
+	if (!c->srcs || c->srcs->size != 1) {
+		scf_loge("\n");
+		return -EINVAL;
+	}
+
+	scf_x64_context_t*  x64  = ctx->priv;
+	scf_function_t*     f    = x64->f;
+
+	scf_3ac_operand_t* dst  = c->dst;
+	scf_3ac_operand_t* src  = c->srcs->data[0];
+
+	if (!src || !src->dag_node) {
+		scf_loge("\n");
+		return -EINVAL;
+	}
+
+	if (src->dag_node->var->size != dst->dag_node->var->size) {
+		scf_loge("\n");
+		return -EINVAL;
+	}
+
+	if (!c->instructions) {
+		c->instructions = scf_vector_alloc();
+		if (!c->instructions)
+			return -ENOMEM;
+	}
+
+	if (scf_variable_float(src->dag_node->var)) {
+		assert(scf_variable_float(dst->dag_node->var));
+
+		return _x64_inst_float_op2(SCF_X64_DIV, dst->dag_node, src->dag_node, c, f);
+	}
+
+	return x64_inst_int_div(dst->dag_node, src->dag_node, c, f, mod_flag);
+}
+
+static int _x64_inst_div_assign_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	return _div_mod_assign(ctx, c, 0);
+}
+
+static int _x64_inst_mod_assign_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	return _div_mod_assign(ctx, c, 1);
 }
 
 static int _x64_inst_return_handler(scf_native_t* ctx, scf_3ac_code_t* c)
@@ -2054,11 +752,20 @@ static int _x64_inst_return_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	if (!c->srcs || c->srcs->size != 1)
 		return -EINVAL;
 
-	scf_x64_context_t*  x64 = ctx->priv;
-	scf_function_t*     f   = x64->f;
-	scf_3ac_operand_t*  src = c->srcs->data[0];
-	scf_register_x64_t*	rd  = NULL;
-	scf_register_x64_t*	rs  = NULL;
+	scf_x64_context_t*  x64  = ctx->priv;
+	scf_function_t*     f    = x64->f;
+	scf_3ac_operand_t*  src  = c->srcs->data[0];
+	scf_instruction_t*  inst = NULL;
+	scf_rela_t*         rela = NULL;
+
+	scf_register_x64_t*	rd   = NULL;
+	scf_register_x64_t*	rs   = NULL;
+	scf_register_x64_t* rsp  = x64_find_register("rsp");
+	scf_register_x64_t* rbp  = x64_find_register("rbp");
+
+	scf_x64_OpCode_t*   pop;
+	scf_x64_OpCode_t*   mov;
+	scf_x64_OpCode_t*   ret;
 
 	if (!c->instructions) {
 		c->instructions = scf_vector_alloc();
@@ -2071,120 +778,88 @@ static int _x64_inst_return_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		goto end;
 	}
 
-	scf_x64_OpCode_t*   mov    = NULL;
-	scf_x64_OpCode_t*   ret    = NULL;
-	scf_instruction_t*  inst   = NULL;
-	scf_rela_t*         rela   = NULL;
-	scf_variable_t*		var    = src->dag_node->var;
+	scf_variable_t* v = src->dag_node->var;
 
-	if (8 == var->size)
-		rd = x64_find_register_type_id_bytes(scf_type_is_float(var->size), 0, 8);
+	int size     = x64_variable_size(v);
+	int is_float = scf_variable_float(v);
+
+	if (8 == size)
+		rd = x64_find_register_type_id_bytes(is_float, 0, 8);
 	else
-		rd = x64_find_register_type_id_bytes(scf_type_is_float(var->size), 0, 4);
+		rd = x64_find_register_type_id_bytes(is_float, 0, 4);
 
-#if 1
-	if (scf_type_is_float(var->type)) {
+	if (is_float) {
 		if (0 == src->dag_node->color) {
 			src->dag_node->color = -1;
-			var->global_flag = 1;
+			v->global_flag       =  1;
 		}
 
-		if (SCF_VAR_FLOAT == var->type)
-			mov = x64_find_OpCode(SCF_X64_MOVSS, var->size, rd->bytes, SCF_X64_E2G);
+		if (SCF_VAR_FLOAT == v->type)
+			mov = x64_find_OpCode(SCF_X64_MOVSS, size, rd->bytes, SCF_X64_E2G);
 		else
-			mov = x64_find_OpCode(SCF_X64_MOVSD, var->size, rd->bytes, SCF_X64_E2G);
+			mov = x64_find_OpCode(SCF_X64_MOVSD, size, rd->bytes, SCF_X64_E2G);
 		goto mov;
 	}
-#endif
+
 	if (0 == src->dag_node->color) {
-		if (rd->bytes > var->size)
-			scf_variable_extend_bytes(var, rd->bytes);
+		if (rd->bytes > size)
+			scf_variable_extend_bytes(v, rd->bytes);
 
 		mov = x64_find_OpCode(SCF_X64_MOV, rd->bytes, rd->bytes, SCF_X64_I2G);
-		inst = x64_make_inst_I2G(mov, rd, (uint8_t*)&var->data, rd->bytes);
+		inst = x64_make_inst_I2G(mov, rd, (uint8_t*)&v->data, rd->bytes);
 		X64_INST_ADD_CHECK(c->instructions, inst);
 		goto end;
 	}
 
-	if (rd->bytes > var->size) {
-		if (scf_type_is_signed(var->type))
-			mov = x64_find_OpCode(SCF_X64_MOVSX, var->size, rd->bytes, SCF_X64_E2G);
+	if (rd->bytes > size) {
+		if (scf_variable_signed(v))
+			mov = x64_find_OpCode(SCF_X64_MOVSX, size, rd->bytes, SCF_X64_E2G);
 		else
-			mov = x64_find_OpCode(SCF_X64_MOVZX, var->size, rd->bytes, SCF_X64_E2G);
+			mov = x64_find_OpCode(SCF_X64_MOVZX, size, rd->bytes, SCF_X64_E2G);
 	} else {
 		mov = x64_find_OpCode(SCF_X64_MOV, rd->bytes, rd->bytes, SCF_X64_E2G);
 	}
 
 mov:
 	if (src->dag_node->color > 0) {
-		rs   = x64_find_register_color(src->dag_node->color);
+		X64_SELECT_REG_CHECK(&rs, src->dag_node, c, f, 1);
 		inst = x64_make_inst_E2G(mov, rd, rs);
 		X64_INST_ADD_CHECK(c->instructions, inst);
 	} else {
-		inst = x64_make_inst_M2G(&rela, mov, rd, NULL, var);
+		inst = x64_make_inst_M2G(&rela, mov, rd, NULL, v);
 		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, var, NULL);
+		X64_RELA_ADD_CHECK(f->data_relas, rela, c, v, NULL);
 	}
 
 end:
-	ret = x64_find_OpCode(SCF_X64_RET, 8, 8, SCF_X64_G);
+	mov  = x64_find_OpCode(SCF_X64_MOV, 8, 8, SCF_X64_G2E);
+	pop  = x64_find_OpCode(SCF_X64_POP, 8, 8, SCF_X64_G);
+	ret  = x64_find_OpCode(SCF_X64_RET, 8, 8, SCF_X64_G);
+
+	inst = x64_make_inst_G2E(mov, rsp, rbp);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	inst = x64_make_inst_G(pop, rbp);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
 	inst = x64_make_inst_G(ret, rd);
 	X64_INST_ADD_CHECK(c->instructions, inst);
 	return 0;
 }
 
-static int _x64_inst_jmp(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
-{
-	if (!c->dst || !c->dst->code)
-		return -EINVAL;
-
-	c->instructions = scf_vector_alloc();
-	if (!c->instructions)
-		return -ENOMEM;
-
-	uint32_t offset = 0;
-
-	scf_x64_OpCode_t*  j    = x64_find_OpCode(OpCode_type, 1,1, SCF_X64_I);
-	scf_instruction_t* inst = x64_make_inst_I(j, (uint8_t*)&offset, sizeof(offset));
-
-	X64_INST_ADD_CHECK(c->instructions, inst);
-	return 0;
+#define X64_INST_JMP(name, op) \
+static int _x64_inst_##name##_handler(scf_native_t* ctx, scf_3ac_code_t* c) \
+{ \
+	return x64_inst_jmp(ctx, c, SCF_X64_##op); \
 }
 
-static int _x64_inst_goto_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	return _x64_inst_jmp(ctx, c, SCF_X64_JMP);
-}
-
-static int _x64_inst_jz_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	return _x64_inst_jmp(ctx, c, SCF_X64_JZ);
-}
-
-static int _x64_inst_jnz_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	return _x64_inst_jmp(ctx, c, SCF_X64_JNZ);
-}
-
-static int _x64_inst_jgt_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	return _x64_inst_jmp(ctx, c, SCF_X64_JG);
-}
-
-static int _x64_inst_jge_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	return _x64_inst_jmp(ctx, c, SCF_X64_JGE);
-}
-
-static int _x64_inst_jlt_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	return _x64_inst_jmp(ctx, c, SCF_X64_JL);
-}
-
-static int _x64_inst_jle_handler(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	return _x64_inst_jmp(ctx, c, SCF_X64_JLE);
-}
+X64_INST_JMP(goto, JMP)
+X64_INST_JMP(jz,   JZ)
+X64_INST_JMP(jnz,  JNZ)
+X64_INST_JMP(jgt,  JG)
+X64_INST_JMP(jge,  JGE)
+X64_INST_JMP(jlt,  JL)
+X64_INST_JMP(jle,  JLE)
 
 static int _x64_inst_load_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 {
@@ -2205,25 +880,9 @@ static int _x64_inst_load_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 			return -ENOMEM;
 	}
 
-	scf_register_x64_t* r   = x64_find_register_color(dn->color);
-	scf_x64_OpCode_t*   mov;
+	scf_register_x64_t* r    = x64_find_register_color(dn->color);
 
-	if (SCF_VAR_FLOAT == dn->var->type)
-		mov = x64_find_OpCode(SCF_X64_MOVSS, dn->var->size, r->bytes, SCF_X64_E2G);
-	else if (SCF_VAR_DOUBLE == dn->var->type)
-		mov = x64_find_OpCode(SCF_X64_MOVSD, dn->var->size, r->bytes, SCF_X64_E2G);
-	else
-		mov = x64_find_OpCode(SCF_X64_MOV, dn->var->size, r->bytes, SCF_X64_E2G);
-
-	if (!mov)
-		return -EINVAL;
-
-//	scf_logw("dn->color: %ld, dn->var->w: %s\n", dn->color, dn->var->w->text->data);
-	scf_rela_t*         rela = NULL;
-	scf_instruction_t*  inst = x64_make_inst_M2G(&rela, mov, r, NULL, dn->var);
-	X64_INST_ADD_CHECK(c->instructions, inst);
-	X64_RELA_ADD_CHECK(f->data_relas, rela, c, dn->var, NULL);
-	return 0;
+	return x64_load_reg(r, dn, c, f);
 }
 
 static int _x64_inst_save_handler(scf_native_t* ctx, scf_3ac_code_t* c)
@@ -2250,30 +909,50 @@ static int _x64_inst_save_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 			return -ENOMEM;
 	}
 
-	scf_register_x64_t* r   = x64_find_register_color(dn->color);
-	scf_x64_OpCode_t*   mov;
-
-	if (SCF_VAR_FLOAT == dn->var->type)
-		mov = x64_find_OpCode(SCF_X64_MOVSS, dn->var->size, r->bytes, SCF_X64_G2E);
-	else if (SCF_VAR_DOUBLE == dn->var->type)
-		mov = x64_find_OpCode(SCF_X64_MOVSD, dn->var->size, r->bytes, SCF_X64_G2E);
-	else
-		mov = x64_find_OpCode(SCF_X64_MOV, dn->var->size, r->bytes, SCF_X64_G2E);
-
-	if (!mov)
-		return -EINVAL;
-
-	scf_rela_t*         rela = NULL;
-	scf_instruction_t*  inst = x64_make_inst_G2M(&rela, mov, dn->var, NULL, r);
-	X64_INST_ADD_CHECK(c->instructions, inst);
-	X64_RELA_ADD_CHECK(f->data_relas, rela, c, dn->var, NULL);
-	return 0;
+	return x64_save_var(dn, c, f);
 }
+
+#define X64_INST_BINARY_ASSIGN(name, op) \
+static int _x64_inst_##name##_handler(scf_native_t* ctx, scf_3ac_code_t* c) \
+{ \
+	return x64_binary_assign(ctx, c, SCF_X64_##op); \
+} \
+static int _x64_inst_##name##_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* c) \
+{ \
+	return x64_binary_assign_pointer(ctx, c, SCF_X64_##op); \
+} \
+static int _x64_inst_##name##_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c)\
+{\
+	return _x64_inst_assign_array_index(ctx, c, SCF_X64_##op);\
+}\
+static int _x64_inst_##name##_dereference_handler(scf_native_t* ctx, scf_3ac_code_t* c)\
+{\
+	return x64_binary_assign_dereference(ctx, c, SCF_X64_##op);\
+}
+
+X64_INST_BINARY_ASSIGN(assign,     MOV)
+X64_INST_BINARY_ASSIGN(add_assign, ADD)
+X64_INST_BINARY_ASSIGN(sub_assign, SUB)
+X64_INST_BINARY_ASSIGN(and_assign, AND)
+X64_INST_BINARY_ASSIGN(or_assign,  OR)
+
+#define X64_INST_SHIFT(name, op) \
+static int _x64_inst_##name##_handler(scf_native_t* ctx, scf_3ac_code_t* c) \
+{ \
+	return x64_shift(ctx, c, SCF_X64_##op); \
+} \
+static int _x64_inst_##name##_assign_handler(scf_native_t* ctx, scf_3ac_code_t* c) \
+{ \
+	return x64_shift_assign(ctx, c, SCF_X64_##op); \
+}
+X64_INST_SHIFT(shl, SHL)
+X64_INST_SHIFT(shr, SHR)
 
 static x64_inst_handler_t x64_inst_handlers[] = {
 
 	{SCF_OP_CALL,			_x64_inst_call_handler},
 	{SCF_OP_ARRAY_INDEX, 	_x64_inst_array_index_handler},
+	{SCF_OP_POINTER,        _x64_inst_pointer_handler},
 
 	{SCF_OP_TYPE_CAST,      _x64_inst_cast_handler},
 	{SCF_OP_LOGIC_NOT, 		_x64_inst_logic_not_handler},
@@ -2283,13 +962,15 @@ static x64_inst_handler_t x64_inst_handlers[] = {
 	{SCF_OP_DEREFERENCE, 	_x64_inst_dereference_handler},
 	{SCF_OP_ADDRESS_OF, 	_x64_inst_address_of_handler},
 
-	{SCF_OP_3AC_DEREFERENCE_LV, _x64_inst_dereference_lv_handler},
-	{SCF_OP_3AC_ARRAY_INDEX_LV, _x64_inst_array_index_lv_handler},
-
 	{SCF_OP_MUL, 			_x64_inst_mul_handler},
 	{SCF_OP_DIV, 			_x64_inst_div_handler},
+	{SCF_OP_MOD,            _x64_inst_mod_handler},
+
 	{SCF_OP_ADD, 			_x64_inst_add_handler},
 	{SCF_OP_SUB, 			_x64_inst_sub_handler},
+
+	{SCF_OP_SHL,            _x64_inst_shl_handler},
+	{SCF_OP_SHR,            _x64_inst_shr_handler},
 
 	{SCF_OP_BIT_AND,        _x64_inst_bit_and_handler},
 	{SCF_OP_BIT_OR,         _x64_inst_bit_or_handler},
@@ -2309,6 +990,19 @@ static x64_inst_handler_t x64_inst_handlers[] = {
 
 	{SCF_OP_ASSIGN, 		_x64_inst_assign_handler},
 
+	{SCF_OP_ADD_ASSIGN,     _x64_inst_add_assign_handler},
+	{SCF_OP_SUB_ASSIGN,     _x64_inst_sub_assign_handler},
+
+	{SCF_OP_MUL_ASSIGN,     _x64_inst_mul_assign_handler},
+	{SCF_OP_DIV_ASSIGN,     _x64_inst_div_assign_handler},
+	{SCF_OP_MOD_ASSIGN,     _x64_inst_mod_assign_handler},
+
+	{SCF_OP_SHL_ASSIGN,     _x64_inst_shl_assign_handler},
+	{SCF_OP_SHR_ASSIGN,     _x64_inst_shr_assign_handler},
+
+	{SCF_OP_AND_ASSIGN,     _x64_inst_and_assign_handler},
+	{SCF_OP_OR_ASSIGN,      _x64_inst_or_assign_handler},
+
 	{SCF_OP_RETURN, 		_x64_inst_return_handler},
 	{SCF_OP_GOTO, 			_x64_inst_goto_handler},
 
@@ -2321,6 +1015,26 @@ static x64_inst_handler_t x64_inst_handlers[] = {
 
 	{SCF_OP_3AC_SAVE,       _x64_inst_save_handler},
 	{SCF_OP_3AC_LOAD,       _x64_inst_load_handler},
+
+	{SCF_OP_3AC_ASSIGN_DEREFERENCE,     _x64_inst_assign_dereference_handler},
+	{SCF_OP_3AC_ASSIGN_ARRAY_INDEX,     _x64_inst_assign_array_index_handler},
+	{SCF_OP_3AC_ASSIGN_POINTER,         _x64_inst_assign_pointer_handler},
+
+	{SCF_OP_3AC_ADD_ASSIGN_DEREFERENCE, _x64_inst_add_assign_dereference_handler},
+	{SCF_OP_3AC_ADD_ASSIGN_ARRAY_INDEX, _x64_inst_add_assign_array_index_handler},
+	{SCF_OP_3AC_ADD_ASSIGN_POINTER,     _x64_inst_add_assign_pointer_handler},
+
+	{SCF_OP_3AC_SUB_ASSIGN_DEREFERENCE, _x64_inst_sub_assign_dereference_handler},
+	{SCF_OP_3AC_SUB_ASSIGN_ARRAY_INDEX, _x64_inst_sub_assign_array_index_handler},
+	{SCF_OP_3AC_SUB_ASSIGN_POINTER,     _x64_inst_sub_assign_pointer_handler},
+
+	{SCF_OP_3AC_AND_ASSIGN_DEREFERENCE, _x64_inst_and_assign_dereference_handler},
+	{SCF_OP_3AC_AND_ASSIGN_ARRAY_INDEX, _x64_inst_and_assign_array_index_handler},
+	{SCF_OP_3AC_AND_ASSIGN_POINTER,     _x64_inst_and_assign_pointer_handler},
+
+	{SCF_OP_3AC_OR_ASSIGN_DEREFERENCE,  _x64_inst_or_assign_dereference_handler},
+	{SCF_OP_3AC_OR_ASSIGN_ARRAY_INDEX,  _x64_inst_or_assign_array_index_handler},
+	{SCF_OP_3AC_OR_ASSIGN_POINTER,      _x64_inst_or_assign_pointer_handler},
 };
 
 x64_inst_handler_t* scf_x64_find_inst_handler(const int op_type)

@@ -178,7 +178,6 @@ static int _scf_op_expr_array_index(scf_ast_t* ast, scf_node_t** nodes, int nb_n
 	}
 
 	scf_variable_t* v1 = _scf_operand_get(nodes[1]);
-	scf_variable_print(v1);
 	assert(SCF_VAR_INT == v1->type);
 
 	int index = v1->data.i;

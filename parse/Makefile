@@ -14,8 +14,17 @@ CFILES += ../native/scf_native.c
 CFILES += ../native/x64/scf_x64.c
 CFILES += ../native/x64/scf_x64_inst.c
 CFILES += ../native/x64/scf_x64_inst_util.c
+CFILES += ../native/x64/scf_x64_inst_shift.c
+CFILES += ../native/x64/scf_x64_inst_common.c
+CFILES += ../native/x64/scf_x64_inst_binary.c
+CFILES += ../native/x64/scf_x64_inst_mul.c
+CFILES += ../native/x64/scf_x64_inst_div.c
+CFILES += ../native/x64/scf_x64_inst_cmp.c
+
 CFILES += ../native/x64/scf_x64_rcg.c
 CFILES += ../native/x64/scf_x64_graph.c
+CFILES += ../native/x64/scf_x64_reg.c
+CFILES += ../native/x64/scf_x64_opcode.c
 
 CFILES += ../elf/scf_elf.c
 CFILES += ../elf/scf_elf_x64.c
@@ -36,8 +45,14 @@ CFILES += ../core/scf_operator.c
 CFILES += ../core/scf_operator_handler.c
 
 CFILES += ../core/scf_type_cast.c
+CFILES += ../core/scf_type_cast_i8.c
+CFILES += ../core/scf_type_cast_i16.c
 CFILES += ../core/scf_type_cast_i32.c
 CFILES += ../core/scf_type_cast_i64.c
+CFILES += ../core/scf_type_cast_u8.c
+CFILES += ../core/scf_type_cast_u16.c
+CFILES += ../core/scf_type_cast_u32.c
+CFILES += ../core/scf_type_cast_u64.c
 CFILES += ../core/scf_type_cast_float.c
 CFILES += ../core/scf_type_cast_double.c
 

@@ -208,6 +208,15 @@ int scf_variable_same_type(scf_variable_t* v0, scf_variable_t* v1)
 		if (v0->nb_pointers != v1->nb_pointers)
 			return 0;
 
+		if (v0->nb_dimentions != v1->nb_dimentions)
+			return 0;
+
+		int i;
+		for (i = 0; i < v0->nb_dimentions; i++) {
+			if (v0->dimentions[i] != v1->dimentions[i])
+				return 0;
+		}
+
 		if (SCF_FUNCTION_PTR == v0->type) {
 			assert(v0->func_ptr);
 			assert(v1->func_ptr);
@@ -264,4 +273,28 @@ void scf_variable_extend_std(scf_variable_t* v, scf_variable_t* std)
 
 	v->type = std->type;
 }
+
+int scf_variable_size(scf_variable_t* v)
+{
+	if (0 == v->nb_dimentions)
+		return v->size;
+
+	assert(v->nb_dimentions > 0);
+
+	int capacity = 1;
+	int j;
+
+	for (j = 0; j < v->nb_dimentions; j++) {
+		if (v->dimentions[j] < 0) {
+			scf_loge("\n");
+			return -EINVAL;
+		}
+
+		capacity *= v->dimentions[j];
+	}
+	v->capacity = capacity;
+
+	return capacity * v->size;
+}
+
 

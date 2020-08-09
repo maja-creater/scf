@@ -7,7 +7,7 @@
 #include"scf_elf.h"
 
 scf_base_type_t	base_types[] = {
-	{SCF_VAR_CHAR,		"char",		4},
+	{SCF_VAR_CHAR,		"char",		1},
 	{SCF_VAR_STRING, 	"string",	-1},
 
 	{SCF_VAR_INT, 		"int",		4},
@@ -319,6 +319,7 @@ static int _fill_code_list_inst(scf_string_t* code, scf_list_t* h)
 	scf_list_t* l;
 
 	for (l = scf_list_head(h); l != scf_list_sentinel(h); l = scf_list_next(l)) {
+
 		scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
 
 		if (!c->instructions)
@@ -328,6 +329,7 @@ static int _fill_code_list_inst(scf_string_t* code, scf_list_t* h)
 		int ret;
 
 		for (i = 0; i < c->instructions->size; i++) {
+
 			scf_instruction_t* inst = c->instructions->data[i];
 
 			ret = scf_string_cat_cstr_len(code, inst->code, inst->len);
@@ -336,14 +338,30 @@ static int _fill_code_list_inst(scf_string_t* code, scf_list_t* h)
 		}
 	}
 
-	return code->len;
+	return 0;
 }
 
 static int _fill_function_inst(scf_string_t* code, scf_function_t* f)
 {
 	scf_list_t* l;
+	int ret;
+	int i;
 
 	f->code_bytes = 0;
+
+	if (f->init_insts) {
+
+		for (i = 0; i < f->init_insts->size; i++) {
+
+			scf_instruction_t* inst = f->init_insts->data[i];
+
+			ret = scf_string_cat_cstr_len(code, inst->code, inst->len);
+			if (ret < 0)
+				return ret;
+
+			f->code_bytes += inst->len;
+		}
+	}
 
 	for (l = scf_list_head(&f->basic_block_list_head); l != scf_list_sentinel(&f->basic_block_list_head);
 			l = scf_list_next(l)) {
@@ -365,7 +383,7 @@ static int _fill_function_inst(scf_string_t* code, scf_function_t* f)
 		f->code_bytes += bb->code_bytes;
 	}
 
-	return code->len;
+	return 0;
 }
 
 static int _find_function(scf_node_t* node, void* arg, scf_vector_t* vec)
@@ -532,19 +550,7 @@ static int _scf_parse_add_ds(scf_parse_t* parse, scf_elf_context_t* elf, scf_vec
 			name = v->signature->data;
 
 		if (v->nb_dimentions > 0) {
-			int capacity = 1;
-			int j;
-
-			for (j = 0; j < v->nb_dimentions; j++) {
-				if (v->dimentions[j] < 0) {
-					scf_loge("\n");
-					goto error;
-				}
-
-				capacity *= v->dimentions[j];
-			}
-
-			size   = capacity * v->size;
+			size   = scf_variable_size(v);
 			v_data = v->data.p;
 
 		} else if (v->type >= SCF_STRUCT) {
@@ -722,6 +728,12 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 
 		for (j = 0; j < f->data_relas->size; j++) {
 			scf_rela_t* r = f->data_relas->data[j];
+
+			ret = scf_vector_add_unique(global_vars, r->var);
+			if (ret < 0) {
+				scf_loge("\n");
+				goto error;
+			}
 
 			r->text_offset = offset + r->inst_offset;
 

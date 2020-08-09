@@ -16,27 +16,43 @@ typedef struct scf_scope_s      scf_scope_t;
 
 
 enum scf_core_types {
-	SCF_OP_ADD	= 0,	// +
-	SCF_OP_SUB,			// -
-	SCF_OP_MUL,			// *
-	SCF_OP_DIV,			// / division
+	SCF_OP_ADD	= 0,    // +
+	SCF_OP_SUB,         // -
+	SCF_OP_MUL,         // *
+	SCF_OP_DIV,         // / div
+	SCF_OP_MOD,         // % mod
 
-	SCF_OP_INC,			// ++
-	SCF_OP_DEC,			// --
+	SCF_OP_INC,         // ++
+	SCF_OP_DEC,         // --
 
-	SCF_OP_NEG,			// -
-	SCF_OP_POSITIVE,	// +
+	SCF_OP_NEG,         // -
+	SCF_OP_POSITIVE,    // +
 
-	SCF_OP_BIT_AND,		// &
-	SCF_OP_BIT_OR,		// |
-	SCF_OP_BIT_NOT,		// ~
+	SCF_OP_SHL,         // <<
+	SCF_OP_SHR,         // >>
 
-	SCF_OP_LOGIC_AND,		// &&
-	SCF_OP_LOGIC_OR,		// ||
-	SCF_OP_LOGIC_NOT,		// !
+	// 11
+	SCF_OP_BIT_AND,     // &
+	SCF_OP_BIT_OR,      // |
+	SCF_OP_BIT_NOT,     // ~
 
-	SCF_OP_ASSIGN,		// = assign
+	SCF_OP_LOGIC_AND,   // &&
+	SCF_OP_LOGIC_OR,    // ||
+	SCF_OP_LOGIC_NOT,   // !
 
+	// 17
+	SCF_OP_ASSIGN,      //  = assign
+	SCF_OP_ADD_ASSIGN,  // +=
+	SCF_OP_SUB_ASSIGN,  // -=
+	SCF_OP_MUL_ASSIGN,  // *=
+	SCF_OP_DIV_ASSIGN,  // /=
+	SCF_OP_MOD_ASSIGN,  // %=
+	SCF_OP_SHL_ASSIGN,  // <<=
+	SCF_OP_SHR_ASSIGN,  // >>=
+	SCF_OP_AND_ASSIGN,  // &=
+	SCF_OP_OR_ASSIGN,   // |=
+
+	// 27
 	SCF_OP_EQ,			// == equal
 	SCF_OP_NE,			// != not equal
 	SCF_OP_LT,			// < less than
@@ -44,7 +60,7 @@ enum scf_core_types {
 	SCF_OP_LE,			// <= less equal 
 	SCF_OP_GE,			// >= greater equal
 
-	// 21
+	// 33
 	SCF_OP_EXPR,		// () expr
 	SCF_OP_CALL,		// () function call
 	SCF_OP_TYPE_CAST,	// (char*) type cast
@@ -59,7 +75,7 @@ enum scf_core_types {
 	SCF_OP_POINTER,     // -> struct member
 	SCF_OP_DOT,			// . dot
 
-	// 31
+	// 43
 	SCF_OP_BLOCK,		// statement block, first in fisr run
 	SCF_OP_IF,			// if statement
 	SCF_OP_FOR,			// for statement
@@ -69,14 +85,38 @@ enum scf_core_types {
 	SCF_OP_CONTINUE,	// continue statement
 	SCF_OP_ERROR,       // error statement
 
-	SCF_OP_3AC_TEQ,		// test if 0
-	SCF_OP_3AC_CMP,		// test if 0
+	SCF_OP_3AC_TEQ,		// test if = 0
+	SCF_OP_3AC_CMP,		// cmp > 0, < 0, = 0, etc
+
+	SCF_OP_3AC_LEA,
 
 	SCF_OP_3AC_SETZ,
 	SCF_OP_3AC_SETNZ,
 
-	SCF_OP_3AC_DEREFERENCE_LV, // left value, update the value of pointer
-	SCF_OP_3AC_ARRAY_INDEX_LV, // left value, update the value of array in index
+	// these ops will update the value in memory
+	SCF_OP_3AC_ASSIGN_DEREFERENCE, // left value, *p   = expr
+	SCF_OP_3AC_ASSIGN_ARRAY_INDEX, // left value, a[0] = expr
+	SCF_OP_3AC_ASSIGN_POINTER,     // left value, p->a = expr
+
+	// *p += var
+	SCF_OP_3AC_ADD_ASSIGN_DEREFERENCE,
+	SCF_OP_3AC_ADD_ASSIGN_ARRAY_INDEX,
+	SCF_OP_3AC_ADD_ASSIGN_POINTER,
+
+	// *p -= var
+	SCF_OP_3AC_SUB_ASSIGN_DEREFERENCE,
+	SCF_OP_3AC_SUB_ASSIGN_ARRAY_INDEX,
+	SCF_OP_3AC_SUB_ASSIGN_POINTER,
+
+	// *p &= var
+	SCF_OP_3AC_AND_ASSIGN_DEREFERENCE,
+	SCF_OP_3AC_AND_ASSIGN_ARRAY_INDEX,
+	SCF_OP_3AC_AND_ASSIGN_POINTER,
+
+	// *p |= var
+	SCF_OP_3AC_OR_ASSIGN_DEREFERENCE,
+	SCF_OP_3AC_OR_ASSIGN_ARRAY_INDEX,
+	SCF_OP_3AC_OR_ASSIGN_POINTER,
 
 	SCF_OP_3AC_JZ,		// jz, jmp if 0
 	SCF_OP_3AC_JNZ,		// jnz, jmp if not 0
@@ -132,6 +172,16 @@ enum scf_core_types {
 
 	SCF_STRUCT,			// struct type defined by user
 };
+
+static int scf_type_is_assign(int type)
+{
+	return type >= SCF_OP_ASSIGN && type <= SCF_OP_OR_ASSIGN;
+}
+
+static int scf_type_is_binary_assign(int type)
+{
+	return type >= SCF_OP_ADD_ASSIGN && type <= SCF_OP_OR_ASSIGN;
+}
 
 static int scf_type_is_signed(int type)
 {

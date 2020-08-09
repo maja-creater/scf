@@ -63,3 +63,22 @@ int scf_ast_add_file_block(scf_ast_t* ast, const char* path)
 	return 0;
 }
 
+scf_string_t* scf_variable_type_name(scf_ast_t* ast, scf_variable_t* v)
+{
+	scf_type_t*   t = scf_ast_find_type_type(ast, v->type);
+
+	scf_string_t* s = scf_string_clone(t->name);
+
+	int i;
+	for (i = 0; i < v->nb_pointers; i++)
+		scf_string_cat_cstr_len(s, "*", 1);
+
+	for (i = 0; i < v->nb_dimentions; i++) {
+		char str[256];
+		snprintf(str, sizeof(str) - 1, "[%d]", v->dimentions[i]);
+
+		scf_string_cat_cstr(s, str);
+	}
+
+	return s;
+}

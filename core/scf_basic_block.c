@@ -167,27 +167,30 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 			if (ret < 0)
 				goto error;
 
-			// if node is var, but not function's argment var
-			if (scf_type_is_var(dag_node->type) && !dag_node->var->arg_flag) {
-				scf_logw("type: %d, var: %s, const_flag: %d, const_literal_flag: %d, nb_pointers: %d\n",
+			// load global or local var
+			if (scf_type_is_var(dag_node->type) && (dag_node->var->global_flag || dag_node->var->local_flag)) {
+				scf_logw("type: %d, var: %s, const_flag: %d, const_literal_flag: %d, global_flag: %d, local_flag: %d, nb_pointers: %d\n",
 						dag_node->type,
 						dag_node->var->w->text->data,
 						dag_node->var->const_flag,
 						dag_node->var->const_literal_flag,
-						dag_node->var->nb_pointers
-						);
-
+						dag_node->var->global_flag,
+						dag_node->var->local_flag,
+						dag_node->var->nb_pointers);
+#if 1
 				scf_3ac_code_t* load = scf_3ac_alloc_by_dst(SCF_OP_3AC_LOAD, dag_node);
 				if (!load)
 					goto error;
 				scf_list_add_tail(&bb->load_list_head, &load->list);
 				load->basic_block = bb;
-
+#endif
+#if 0
 				scf_3ac_code_t* save = scf_3ac_alloc_by_src(SCF_OP_3AC_SAVE, dag_node);
 				if (!save)
 					goto error;
 				scf_list_add_tail(&bb->save_list_head, &save->list);
 				save->basic_block = bb;
+#endif
 			}
 		}
 	}
@@ -200,8 +203,13 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 		if (scf_type_is_jmp(c->op->type))
 			continue;
 
-		if (c->dst && c->dst->dag_node)
-			c->dst->dag_node->active = 0;
+		if (c->dst && c->dst->dag_node) {
+
+			if (scf_type_is_binary_assign(c->op->type))
+				c->dst->dag_node->active = 1;
+			else
+				c->dst->dag_node->active = 0;
+		}
 
 		if (c->srcs) {
 			int j;
@@ -216,22 +224,6 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 
 				if (scf_type_is_operator(src->dag_node->type)
 						|| !scf_variable_const(src->dag_node->var)) {
-
-					if (src->dag_node->var->w) {
-						scf_logw("type: %d, var: %s, const_flag: %d, const_literal_flag: %d, nb_pointers: %d\n",
-								src->dag_node->type,
-								src->dag_node->var->w->text->data,
-								src->dag_node->var->const_flag,
-								src->dag_node->var->const_literal_flag,
-								src->dag_node->var->nb_pointers);
-					} else {
-						scf_logw("type: %d, var: %#lx, const_flag: %d, const_literal_flag: %d, nb_pointers: %d\n",
-								src->dag_node->type,
-								0xffff & (uintptr_t)src->dag_node->var,
-								src->dag_node->var->const_flag,
-								src->dag_node->var->const_literal_flag,
-								src->dag_node->var->nb_pointers);
-					}
 
 					ret = scf_vector_add_unique(bb->var_dag_nodes, src->dag_node);
 					if (ret < 0)
@@ -254,7 +246,7 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 		if (ret < 0)
 			goto error;
 	}
-#if 0
+#if 1
 	for (l = scf_list_head(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head);
 			l = scf_list_next(l)) {
 
@@ -266,9 +258,9 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 			scf_active_var_t* v = c->active_vars->data[j];
 			if (v->dag_node->var) {
 				if (v->dag_node->var->w)
-					scf_logi("var: %s, active: %d\n", v->dag_node->var->w->text->data, v->active);
+					scf_logd("var: %s, active: %d\n", v->dag_node->var->w->text->data, v->active);
 				else
-					scf_logi("var: %p, active: %d\n", v->dag_node->var, v->active);
+					scf_logd("var: %p, active: %d\n", v->dag_node->var, v->active);
 			}
 		}
 		printf("\n");

@@ -8,7 +8,6 @@ scf_graph_t* scf_graph_alloc()
 
 	graph->nodes = scf_vector_alloc();
 	if (!graph->nodes) {
-
 		free(graph);
 		graph = NULL;
 		return NULL;
@@ -41,7 +40,6 @@ scf_graph_node_t* scf_graph_node_alloc()
 
 	node->neighbors = scf_vector_alloc();
 	if (!node->neighbors) {
-
 		free(node);
 		node = NULL;
 		return NULL;

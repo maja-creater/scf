@@ -29,8 +29,8 @@ struct scf_function_s {
 	scf_vector_t*     data_relas; // re-localtions in .data segment
 
 	scf_vector_t*     init_insts;
-	scf_vector_t*     fini_insts;
 
+	int               local_vars_size;
 	int               code_bytes;
 };
 

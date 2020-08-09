@@ -5,447 +5,6 @@
 
 extern scf_native_ops_t native_ops_x64;
 
-scf_register_x64_t	x64_registers[] = {
-	{0, 1, "al",    X64_COLOR(0, 0, 0x1),  NULL},
-	{0, 2, "ax",    X64_COLOR(0, 0, 0x3),  NULL},
-	{0, 4, "eax",   X64_COLOR(0, 0, 0xf),  NULL},
-	{0, 8, "rax",   X64_COLOR(0, 0, 0xff), NULL},
-
-	{1, 1, "cl",    X64_COLOR(0, 1, 0x1),  NULL},
-	{1, 2, "cx",    X64_COLOR(0, 1, 0x3),  NULL},
-	{1, 4, "ecx",   X64_COLOR(0, 1, 0xf),  NULL},
-	{1, 8, "rcx",   X64_COLOR(0, 1, 0xff), NULL},
-
-	{2, 1, "dl",    X64_COLOR(0, 2, 0x1),  NULL},
-	{2, 2, "dx",    X64_COLOR(0, 2, 0x3),  NULL},
-	{2, 4, "edx",   X64_COLOR(0, 2, 0xf),  NULL},
-	{2, 8, "rdx",   X64_COLOR(0, 2, 0xff), NULL},
-
-	{3, 1, "bl",    X64_COLOR(0, 3, 0x1),  NULL},
-	{3, 2, "bx",    X64_COLOR(0, 3, 0x3),  NULL},
-	{3, 4, "ebx",   X64_COLOR(0, 3, 0xf),  NULL},
-	{3, 8, "rbx",   X64_COLOR(0, 3, 0xff), NULL},
-
-	{4, 2, "sp",    X64_COLOR(0, 4, 0x3),  NULL},
-	{4, 4, "esp",   X64_COLOR(0, 4, 0xf),  NULL},
-	{4, 8, "rsp",   X64_COLOR(0, 4, 0xff), NULL},
-
-	{5, 2, "bp",    X64_COLOR(0, 5, 0x3),  NULL},
-	{5, 4, "ebp",   X64_COLOR(0, 5, 0xf),  NULL},
-	{5, 8, "rbp",   X64_COLOR(0, 5, 0xff), NULL},
-
-	{6, 2, "si",    X64_COLOR(0, 6, 0x3),  NULL},
-	{6, 4, "esi",   X64_COLOR(0, 6, 0xf),  NULL},
-	{6, 8, "rsi",   X64_COLOR(0, 6, 0xff), NULL},
-
-	{7, 2, "di",    X64_COLOR(0, 7, 0x3),  NULL},
-	{7, 4, "edi",   X64_COLOR(0, 7, 0xf),  NULL},
-	{7, 8, "rdi",   X64_COLOR(0, 7, 0xff), NULL},
-
-	{4, 1, "ah",    X64_COLOR(0, 0, 0x2),  NULL},
-	{5, 1, "ch",    X64_COLOR(0, 1, 0x2),  NULL},
-	{6, 1, "dh",    X64_COLOR(0, 2, 0x2),  NULL},
-	{7, 1, "bh",    X64_COLOR(0, 3, 0x2),  NULL},
-
-	{0, 4, "mm0",    X64_COLOR(1, 0, 0xf),  NULL},
-	{0, 8, "xmm0",   X64_COLOR(1, 0, 0xff), NULL},
-
-	{1, 4, "mm1",    X64_COLOR(1, 1, 0xf),  NULL},
-	{1, 8, "xmm1",   X64_COLOR(1, 1, 0xff), NULL},
-
-	{2, 4, "mm2",    X64_COLOR(1, 2, 0xf),  NULL},
-	{2, 8, "xmm2",   X64_COLOR(1, 2, 0xff), NULL},
-
-	{3, 4, "mm3",    X64_COLOR(1, 3, 0xf),  NULL},
-	{3, 8, "xmm3",   X64_COLOR(1, 3, 0xff), NULL},
-
-	{4, 4, "mm4",    X64_COLOR(1, 4, 0xf),  NULL},
-	{4, 8, "xmm4",   X64_COLOR(1, 4, 0xff), NULL},
-
-	{5, 4, "mm5",    X64_COLOR(1, 5, 0xf),  NULL},
-	{5, 8, "xmm5",   X64_COLOR(1, 5, 0xff), NULL},
-
-	{6, 4, "mm6",    X64_COLOR(1, 6, 0xf),  NULL},
-	{6, 8, "xmm6",   X64_COLOR(1, 6, 0xff), NULL},
-
-	{7, 4, "mm7",    X64_COLOR(1, 7, 0xf),  NULL},
-	{7, 8, "xmm7",   X64_COLOR(1, 7, 0xff), NULL},
-};
-
-scf_x64_OpCode_t	x64_OpCodes[] = {
-	{SCF_X64_PUSH, "push", 1, {0x50, 0x0, 0x0},1,  8,8, SCF_X64_G,   0,0, 0,{0,0}},
-	{SCF_X64_POP,  "pop",  1, {0x58, 0x0, 0x0},1,  8,8, SCF_X64_G,   0,0, 0,{0,0}},
-
-	{SCF_X64_INC,  "inc",  2, {0xff, 0x0, 0x0},1,  4,4, SCF_X64_G,   0,1, 0,{0,0}},
-	{SCF_X64_DEC,  "dec",  2, {0xff, 0x0, 0x0},1,  4,4, SCF_X64_G,   1,1, 0,{0,0}},
-
-	{SCF_X64_XOR,  "xor",  2, {0x30, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_XOR,  "xor",  2, {0x31, 0x0, 0x0},1,  2,2, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_XOR,  "xor",  2, {0x31, 0x0, 0x0},1,  4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_XOR,  "xor",  2, {0x31, 0x0, 0x0},1,  8,8, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_XOR,  "xor",  2, {0x32, 0x0, 0x0},1,  1,1, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_XOR,  "xor",  2, {0x33, 0x0, 0x0},1,  2,2, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_XOR,  "xor",  2, {0x33, 0x0, 0x0},1,  4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_XOR,  "xor",  2, {0x33, 0x0, 0x0},1,  8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_XOR,  "xor",  2, {0x34, 0x0, 0x0},1,  1,1, SCF_X64_I2G, 0,0, 1,{0,0}},
-	{SCF_X64_XOR,  "xor",  2, {0x35, 0x0, 0x0},1,  2,2, SCF_X64_I2G, 0,0, 1,{0,0}},
-	{SCF_X64_XOR,  "xor",  2, {0x35, 0x0, 0x0},1,  4,4, SCF_X64_I2G, 0,0, 1,{0,0}},
-	{SCF_X64_XOR,  "xor",  2, {0x35, 0x0, 0x0},1,  4,8, SCF_X64_I2G, 0,0, 1,{0,0}},
-
-	{SCF_X64_AND,  "and",  2, {0x20, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_AND,  "and",  2, {0x21, 0x0, 0x0},1,  2,2, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_AND,  "and",  2, {0x21, 0x0, 0x0},1,  4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_AND,  "and",  2, {0x21, 0x0, 0x0},1,  8,8, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_AND,  "and",  2, {0x22, 0x0, 0x0},1,  1,1, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_AND,  "and",  2, {0x23, 0x0, 0x0},1,  2,2, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_AND,  "and",  2, {0x23, 0x0, 0x0},1,  4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_AND,  "and",  2, {0x23, 0x0, 0x0},1,  8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_AND,  "and",  2, {0x80, 0x0, 0x0},1,  1,1, SCF_X64_I2E, 4,1, 0,{0,0}},
-	{SCF_X64_AND,  "and",  2, {0x81, 0x0, 0x0},1,  2,2, SCF_X64_I2E, 4,1, 0,{0,0}},
-	{SCF_X64_AND,  "and",  2, {0x81, 0x0, 0x0},1,  4,4, SCF_X64_I2E, 4,1, 0,{0,0}},
-	{SCF_X64_AND,  "and",  2, {0x81, 0x0, 0x0},1,  4,8, SCF_X64_I2E, 4,1, 0,{0,0}},
-
-	{SCF_X64_OR,   "or",   2, {0x08, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_OR,   "or",   2, {0x09, 0x0, 0x0},1,  2,2, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_OR,   "or",   2, {0x09, 0x0, 0x0},1,  4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_OR,   "or",   2, {0x09, 0x0, 0x0},1,  8,8, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_OR,   "or",   2, {0x0a, 0x0, 0x0},1,  1,1, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_OR,   "or",   2, {0x0b, 0x0, 0x0},1,  2,2, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_OR,   "or",   2, {0x0b, 0x0, 0x0},1,  4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_OR,   "or",   2, {0x0b, 0x0, 0x0},1,  8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_OR,   "or",   2, {0x80, 0x0, 0x0},1,  1,1, SCF_X64_I2E, 1,1, 0,{0,0}},
-	{SCF_X64_OR,   "or",   2, {0x81, 0x0, 0x0},1,  2,2, SCF_X64_I2E, 1,1, 0,{0,0}},
-	{SCF_X64_OR,   "or",   2, {0x81, 0x0, 0x0},1,  4,4, SCF_X64_I2E, 1,1, 0,{0,0}},
-	{SCF_X64_OR,   "or",   2, {0x81, 0x0, 0x0},1,  4,8, SCF_X64_I2E, 1,1, 0,{0,0}},
-
-	{SCF_X64_CALL, "call", 5, {0xe8, 0x0, 0x0},1,  4,4, SCF_X64_I,   0,0, 0,{0,0}},
-	{SCF_X64_CALL, "call", 2, {0xff, 0x0, 0x0},1,  8,8, SCF_X64_E,   2,1, 0,{0,0}},
-
-	{SCF_X64_RET,  "ret",  1, {0xc3, 0x0, 0x0},1,  8,8, SCF_X64_G,   0,0, 0,{0,0}},
-
-	{SCF_X64_ADD,  "add",  2, {0x00, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_ADD,  "add",  2, {0x01, 0x0, 0x0},1,  2,2, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_ADD,  "add",  2, {0x01, 0x0, 0x0},1,  4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_ADD,  "add",  2, {0x01, 0x0, 0x0},1,  8,8, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_ADD,  "add",  2, {0x02, 0x0, 0x0},1,  1,1, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_ADD,  "add",  2, {0x03, 0x0, 0x0},1,  2,2, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_ADD,  "add",  2, {0x03, 0x0, 0x0},1,  4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_ADD,  "add",  2, {0x03, 0x0, 0x0},1,  8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	// add ax, imm
-	{SCF_X64_ADD,  "add",  2, {0x04, 0x0, 0x0},1,  1,1, SCF_X64_I2G, 0,0, 1,{SCF_X64_REG_AL,0}},
-	{SCF_X64_ADD,  "add",  2, {0x05, 0x0, 0x0},1,  2,2, SCF_X64_I2G, 0,0, 1,{SCF_X64_REG_AX,0}},
-	{SCF_X64_ADD,  "add",  2, {0x05, 0x0, 0x0},1,  4,4, SCF_X64_I2G, 0,0, 1,{SCF_X64_REG_EAX,0}},
-	{SCF_X64_ADD,  "add",  2, {0x05, 0x0, 0x0},1,  4,8, SCF_X64_I2G, 0,0, 1,{SCF_X64_REG_RAX,0}},
-
-	// add r/m, imm
-	{SCF_X64_ADD,  "add",  2, {0x80, 0x0, 0x0},1,  1,1, SCF_X64_I2E, 0,1, 0,{0,0}},
-	{SCF_X64_ADD,  "add",  2, {0x81, 0x0, 0x0},1,  2,2, SCF_X64_I2E, 0,1, 0,{0,0}},
-	{SCF_X64_ADD,  "add",  2, {0x81, 0x0, 0x0},1,  4,4, SCF_X64_I2E, 0,1, 0,{0,0}},
-	{SCF_X64_ADD,  "add",  2, {0x81, 0x0, 0x0},1,  4,8, SCF_X64_I2E, 0,1, 0,{0,0}},
-
-	// add r/m, imm8
-	{SCF_X64_ADD,  "add",  2, {0x83, 0x0, 0x0},1,  1,2, SCF_X64_I2E, 0,1, 0,{0,0}},
-	{SCF_X64_ADD,  "add",  2, {0x83, 0x0, 0x0},1,  1,4, SCF_X64_I2E, 0,1, 0,{0,0}},
-	{SCF_X64_ADD,  "add",  2, {0x83, 0x0, 0x0},1,  1,8, SCF_X64_I2E, 0,1, 0,{0,0}},
-
-
-	{SCF_X64_SUB,  "sub",  2, {0x28, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_SUB,  "sub",  2, {0x29, 0x0, 0x0},1,  4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_SUB,  "sub",  2, {0x2a, 0x0, 0x0},1,  1,1, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_SUB,  "sub",  2, {0x2b, 0x0, 0x0},1,  4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_SUB,  "sub",  2, {0x80, 0x0, 0x0},1,  1,1, SCF_X64_I2E, 5,1, 0,{0,0}},
-	{SCF_X64_SUB,  "sub",  2, {0x81, 0x0, 0x0},1,  4,4, SCF_X64_I2E, 5,1, 0,{0,0}},
-	{SCF_X64_SUB,  "sub",  2, {0x83, 0x0, 0x0},1,  1,4, SCF_X64_I2E, 5,1, 0,{0,0}},
-
-	{SCF_X64_MUL,  "mul",  2, {0xf7, 0x0, 0x0},1,  4,4, SCF_X64_E,   4,1, 2,{0,2}},
-	{SCF_X64_MUL,  "mul",  2, {0xf7, 0x0, 0x0},1,  8,8, SCF_X64_E,   4,1, 2,{0,2}},
-
-	{SCF_X64_IMUL, "imul", 2, {0xf7, 0x0, 0x0},1,  4,4, SCF_X64_E,   5,1, 2,{0,2}},
-	{SCF_X64_IMUL, "imul", 2, {0xf7, 0x0, 0x0},1,  8,8, SCF_X64_E,   5,1, 2,{0,2}},
-
-	{SCF_X64_DIV,  "div",  2, {0xf7, 0x0, 0x0},1,  4,4, SCF_X64_E,   6,1, 2,{0,2}},
-	{SCF_X64_DIV,  "div",  2, {0xf7, 0x0, 0x0},1,  8,8, SCF_X64_E,   6,1, 2,{0,2}},
-
-	{SCF_X64_IDIV, "idiv", 2, {0xf7, 0x0, 0x0},1,  4,4, SCF_X64_E,   7,1, 2,{0,2}},
-	{SCF_X64_IDIV, "idiv", 2, {0xf7, 0x0, 0x0},1,  8,8, SCF_X64_E,   7,1, 2,{0,2}},
-
-	{SCF_X64_CWD,  "cwd",  1, {0x99, 0x0, 0x0},1,  2,4, SCF_X64_G,   0,0, 2,{0,2}},
-	{SCF_X64_CDQ,  "cdq",  1, {0x99, 0x0, 0x0},1,  4,8, SCF_X64_G,   0,0, 2,{0,2}},
-	{SCF_X64_CQO,  "cqo",  1, {0x99, 0x0, 0x0},1,  8,16, SCF_X64_G,  0,0, 2,{0,2}},
-
-	{SCF_X64_SAR,  "sar",  2, {0xc0, 0x0, 0x0},1,  1,1, SCF_X64_I2E, 7,1, 0,{0,0}},
-	{SCF_X64_SAR,  "sar",  2, {0xc1, 0x0, 0x0},1,  1,2, SCF_X64_I2E, 7,1, 0,{0,0}},
-	{SCF_X64_SAR,  "sar",  2, {0xc1, 0x0, 0x0},1,  1,4, SCF_X64_I2E, 7,1, 0,{0,0}},
-	{SCF_X64_SAR,  "sar",  2, {0xc1, 0x0, 0x0},1,  1,8, SCF_X64_I2E, 7,1, 0,{0,0}},
-
-	{SCF_X64_SHR,  "shr",  2, {0xc0, 0x0, 0x0},1,  1,1, SCF_X64_I2E, 5,1, 0,{0,0}},
-	{SCF_X64_SHR,  "shr",  2, {0xc1, 0x0, 0x0},1,  1,2, SCF_X64_I2E, 5,1, 0,{0,0}},
-	{SCF_X64_SHR,  "shr",  2, {0xc1, 0x0, 0x0},1,  1,4, SCF_X64_I2E, 5,1, 0,{0,0}},
-	{SCF_X64_SHR,  "shr",  2, {0xc1, 0x0, 0x0},1,  1,8, SCF_X64_I2E, 5,1, 0,{0,0}},
-
-	{SCF_X64_SHL,  "shl",  2, {0xc0, 0x0, 0x0},1,  1,1, SCF_X64_I2E, 4,1, 0,{0,0}},
-	{SCF_X64_SHL,  "shl",  2, {0xc1, 0x0, 0x0},1,  1,2, SCF_X64_I2E, 4,1, 0,{0,0}},
-	{SCF_X64_SHL,  "shl",  2, {0xc1, 0x0, 0x0},1,  1,4, SCF_X64_I2E, 4,1, 0,{0,0}},
-	{SCF_X64_SHL,  "shl",  2, {0xc1, 0x0, 0x0},1,  1,8, SCF_X64_I2E, 4,1, 0,{0,0}},
-
-	{SCF_X64_NEG,  "neg",  2, {0xf6, 0x0, 0x0},1,  1,1, SCF_X64_E,   3,1, 0,{0,0}},
-	{SCF_X64_NEG,  "neg",  2, {0xf7, 0x0, 0x0},1,  2,2, SCF_X64_E,   3,1, 0,{0,0}},
-	{SCF_X64_NEG,  "neg",  2, {0xf7, 0x0, 0x0},1,  4,4, SCF_X64_E,   3,1, 0,{0,0}},
-	{SCF_X64_NEG,  "neg",  2, {0xf7, 0x0, 0x0},1,  8,8, SCF_X64_E,   3,1, 0,{0,0}},
-
-	{SCF_X64_NOT,  "not",  2, {0xf6, 0x0, 0x0},1,  1,1, SCF_X64_E,   2,1, 0,{0,0}},
-	{SCF_X64_NOT,  "not",  2, {0xf7, 0x0, 0x0},1,  2,2, SCF_X64_E,   2,1, 0,{0,0}},
-	{SCF_X64_NOT,  "not",  2, {0xf7, 0x0, 0x0},1,  4,4, SCF_X64_E,   2,1, 0,{0,0}},
-	{SCF_X64_NOT,  "not",  2, {0xf7, 0x0, 0x0},1,  8,8, SCF_X64_E,   2,1, 0,{0,0}},
-
-	{SCF_X64_LEA,  "lea",  1, {0x8d, 0x0, 0x0},1,  8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_MOV,  "mov",  2, {0x88, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_MOV,  "mov",  2, {0x89, 0x0, 0x0},1,  2,2, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_MOV,  "mov",  2, {0x89, 0x0, 0x0},1,  4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_MOV,  "mov",  2, {0x89, 0x0, 0x0},1,  8,8, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_MOV,  "mov",  2, {0x8a, 0x0, 0x0},1,  1,1, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOV,  "mov",  2, {0x8b, 0x0, 0x0},1,  2,2, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOV,  "mov",  2, {0x8b, 0x0, 0x0},1,  4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOV,  "mov",  2, {0x8b, 0x0, 0x0},1,  8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_MOV,  "mov",  2, {0xb0, 0x0, 0x0},1,  1,1, SCF_X64_I2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOV,  "mov",  2, {0xb8, 0x0, 0x0},1,  2,2, SCF_X64_I2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOV,  "mov",  2, {0xb8, 0x0, 0x0},1,  4,4, SCF_X64_I2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOV,  "mov",  2, {0xb8, 0x0, 0x0},1,  8,8, SCF_X64_I2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOV,  "mov",  2, {0xc6, 0x0, 0x0},1,  1,1, SCF_X64_I2E, 0,1, 0,{0,0}},
-	{SCF_X64_MOV,  "mov",  2, {0xc7, 0x0, 0x0},1,  2,2, SCF_X64_I2E, 0,1, 0,{0,0}},
-	{SCF_X64_MOV,  "mov",  2, {0xc7, 0x0, 0x0},1,  4,4, SCF_X64_I2E, 0,1, 0,{0,0}},
-	{SCF_X64_MOV,  "mov",  2, {0xc7, 0x0, 0x0},1,  4,8, SCF_X64_I2E, 0,1, 0,{0,0}},
-
-	{SCF_X64_MOVSX, "movsx",  2, {0x0f, 0xbe, 0x0},2, 1,2, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOVSX, "movsx",  2, {0x0f, 0xbe, 0x0},2, 1,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOVSX, "movsx",  2, {0x0f, 0xbe, 0x0},2, 1,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOVSX, "movsx",  2, {0x0f, 0xbf, 0x0},2, 2,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOVSX, "movsx",  2, {0x0f, 0xbf, 0x0},2, 2,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOVSX, "movsx",  2, {0x63, 0x0, 0x0}, 1, 4,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_MOVZX, "movzx",  2, {0x0f, 0xb6, 0x0},2, 1,2, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOVZX, "movzx",  2, {0x0f, 0xb6, 0x0},2, 1,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOVZX, "movzx",  2, {0x0f, 0xb6, 0x0},2, 1,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOVZX, "movzx",  2, {0x0f, 0xb7, 0x0},2, 2,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOVZX, "movzx",  2, {0x0f, 0xb7, 0x0},2, 2,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_CMP,  "cmp",  2, {0x38, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_CMP,  "cmp",  2, {0x39, 0x0, 0x0},1,  2,2, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_CMP,  "cmp",  2, {0x39, 0x0, 0x0},1,  4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_CMP,  "cmp",  2, {0x39, 0x0, 0x0},1,  8,8, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_CMP,  "cmp",  2, {0x3a, 0x0, 0x0},1,  1,1, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_CMP,  "cmp",  2, {0x3b, 0x0, 0x0},1,  2,2, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_CMP,  "cmp",  2, {0x3b, 0x0, 0x0},1,  4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_CMP,  "cmp",  2, {0x3b, 0x0, 0x0},1,  8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_CMP,  "cmp",  2, {0x80, 0x0, 0x0},1,  1,1, SCF_X64_I2E, 7,1, 0,{0,0}},
-	{SCF_X64_CMP,  "cmp",  2, {0x81, 0x0, 0x0},1,  2,2, SCF_X64_I2E, 7,1, 0,{0,0}},
-	{SCF_X64_CMP,  "cmp",  2, {0x81, 0x0, 0x0},1,  4,4, SCF_X64_I2E, 7,1, 0,{0,0}},
-	{SCF_X64_CMP,  "cmp",  2, {0x81, 0x0, 0x0},1,  4,8, SCF_X64_I2E, 7,1, 0,{0,0}},
-	{SCF_X64_CMP,  "cmp",  2, {0x83, 0x0, 0x0},1,  1,2, SCF_X64_I2E, 7,1, 0,{0,0}},
-	{SCF_X64_CMP,  "cmp",  2, {0x83, 0x0, 0x0},1,  1,4, SCF_X64_I2E, 7,1, 0,{0,0}},
-	{SCF_X64_CMP,  "cmp",  2, {0x83, 0x0, 0x0},1,  1,8, SCF_X64_I2E, 7,1, 0,{0,0}},
-
-	{SCF_X64_TEST, "test", 2, {0x84, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_TEST, "test", 2, {0x85, 0x0, 0x0},1,  2,2, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_TEST, "test", 2, {0x85, 0x0, 0x0},1,  4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_TEST, "test", 2, {0x85, 0x0, 0x0},1,  8,8, SCF_X64_G2E, 0,0, 0,{0,0}},
-
-	{SCF_X64_TEST, "test", 2, {0xf6, 0x0, 0x0},1,  1,1, SCF_X64_I2E, 0,1, 0,{0,0}},
-	{SCF_X64_TEST, "test", 2, {0xf7, 0x0, 0x0},1,  2,2, SCF_X64_I2E, 0,1, 0,{0,0}},
-	{SCF_X64_TEST, "test", 2, {0xf7, 0x0, 0x0},1,  4,4, SCF_X64_I2E, 0,1, 0,{0,0}},
-	{SCF_X64_TEST, "test", 2, {0xf7, 0x0, 0x0},1,  4,8, SCF_X64_I2E, 0,1, 0,{0,0}},
-
-	{SCF_X64_SETZ,  "setz",  3, {0x0f, 0x94, 0x0},2,  1,1, SCF_X64_E, 0,0, 0,{0,0}},
-	{SCF_X64_SETNZ, "setnz", 3, {0x0f, 0x95, 0x0},2,  1,1, SCF_X64_E, 0,0, 0,{0,0}},
-
-	{SCF_X64_SETG,  "setg",  3, {0x0f, 0x9f, 0x0},2,  1,1, SCF_X64_E, 0,0, 0,{0,0}},
-	{SCF_X64_SETGE, "setge", 3, {0x0f, 0x9d, 0x0},2,  1,1, SCF_X64_E, 0,0, 0,{0,0}},
-
-	{SCF_X64_SETL,  "setl",  3, {0x0f, 0x9c, 0x0},2,  1,1, SCF_X64_E, 0,0, 0,{0,0}},
-	{SCF_X64_SETLE, "setle", 3, {0x0f, 0x9e, 0x0},2,  1,1, SCF_X64_E, 0,0, 0,{0,0}},
-
-	{SCF_X64_ADDSS, "addss", 4, {0xf3, 0x0f, 0x58},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_ADDSD, "addsd", 8, {0xf2, 0x0f, 0x58},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_SUBSS, "subss", 4, {0xf3, 0x0f, 0x5c},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_SUBSD, "subsd", 8, {0xf2, 0x0f, 0x5c},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_MULSS, "mulss", 4, {0xf3, 0x0f, 0x59},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MULSD, "mulsd", 8, {0xf2, 0x0f, 0x59},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_DIVSS, "divss", 4, {0xf3, 0x0f, 0x5e},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_DIVSD, "divsd", 8, {0xf2, 0x0f, 0x5e},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_MOVSS, "movss", 4, {0xf3, 0x0f, 0x10},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOVSS, "movss", 4, {0xf3, 0x0f, 0x11},3, 4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
-	{SCF_X64_MOVSD, "movsd", 8, {0xf2, 0x0f, 0x10},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_MOVSD, "movsd", 8, {0xf2, 0x0f, 0x11},3, 8,8, SCF_X64_G2E, 0,0, 0,{0,0}},
-
-	{SCF_X64_UCOMISS, "ucomiss", 3, {0x0f, 0x2e, 0},   2, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_UCOMISD, "ucomisd", 4, {0x66, 0x0f, 0x2e},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_CVTSS2SD, "cvtss2sd", 4, {0xf3, 0x0f, 0x5a},3, 4,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_CVTSD2SS, "cvtsd2ss", 4, {0xf2, 0x0f, 0x5a},3, 8,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_CVTSI2SS, "cvtsi2ss", 4, {0xf3, 0x0f, 0x2a},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_CVTSI2SD, "cvtsi2sd", 4, {0xf2, 0x0f, 0x2a},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_CVTTSS2SI, "cvttss2si", 4, {0xf3, 0x0f, 0x2c},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
-	{SCF_X64_CVTTSD2SI, "cvttsd2si", 8, {0xf2, 0x0f, 0x2c},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	{SCF_X64_JZ,   "jz",   2, {0x74, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
-	{SCF_X64_JZ,   "jz",   6, {0x0f, 0x84, 0x0},2, 4,4, SCF_X64_I, 0,0, 0,{0,0}},
-
-	{SCF_X64_JNZ,  "jnz",  2, {0x75, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
-	{SCF_X64_JNZ,  "jnz",  6, {0x0f, 0x85, 0x0},2, 4,4, SCF_X64_I, 0,0, 0,{0,0}},
-
-	{SCF_X64_JG,   "jg",   2, {0x7f, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
-	{SCF_X64_JG,   "jg",   6, {0x0f, 0x8f,0x0},1,  4,4, SCF_X64_I, 0,0, 0,{0,0}},
-
-	{SCF_X64_JGE,  "jge",  2, {0x7d, 0x0, 0x0},2,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
-	{SCF_X64_JGE,  "jge",  6, {0x0f, 0x8d,0x0},2,  4,4, SCF_X64_I, 0,0, 0,{0,0}},
-
-	{SCF_X64_JL,   "jl",   2, {0x7c, 0x0, 0x0},2,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
-	{SCF_X64_JL,   "jl",   6, {0x0f, 0x8c,0x0},2,  4,4, SCF_X64_I, 0,0, 0,{0,0}},
-
-	{SCF_X64_JLE,  "jle",  2, {0x7e, 0x0, 0x0},2,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
-	{SCF_X64_JLE,  "jle",  6, {0x0f, 0x8e,0x0},2,  4,4, SCF_X64_I, 0,0, 0,{0,0}},
-
-	{SCF_X64_JMP,  "jmp",  2, {0xeb, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
-	{SCF_X64_JMP,  "jmp",  5, {0xe9, 0x0, 0x0},1,  4,4, SCF_X64_I, 0,0, 0,{0,0}},
-	{SCF_X64_JMP,  "jmp",  2, {0xff, 0x0, 0x0},1,  8,8, SCF_X64_E, 4,1, 0,{0,0}},
-};
-
-static int _x64_registers_init()
-{
-	int i;
-	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
-
-		scf_register_x64_t*	r = &(x64_registers[i]);
-
-		if (SCF_X64_REG_RSP == r->id || SCF_X64_REG_RBP == r->id)
-			continue;
-
-		assert(!r->dag_nodes);
-
-		r->dag_nodes = scf_vector_alloc();
-		if (!r->dag_nodes)
-			return -ENOMEM;
-	}
-
-	return 0;
-}
-
-static void _x64_registers_clear()
-{
-	int i;
-	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
-
-		scf_register_x64_t*	r = &(x64_registers[i]);
-
-		if (SCF_X64_REG_RSP == r->id || SCF_X64_REG_RBP == r->id)
-			continue;
-
-		if (r->dag_nodes) {
-			scf_vector_free(r->dag_nodes);
-			r->dag_nodes = NULL;
-		}
-	}
-}
-
-scf_x64_OpCode_t*   x64_find_OpCode_by_type(const int type)
-{
-	int i;
-	for (i = 0; i < sizeof(x64_OpCodes) / sizeof(x64_OpCodes[0]); i++) {
-
-		scf_x64_OpCode_t* OpCode = &(x64_OpCodes[i]);
-		if (OpCode->type == type)
-			return OpCode;
-	}
-	return NULL;
-}
-
-scf_x64_OpCode_t* x64_find_OpCode(const int type, const int OpBytes, const int RegBytes, const int EG)
-{
-	int i;
-	for (i = 0; i < sizeof(x64_OpCodes) / sizeof(x64_OpCodes[0]); i++) {
-
-		scf_x64_OpCode_t* OpCode = &(x64_OpCodes[i]);
-
-		if (type == OpCode->type
-				&& OpBytes == OpCode->OpBytes
-				&& RegBytes == OpCode->RegBytes
-				&& EG == OpCode->EG)
-			return OpCode;
-	}
-	return NULL;
-}
-
-int x64_find_OpCodes(scf_vector_t* results, const int type, const int OpBytes, const int RegBytes, const int EG)
-{
-	int i;
-	for (i = 0; i < sizeof(x64_OpCodes) / sizeof(x64_OpCodes[0]); i++) {
-
-		scf_x64_OpCode_t* OpCode = &(x64_OpCodes[i]);
-
-		if (type == OpCode->type
-				&& OpBytes == OpCode->OpBytes
-				&& RegBytes == OpCode->RegBytes
-				&& EG == OpCode->EG) {
-
-			int ret = scf_vector_add(results, OpCode);
-			if (ret < 0)
-				return ret;
-		}
-	}
-	return 0;
-}
-
-scf_register_x64_t* x64_find_register(const char* name)
-{
-	int i;
-	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
-
-		scf_register_x64_t*	r = &(x64_registers[i]);
-
-		if (!strcmp(r->name, name))
-			return r;
-	}
-	return NULL;
-}
-
-scf_register_x64_t* x64_find_register_type_id_bytes(uint32_t type, uint32_t id, int bytes)
-{
-	int i;
-	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
-
-		scf_register_x64_t*	r = &(x64_registers[i]);
-
-		if (r->id == id && r->bytes == bytes)
-			return r;
-	}
-	return NULL;
-}
-
-scf_register_x64_t* x64_find_register_color(intptr_t color)
-{
-	int i;
-	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
-
-		scf_register_x64_t*	r = &(x64_registers[i]);
-
-		if (r->color == color)
-			return r;
-	}
-	return NULL;
-}
-
 int	scf_x64_open(scf_native_t* ctx)
 {
 	scf_x64_context_t* x64 = calloc(1, sizeof(scf_x64_context_t));
@@ -461,7 +20,7 @@ int scf_x64_close(scf_native_t* ctx)
 	scf_x64_context_t* x64 = ctx->priv;
 
 	if (x64) {
-		_x64_registers_clear();
+		x64_registers_clear();
 
 		free(x64);
 		x64 = NULL;
@@ -471,7 +30,7 @@ int scf_x64_close(scf_native_t* ctx)
 
 static int _x64_function_init(scf_function_t* f, scf_vector_t* local_vars)
 {
-	int ret = _x64_registers_init();
+	int ret = x64_registers_init();
 	if (ret < 0)
 		return ret;
 
@@ -481,18 +40,27 @@ static int _x64_function_init(scf_function_t* f, scf_vector_t* local_vars)
 	for (i = 0; i < local_vars->size; i++) {
 		scf_variable_t* v = local_vars->data[i];
 
-		// align 8 bytes
-		if (local_vars_size & 0x7) {
-			local_vars_size = (local_vars_size + 7) >> 3 << 3;
-		}
+		int size = scf_variable_size(v);
+		if (size < 0)
+			return size;
 
 		// local var in the low memory address based on rbp
 		// (rbp) is old rbp, -8(rbp) is 1st local var
-		v->bp_offset	= -8 - local_vars_size;
-		v->local_flag	= 1;
-		local_vars_size	+= v->size;
+		local_vars_size	+= size;
+
+		// align 8 bytes
+		if (local_vars_size & 0x7)
+			local_vars_size = (local_vars_size + 7) >> 3 << 3;
+
+		v->bp_offset	 = -local_vars_size;
+		v->local_flag	 = 1;
 	}
 
+	return local_vars_size;
+}
+
+static int _x64_function_finish(scf_function_t* f)
+{
 	if (!f->init_insts) {
 		f->init_insts = scf_vector_alloc();
 		if (!f->init_insts)
@@ -500,15 +68,15 @@ static int _x64_function_init(scf_function_t* f, scf_vector_t* local_vars)
 	} else
 		scf_vector_clear(f->init_insts, free);
 
-	scf_x64_OpCode_t* push = x64_find_OpCode(SCF_X64_PUSH, 8,8, SCF_X64_G);
-	scf_x64_OpCode_t* pop  = x64_find_OpCode(SCF_X64_POP,  8,8, SCF_X64_G);
-	scf_x64_OpCode_t* mov  = x64_find_OpCode(SCF_X64_MOV,  4,4, SCF_X64_G2E);
-	scf_x64_OpCode_t* sub  = x64_find_OpCode(SCF_X64_SUB,  4,4, SCF_X64_I2E);
+	scf_x64_OpCode_t*   push = x64_find_OpCode(SCF_X64_PUSH, 8,8, SCF_X64_G);
+	scf_x64_OpCode_t*   pop  = x64_find_OpCode(SCF_X64_POP,  8,8, SCF_X64_G);
+	scf_x64_OpCode_t*   mov  = x64_find_OpCode(SCF_X64_MOV,  4,4, SCF_X64_G2E);
+	scf_x64_OpCode_t*   sub  = x64_find_OpCode(SCF_X64_SUB,  4,4, SCF_X64_I2E);
 
-	scf_register_x64_t* rsp = x64_find_register("rsp");
-	scf_register_x64_t* rbp = x64_find_register("rbp");
+	scf_register_x64_t* rsp  = x64_find_register("rsp");
+	scf_register_x64_t* rbp  = x64_find_register("rbp");
 
-	ret = scf_vector_add(f->init_insts, x64_make_inst_G(push, rbp));
+	int ret = scf_vector_add(f->init_insts, x64_make_inst_G(push, rbp));
 	if (ret < 0)
 		return ret;
 
@@ -516,38 +84,11 @@ static int _x64_function_init(scf_function_t* f, scf_vector_t* local_vars)
 	if (ret < 0)
 		return ret;
 
-	ret = scf_vector_add(f->init_insts, x64_make_inst_I2E(sub, rsp, (uint8_t*)&local_vars_size, sizeof(int)));
+	ret = scf_vector_add(f->init_insts, x64_make_inst_I2E(sub, rsp, (uint8_t*)&f->local_vars_size, 4));
 	if (ret < 0)
 		return ret;
 
-	return local_vars_size;
-}
-
-static int _x64_function_finish(scf_function_t* f)
-{
-	if (!f->fini_insts) {
-		f->fini_insts= scf_vector_alloc();
-		if (!f->fini_insts)
-			return -ENOMEM;
-	} else
-		scf_vector_clear(f->fini_insts, free);
-
-	scf_x64_OpCode_t* push = x64_find_OpCode(SCF_X64_PUSH, 8,8, SCF_X64_G);
-	scf_x64_OpCode_t* pop  = x64_find_OpCode(SCF_X64_POP,  8,8, SCF_X64_G);
-	scf_x64_OpCode_t* mov  = x64_find_OpCode(SCF_X64_MOV,  4,4, SCF_X64_G2E);
-
-	scf_register_x64_t* rsp = x64_find_register("rsp");
-	scf_register_x64_t* rbp = x64_find_register("rbp");
-
-	int ret = scf_vector_add(f->fini_insts, x64_make_inst_G2E(mov, rsp, rbp));
-	if (ret < 0)
-		return ret;
-
-	ret = scf_vector_add(f->fini_insts, x64_make_inst_G(pop, rbp));
-	if (ret < 0)
-		return ret;
-
-	_x64_registers_clear();
+	x64_registers_clear();
 	return 0;
 }
 
@@ -555,7 +96,7 @@ static void _x64_rcg_node_printf(x64_rcg_node_t* rn)
 {
 	if (rn->dag_node) {
 		if (rn->dag_node->var->w) {
-			scf_logw("v_%d_%d/%s, color: %ld, type: %ld, id: %ld, mask: %ld\n",
+			scf_logw("v_%d_%d/%s, color: %ld, type: %ld, id: %ld, mask: %ld",
 					rn->dag_node->var->w->line, rn->dag_node->var->w->pos,
 					rn->dag_node->var->w->text->data,
 					rn->dag_node->color,
@@ -563,11 +104,18 @@ static void _x64_rcg_node_printf(x64_rcg_node_t* rn)
 					X64_COLOR_ID(rn->dag_node->color),
 					X64_COLOR_MASK(rn->dag_node->color));
 		} else {
-			scf_logw("v_%#lx, color: %ld, type: %ld, id: %ld, mask: %ld\n",
+			scf_logw("v_%#lx, color: %ld, type: %ld, id: %ld, mask: %ld",
 					(uintptr_t)rn->dag_node->var & 0xffff, rn->dag_node->color,
 					X64_COLOR_TYPE(rn->dag_node->color),
 					X64_COLOR_ID(rn->dag_node->color),
 					X64_COLOR_MASK(rn->dag_node->color));
+		}
+
+		if (rn->dag_node->color > 0) {
+			scf_register_x64_t* r = x64_find_register_color(rn->dag_node->color);
+			printf(", reg: %s\n", r->name);
+		} else {
+			printf("\n");
 		}
 	} else if (rn->reg) {
 		scf_logw("r/%s, color: %ld, type: %ld, major: %ld, minor: %ld\n",
@@ -592,173 +140,6 @@ static void _x64_inst_printf(scf_3ac_code_t* c)
 		printf("\n");
 	}
 	printf("\n");
-}
-
-int x64_overflow_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f)
-{
-	int i;
-	int j;
-
-	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
-
-		scf_register_x64_t*	r2 = &(x64_registers[i]);
-
-		if (SCF_X64_REG_RSP == r2->id || SCF_X64_REG_RBP == r2->id)
-			continue;
-
-		if (!X64_COLOR_CONFLICT(r->color, r2->color))
-			continue;
-
-		j = 0;
-		while (j < r2->dag_nodes->size) {
-			scf_dag_node_t* dn = r2->dag_nodes->data[j];
-
-			assert(dn->var->size == r2->bytes);
-
-			if (dn->var->global_flag || dn->var->local_flag) {
-				scf_logw("save var: v_%#lx\n", 0xffff & (uintptr_t)dn->var);
-
-				scf_x64_OpCode_t*  mov;
-				scf_instruction_t* inst;
-				scf_rela_t*        rela = NULL;
-
-				if (SCF_VAR_FLOAT == dn->var->type)
-					mov  = x64_find_OpCode(SCF_X64_MOVSS, r2->bytes, r2->bytes, SCF_X64_G2E);
-				else if (SCF_VAR_DOUBLE == dn->var->type)
-					mov  = x64_find_OpCode(SCF_X64_MOVSD, r2->bytes, r2->bytes, SCF_X64_G2E);
-				else
-					mov  = x64_find_OpCode(SCF_X64_MOV, r2->bytes, r2->bytes, SCF_X64_G2E);
-
-				inst = x64_make_inst_G2M(&rela, mov, dn->var, NULL, r2);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-				X64_RELA_ADD_CHECK(f->data_relas, rela, c, dn->var, NULL);
-
-				// if this var is function argment, it become a normal local var
-				dn->var->arg_flag = 0;
-
-			} else {
-				scf_logw("r2: %s, color: %ld:%ld:%ld, temp var not save, ", r2->name,
-						X64_COLOR_TYPE(r2->color),
-						X64_COLOR_ID(r2->color),
-						X64_COLOR_MASK(r2->color));
-				if (dn->var->w)
-					printf("v_%d_%d/%s\n", dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
-				else
-					printf("v_%#lx\n", 0xffff & (uintptr_t)dn->var);
-			}
-
-			dn->color = -1;
-
-			int ret = scf_vector_del(r2->dag_nodes, dn);
-			if (ret < 0) {
-				scf_loge("\n");
-				return ret;
-			}
-		}
-	}
-
-	return 0;
-}
-
-int x64_reg_cached_vars(scf_register_x64_t* r)
-{
-	int nb_vars = 0;
-	int i;
-
-	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
-
-		scf_register_x64_t*	r2 = &(x64_registers[i]);
-
-		if (SCF_X64_REG_RSP == r2->id || SCF_X64_REG_RBP == r2->id)
-			continue;
-
-		if (!X64_COLOR_CONFLICT(r->color, r2->color))
-			continue;
-
-		nb_vars += r2->dag_nodes->size;
-	}
-
-	return nb_vars;
-}
-
-scf_register_x64_t* x64_select_overflowed_reg(scf_3ac_code_t* c, uint32_t type, int bytes)
-{
-	scf_register_x64_t* active_regs[sizeof(x64_registers) / sizeof(x64_registers[0])];
-	scf_register_x64_t* free_regs[  sizeof(x64_registers) / sizeof(x64_registers[0])];
-
-	int nb_active_regs = 0;
-	int nb_free_regs   = 0;
-	int i;
-	int j;
-
-	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
-
-		scf_register_x64_t*	r = &(x64_registers[i]);
-
-		if (SCF_X64_REG_RSP == r->id || SCF_X64_REG_RBP == r->id)
-			continue;
-
-		if (r->bytes < bytes || X64_COLOR_TYPE(r->color) != type)
-			continue;
-
-		for (j = 0; j < c->active_vars->size; j++) {
-			scf_active_var_t* active    = c->active_vars->data[j];
-			scf_dag_node_t*   dn_active = active->dag_node;
-
-			if (dn_active->color < 0)
-				continue;
-
-			if (X64_COLOR_CONFLICT(r->color, dn_active->color))
-				break;
-		}
-
-		if (j < c->active_vars->size)
-			active_regs[nb_active_regs++] = r;
-		else
-			free_regs[nb_free_regs++]     = r;
-	}
-
-	if (nb_free_regs > 0) {
-		int min = 0;
-		scf_register_x64_t* r_min = NULL;
-
-		for (i = 0; i < nb_free_regs; i++) {
-			scf_register_x64_t*	r = free_regs[i];
-
-			int nb_vars = x64_reg_cached_vars(r);
-
-			if (!r_min) {
-				r_min = r;
-				min   = nb_vars;
-
-			} else if (min > nb_vars) {
-				r_min = r;
-				min   = nb_vars;
-			}
-		}
-		return r_min;
-	}
-
-	assert(nb_active_regs > 0);
-
-	int min = 0;
-	scf_register_x64_t* r_min = NULL;
-
-	for (i = 0; i < nb_active_regs; i++) {
-		scf_register_x64_t*	r = active_regs[i];
-
-		int nb_vars = x64_reg_cached_vars(r);
-
-		if (!r_min) {
-			r_min = r;
-			min   = nb_vars;
-
-		} else if (min > r->dag_nodes->size) {
-			r_min = r;
-			min   = nb_vars;
-		}
-	}
-	return r_min;
 }
 
 static int _x64_select_regs(scf_native_t* ctx, scf_basic_block_t* bb, scf_function_t* f)
@@ -858,22 +239,10 @@ static int _x64_select_regs(scf_native_t* ctx, scf_basic_block_t* bb, scf_functi
 
 	scf_logd("g->nodes->size: %d\n", g->nodes->size);
 
-	colors = scf_vector_alloc();
+	colors = x64_register_colors();
 	if (!colors) {
 		ret = -ENOMEM;
 		goto error;
-	}
-
-	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
-
-		scf_register_x64_t*	r = &(x64_registers[i]);
-
-		if (SCF_X64_REG_RSP == r->id || SCF_X64_REG_RBP == r->id)
-			continue;
-
-		ret = scf_vector_add(colors, (void*)r->color);
-		if (ret < 0)
-			goto error;
 	}
 
 	ret = scf_x64_graph_kcolor(g, 8, colors);
@@ -1017,18 +386,13 @@ static void _x64_set_offset_for_jmps(scf_native_t* ctx, scf_function_t* f)
 
 static void _x64_set_offset_for_relas(scf_native_t* ctx, scf_function_t* f, scf_vector_t* relas)
 {
-	scf_logw("relas->size: %d\n", relas->size);
 	int i;
 	for (i = 0; i < relas->size; i++) {
-		scf_logw("relas->size: %d, i: %d\n", relas->size, i);
 
 		scf_rela_t*        rela   = relas->data[i];
 		scf_3ac_code_t*    c      = rela->code;
 		scf_instruction_t* inst   = c->instructions->data[rela->inst_index];
 		scf_basic_block_t* cur_bb = c->basic_block;
-
-		scf_logw("relas->size: %d, i: %d, c: %p, index: %d\n", relas->size, i, c, rela->inst_index);
-		scf_logw("cur_bb: %p\n", c->basic_block);
 
 		scf_3ac_code_print(c, NULL);
 
@@ -1164,11 +528,13 @@ int scf_x64_select_inst(scf_native_t* ctx, scf_function_t* f)
 	for (i = 0; i < local_vars->size; i++) {
 		scf_variable_t* v = local_vars->data[i];
 		assert(v->w);
-		scf_logi("v: %p, name: %s, line: %d, pos: %d, size: %d, bp_offset: %d, arg_flag: %d\n",
+		scf_logi("v: %p, name: %s_%d_%d, size: %d, bp_offset: %d, arg_flag: %d\n",
 				v, v->w->text->data, v->w->line, v->w->pos,
-				v->size, v->bp_offset, v->arg_flag);
+				scf_variable_size(v), v->bp_offset, v->arg_flag);
 	}
 	scf_logi("local_vars_size: %d\n", local_vars_size);
+
+	f->local_vars_size = local_vars_size;
 
 	ret = _scf_x64_select_inst(ctx);
 	if (ret < 0)

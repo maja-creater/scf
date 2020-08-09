@@ -39,6 +39,10 @@ SCF_I64_BINARY_OP(add, +)
 SCF_I64_BINARY_OP(sub, -)
 SCF_I64_BINARY_OP(mul, *)
 SCF_I64_BINARY_OP(div, /)
+SCF_I64_BINARY_OP(mod, %)
+
+SCF_I64_BINARY_OP(shl, <<)
+SCF_I64_BINARY_OP(shr, >>)
 
 SCF_I64_UPDATE_OP(inc, ++);
 SCF_I64_UPDATE_OP(dec, --);

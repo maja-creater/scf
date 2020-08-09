@@ -21,9 +21,13 @@ static scf_operator_t	base_operators[] = {
 
 	{SCF_OP_MUL, 			"*", 		4, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
 	{SCF_OP_DIV, 			"/", 		4, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_MOD,            "%",        4, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
 
 	{SCF_OP_ADD, 			"+", 		5, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
 	{SCF_OP_SUB, 			"-", 		5, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
+
+	{SCF_OP_SHL,            "<<",       6, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_SHR,            ">>",       6, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
 
 	{SCF_OP_BIT_AND,        "&",        7, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
 	{SCF_OP_BIT_OR,         "|",        7, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
@@ -38,8 +42,16 @@ static scf_operator_t	base_operators[] = {
 	{SCF_OP_LOGIC_AND,      "&&",       9, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
 	{SCF_OP_LOGIC_OR,       "||",       9, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
 
-	{SCF_OP_ASSIGN, 		"=", 		10, 2,	SCF_OP_ASSOCIATIVITY_RIGHT},
-
+	{SCF_OP_ASSIGN,         "=",        10, 2,  SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_ADD_ASSIGN,     "+=",       10, 2,  SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_SUB_ASSIGN,     "-=",       10, 2,  SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_MUL_ASSIGN,     "*=",       10, 2,  SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_DIV_ASSIGN,     "/=",       10, 2,  SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_MOD_ASSIGN,     "%=",       10, 2,  SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_SHL_ASSIGN,     "<<=",      10, 2,  SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_SHR_ASSIGN,     ">>=",      10, 2,  SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_AND_ASSIGN,     "&=",       10, 2,  SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_OR_ASSIGN,      "|=",       10, 2,  SCF_OP_ASSOCIATIVITY_RIGHT},
 
 	{SCF_OP_BLOCK,			"{}", 		15, -1, SCF_OP_ASSOCIATIVITY_LEFT},
 	{SCF_OP_RETURN,			"return",	15, -1, SCF_OP_ASSOCIATIVITY_LEFT},

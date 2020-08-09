@@ -8,10 +8,14 @@ enum scf_lex_words {
 	SCF_LEX_WORD_PLUS = 0,		// +
 	SCF_LEX_WORD_MINUS,			// -
 	SCF_LEX_WORD_STAR,			// *
-	SCF_LEX_WORD_DIV,			// / division
+	SCF_LEX_WORD_DIV,			// / div
+	SCF_LEX_WORD_MOD,           // %
 
 	SCF_LEX_WORD_INC,			// ++
 	SCF_LEX_WORD_DEC,			// --
+
+	SCF_LEX_WORD_SHL,           // <<
+	SCF_LEX_WORD_SHR,           // >>
 
 	SCF_LEX_WORD_BIT_AND,		// &
 	SCF_LEX_WORD_BIT_OR,		// |
@@ -21,7 +25,16 @@ enum scf_lex_words {
 	SCF_LEX_WORD_LOGIC_OR,		// ||
 	SCF_LEX_WORD_LOGIC_NOT,		// !
 
-	SCF_LEX_WORD_ASSIGN,		// = assign
+	SCF_LEX_WORD_ASSIGN,		 //  = assign
+	SCF_LEX_WORD_ADD_ASSIGN,     // +=
+	SCF_LEX_WORD_SUB_ASSIGN,     // -=
+	SCF_LEX_WORD_MUL_ASSIGN,     // *=
+	SCF_LEX_WORD_DIV_ASSIGN,     // /=
+	SCF_LEX_WORD_MOD_ASSIGN,     // %=
+	SCF_LEX_WORD_SHL_ASSIGN,     // <<=
+	SCF_LEX_WORD_SHR_ASSIGN,     // >>=
+	SCF_LEX_WORD_BIT_AND_ASSIGN, // &=
+	SCF_LEX_WORD_BIT_OR_ASSIGN,  // |=
 
 	SCF_LEX_WORD_LT,			// < less than
 	SCF_LEX_WORD_GT,			// > greater than

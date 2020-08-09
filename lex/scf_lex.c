@@ -245,14 +245,14 @@ static int _lex_plus(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c0)
 			scf_list_add_tail(&lex->error_list_head, &e->list);
 
 			free(c2);
-			c2 = NULL;
 			free(c1);
-			c1 = NULL;
 			free(c0);
+			c2 = NULL;
+			c1 = NULL;
 			c0 = NULL;
 
 			// can add error correction to continue the lexer
-			printf("%s(),%d, error: \n", __func__, __LINE__);
+			scf_loge("\n");
 			return -1;
 		} else {
 			_lex_push_char(lex, c2);
@@ -266,10 +266,15 @@ static int _lex_plus(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c0)
 
 			free(c1);
 			c1 = NULL;
-			free(c0);
-			c0 = NULL;
-			return 0;
 		}
+	} else if ('=' == c1->c) {
+		scf_lex_word_t* w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_ADD_ASSIGN);
+		w->text = scf_string_cstr("+=");
+		lex->pos += 2;
+
+		*pword = w;
+		free(c1);
+		c1 = NULL;
 	} else {
 		_lex_push_char(lex, c1);
 		c1 = NULL;
@@ -279,11 +284,11 @@ static int _lex_plus(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c0)
 		lex->pos++;
 
 		*pword = w;
-
-		free(c0);
-		c0 = NULL;
-		return 0;
 	}
+
+	free(c0);
+	c0 = NULL;
+	return 0;
 }
 
 static int _lex_minus(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c0)
@@ -297,14 +302,14 @@ static int _lex_minus(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c0
 			scf_list_add_tail(&lex->error_list_head, &e->list);
 
 			free(c2);
-			c2 = NULL;
 			free(c1);
-			c1 = NULL;
 			free(c0);
+			c2 = NULL;
+			c1 = NULL;
 			c0 = NULL;
 
 			// can add error correction to continue the lexer
-			printf("%s(),%d, error: \n", __func__, __LINE__);
+			scf_loge("\n");
 			return -1;
 		} else {
 			_lex_push_char(lex, c2);
@@ -315,12 +320,8 @@ static int _lex_minus(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c0
 			lex->pos += 2;
 
 			*pword = w;
-
 			free(c1);
 			c1 = NULL;
-			free(c0);
-			c0 = NULL;
-			return 0;
 		}
 	} else if ('>' == c1->c) {
 		scf_lex_word_t* w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_ARROW);
@@ -328,12 +329,17 @@ static int _lex_minus(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c0
 		lex->pos += 2;
 
 		*pword = w;
-
 		free(c1);
 		c1 = NULL;
-		free(c0);
-		c0 = NULL;
-		return 0;
+
+	} else if ('=' == c1->c) {
+		scf_lex_word_t* w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_SUB_ASSIGN);
+		w->text = scf_string_cstr("-=");
+		lex->pos += 2;
+
+		*pword = w;
+		free(c1);
+		c1 = NULL;
 	} else {
 		_lex_push_char(lex, c1);
 		c1 = NULL;
@@ -343,11 +349,11 @@ static int _lex_minus(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c0
 		lex->pos++;
 
 		*pword = w;
-
-		free(c0);
-		c0 = NULL;
-		return 0;
 	}
+
+	free(c0);
+	c0 = NULL;
+	return 0;
 }
 
 static int _lex_number_base_16(scf_lex_t* lex, scf_lex_word_t** pword, scf_string_t* s)
@@ -653,17 +659,22 @@ static int _lex_op1_ll1(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* 
 }
 
 static int _lex_op2_ll1(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c0,
-		const char ch1,
-		int type0, int type1)
+		int type0, char* chs, int* types, int n)
 {
 	scf_string_t* s = scf_string_cstr_len((char*)&c0->c, 1);
 
 	scf_lex_word_t* w = NULL;
 	scf_lex_char_t* c1 = _lex_pop_char(lex);
 
-	if (ch1 == c1->c) {
+	int i;
+	for (i = 0; i < n; i++) {
+		if (chs[i] == c1->c)
+			break;
+	}
+
+	if (i < n) {
 		scf_string_cat_cstr_len(s, (char*)&c1->c, 1);
-		w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, type1);
+		w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, types[i]);
 		lex->pos += 2;
 
 		free(c1);
@@ -675,8 +686,8 @@ static int _lex_op2_ll1(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* 
 		lex->pos++;
 	}
 	w->text = s;
-	s = NULL;
-	*pword = w;
+	s       = NULL;
+	*pword  = w;
 
 	free(c0);
 	c0 = NULL;
@@ -789,6 +800,67 @@ static int _lex_string(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c
 	}
 }
 
+static int _lex_op3_ll1(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c0,
+		char ch1_0, char ch1_1, char ch2, int type0, int type1, int type2, int type3)
+{
+	scf_lex_char_t* c1 = _lex_pop_char(lex);
+	scf_lex_word_t* w  = NULL;
+	scf_string_t*   s  = scf_string_cstr_len((char*)&c0->c, 1);
+
+	if (ch1_0 == c1->c) {
+		scf_string_cat_cstr_len(s, (char*)&c1->c, 1);
+
+		scf_lex_char_t* c2 = _lex_pop_char(lex);
+
+		if (ch2 == c2->c) {
+			scf_string_cat_cstr_len(s, (char*)&c2->c, 1);
+
+			w         = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, type0);
+			w->text   = s;
+			s         = NULL;
+			lex->pos += 3;
+
+			free(c2);
+			c2 = NULL;
+		} else {
+			_lex_push_char(lex, c2);
+			c2 = NULL;
+
+			w         = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, type1);
+			w->text   = s;
+			s         = NULL;
+			lex->pos += 2;
+		}
+
+		free(c1);
+		c1 = NULL;
+
+	} else if (ch1_1 == c1->c) {
+		scf_string_cat_cstr_len(s, (char*)&c1->c, 1);
+
+		w         = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, type2);
+		w->text   = s;
+		s         = NULL;
+		lex->pos += 2;
+
+		free(c1);
+		c1 = NULL;
+	} else {
+		_lex_push_char(lex, c1);
+		c1 = NULL;
+
+		w       = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, type3);
+		w->text = s;
+		s       = NULL;
+		lex->pos++;
+	}
+
+	*pword = w;
+	free(c0);
+	c0 = NULL;
+	return 0;
+}
+
 int scf_lex_pop_word(scf_lex_t* lex, scf_lex_word_t** pword)
 {
 	assert(lex);
@@ -833,102 +905,125 @@ int scf_lex_pop_word(scf_lex_t* lex, scf_lex_word_t** pword)
 		return scf_lex_pop_word(lex, pword); // recursive call to drop the SPACE WORD
 	}
 
-	if ('+' == c->c) {
+	if ('+' == c->c)
 		return _lex_plus(lex, pword, c);
-	}
 
-	if ('-' == c->c) {
+	if ('-' == c->c)
 		return _lex_minus(lex, pword, c);
-	}
 
 	if ('*' == c->c) {
-		return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_STAR);
+		char c1 = '=';
+		int  t1 = SCF_LEX_WORD_MUL_ASSIGN;
+
+		return _lex_op2_ll1(lex, pword, c, SCF_LEX_WORD_STAR, &c1, &t1, 1);
 	}
 
 	if ('/' == c->c) {
-		return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_DIV);
+		char c1 = '=';
+		int  t1 = SCF_LEX_WORD_DIV_ASSIGN;
+
+		return _lex_op2_ll1(lex, pword, c, SCF_LEX_WORD_DIV, &c1, &t1, 1);
 	}
 
-	if ('~' == c->c) {
-		return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_BIT_NOT);
+	if ('%' == c->c) {
+		char c1 = '=';
+		int  t1 = SCF_LEX_WORD_MOD_ASSIGN;
+
+		return _lex_op2_ll1(lex, pword, c, SCF_LEX_WORD_MOD, &c1, &t1, 1);
 	}
 
-	if ('(' == c->c) {
-		return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_LP);
+	switch (c->c) {
+		case '~':
+			return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_BIT_NOT);
+			break;
 
-	} else if (')' == c->c) {
-		return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_RP);
+		case '(':
+			return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_LP);
+			break;
+		case ')':
+			return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_RP);
+			break;
+		case '[':
+			return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_LS);
+			break;
+		case ']':
+			return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_RS);
+			break;
+		case '{':
+			return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_LB);
+			break;
+		case '}':
+			return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_RB);
+			break;
 
-	} else if ('[' == c->c) {
-		return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_LS);
+		case ',':
+			return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_COMMA);
+			break;
+		case ';':
+			return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_SEMICOLON);
+			break;
+		case ':':
+			return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_COLON);
+			break;
 
-	} else if (']' == c->c) {
-		return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_RS);
-
-	} else if ('{' == c->c) {
-		return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_LB);
-
-	} else if ('}' == c->c) {
-		return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_RB);
-	}
-
-	if (',' == c->c) {
-		return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_COMMA);
-	}
-
-	if (';' == c->c) {
-		return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_SEMICOLON);
-	}
-
-	if (':' == c->c) {
-		return _lex_op1_ll1(lex, pword, c, SCF_LEX_WORD_COLON);
-	}
+		default:
+			break;
+	};
 
 	if ('&' == c->c) {
-		return _lex_op2_ll1(lex, pword, c, '&', SCF_LEX_WORD_BIT_AND, SCF_LEX_WORD_LOGIC_AND);
+		char chs[2]   = {'&', '='};
+		int  types[2] = {SCF_LEX_WORD_LOGIC_AND, SCF_LEX_WORD_BIT_AND_ASSIGN};
+
+		return _lex_op2_ll1(lex, pword, c, SCF_LEX_WORD_BIT_AND, chs, types, 2);
 	}
 
 	if ('|' == c->c) {
-		return _lex_op2_ll1(lex, pword, c, '|', SCF_LEX_WORD_BIT_OR, SCF_LEX_WORD_LOGIC_OR);
+		char chs[2]   = {'|', '='};
+		int  types[2] = {SCF_LEX_WORD_LOGIC_OR, SCF_LEX_WORD_BIT_OR_ASSIGN};
+
+		return _lex_op2_ll1(lex, pword, c, SCF_LEX_WORD_BIT_OR, chs, types, 2);
 	}
 
 	if ('!' == c->c) {
-		return _lex_op2_ll1(lex, pword, c, '=', SCF_LEX_WORD_LOGIC_NOT, SCF_LEX_WORD_NE);
+		char c1 = '=';
+		int  t1 = SCF_LEX_WORD_NE;
+
+		return _lex_op2_ll1(lex, pword, c, SCF_LEX_WORD_LOGIC_NOT, &c1, &t1, 1);
 	}
 
 	if ('=' == c->c) {
-		return _lex_op2_ll1(lex, pword, c, '=', SCF_LEX_WORD_ASSIGN, SCF_LEX_WORD_EQ);
+		char c1 = '=';
+		int  t1 = SCF_LEX_WORD_EQ;
+
+		return _lex_op2_ll1(lex, pword, c, SCF_LEX_WORD_ASSIGN, &c1, &t1, 1);
 	}
 
-	if ('>' == c->c) {
-		return _lex_op2_ll1(lex, pword, c, '=', SCF_LEX_WORD_GT, SCF_LEX_WORD_GE);
-	}
-	if ('<' == c->c) {
-		return _lex_op2_ll1(lex, pword, c, '=', SCF_LEX_WORD_LT, SCF_LEX_WORD_LE);
-	}
+	if ('>' == c->c)
+		return _lex_op3_ll1(lex, pword, c, '>', '=', '=',
+				SCF_LEX_WORD_SHR_ASSIGN, SCF_LEX_WORD_SHR, SCF_LEX_WORD_GE, SCF_LEX_WORD_GT);
 
-	if ('.' == c->c) {
+	if ('<' == c->c)
+		return _lex_op3_ll1(lex, pword, c, '<', '=', '=',
+				SCF_LEX_WORD_SHL_ASSIGN, SCF_LEX_WORD_SHL, SCF_LEX_WORD_LE, SCF_LEX_WORD_LT);
+
+	if ('.' == c->c)
 		return _lex_dot(lex, pword, c);
-	}
 
-	if ('\'' == c->c) {
+	if ('\'' == c->c)
 		return _lex_char(lex, pword, c);
-	}
 
-	if ('\"' == c->c) {
+	if ('\"' == c->c)
 		return _lex_string(lex, pword, c);
-	}
 
-	if ('0' <= c->c && '9' >= c->c) {
+	if ('0' <= c->c && '9' >= c->c)
 		return _lex_number(lex, pword, c);
-	}
 
 	if ('_' == c->c || ('a' <= c->c && 'z' >= c->c) || ('A' <= c->c && 'Z' >= c->c)) {
 		_lex_identity(lex, pword, c);
 		return 0;
 	}
 
-	printf("%s(),%d, error: c: %c\n", __func__, __LINE__, c->c);
+	scf_loge("c: %c\n", c->c);
 	return -1;
 }
 

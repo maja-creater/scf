@@ -12,6 +12,10 @@ scf_calculate_t  base_calculates[] =
 	{"i32", SCF_OP_SUB,       SCF_VAR_I32, SCF_VAR_I32, SCF_VAR_I32, scf_i32_sub},
 	{"i32", SCF_OP_MUL,       SCF_VAR_I32, SCF_VAR_I32, SCF_VAR_I32, scf_i32_mul},
 	{"i32", SCF_OP_DIV,       SCF_VAR_I32, SCF_VAR_I32, SCF_VAR_I32, scf_i32_div},
+	{"i32", SCF_OP_MOD,       SCF_VAR_I32, SCF_VAR_I32, SCF_VAR_I32, scf_i32_mod},
+
+	{"i32", SCF_OP_SHL,       SCF_VAR_I32, SCF_VAR_I32, SCF_VAR_I32, scf_i32_shl},
+	{"i32", SCF_OP_SHR,       SCF_VAR_I32, SCF_VAR_I32, SCF_VAR_I32, scf_i32_shr},
 
 	{"i32", SCF_OP_INC,       SCF_VAR_I32, SCF_VAR_I32, SCF_VAR_I32, scf_i32_inc},
 	{"i32", SCF_OP_DEC,       SCF_VAR_I32, SCF_VAR_I32, SCF_VAR_I32, scf_i32_dec},
@@ -38,6 +42,10 @@ scf_calculate_t  base_calculates[] =
 	{"i64", SCF_OP_SUB,       SCF_VAR_I64, SCF_VAR_I64, SCF_VAR_I64, scf_i64_sub},
 	{"i64", SCF_OP_MUL,       SCF_VAR_I64, SCF_VAR_I64, SCF_VAR_I64, scf_i64_mul},
 	{"i64", SCF_OP_DIV,       SCF_VAR_I64, SCF_VAR_I64, SCF_VAR_I64, scf_i64_div},
+	{"i64", SCF_OP_MOD,       SCF_VAR_I64, SCF_VAR_I64, SCF_VAR_I64, scf_i64_mod},
+
+	{"i64", SCF_OP_SHL,       SCF_VAR_I64, SCF_VAR_I64, SCF_VAR_I64, scf_i64_shl},
+	{"i64", SCF_OP_SHR,       SCF_VAR_I64, SCF_VAR_I64, SCF_VAR_I64, scf_i64_shr},
 
 	{"i64", SCF_OP_INC,       SCF_VAR_I64, SCF_VAR_I64, SCF_VAR_I64, scf_i64_inc},
 	{"i64", SCF_OP_DEC,       SCF_VAR_I64, SCF_VAR_I64, SCF_VAR_I64, scf_i64_dec},

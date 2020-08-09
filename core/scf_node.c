@@ -48,7 +48,7 @@ scf_node_t* scf_node_alloc(scf_lex_word_t* w, int type, scf_variable_t* var)
 
 	node->type = type;
 
-	scf_logd("%s(),%d, node: %p, node->type: %d\n", __func__, __LINE__, node, node->type);
+	scf_logd("node: %p, node->type: %d\n", node, node->type);
 	return node;
 
 _failed:

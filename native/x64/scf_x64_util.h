@@ -45,9 +45,10 @@ enum scf_x64_OpCode_types {
 	SCF_X64_IDIV,
 
 	// sign-extend ax to dx:ax
-	SCF_X64_CWD,
-	SCF_X64_CDQ,
-	SCF_X64_CQO,
+	SCF_X64_CBW,
+	SCF_X64_CWD = SCF_X64_CBW,
+	SCF_X64_CDQ = SCF_X64_CBW,
+	SCF_X64_CQO = SCF_X64_CBW,
 
 	SCF_X64_SAR,
 	SCF_X64_SHR,
@@ -114,7 +115,7 @@ enum scf_x64_Mods {
 };
 
 enum scf_x64_SIBs {
-	SCF_X64_SIB_SCALE1      = 0x0, // 00, index     + base
+	SCF_X64_SIB_SCALE1      = 0x0, // 00, index * 1 + base
 	SCF_X64_SIB_SCALE2      = 0x1, // 01, index * 2 + base
 	SCF_X64_SIB_SCALE4      = 0x2, // 10, index * 4 + base
 	SCF_X64_SIB_SCALE8      = 0x3, // 11, index * 8 + base
@@ -190,6 +191,7 @@ enum scf_x64_REGs {
 	SCF_X64_REG_XMM5	= 0x5,
 
 	SCF_X64_REG_DH		= 0x6,
+	SCF_X64_REG_SIL     = 0x6,
 	SCF_X64_REG_SI		= 0x6,
 	SCF_X64_REG_ESI		= 0x6,
 	SCF_X64_REG_RSI		= 0x6,
@@ -197,6 +199,7 @@ enum scf_x64_REGs {
 	SCF_X64_REG_XMM6	= 0x6,
 
 	SCF_X64_REG_BH		= 0x7,
+	SCF_X64_REG_DIL     = 0x7,
 	SCF_X64_REG_DI		= 0x7,
 	SCF_X64_REG_EDI		= 0x7,
 	SCF_X64_REG_RDI		= 0x7,
@@ -246,11 +249,11 @@ static inline void scf_ModRM_setRM(uint8_t* ModRM, uint8_t v)
 
 static inline uint8_t scf_SIB_getScale(uint8_t SIB)
 {
-	return (SIB >> 6) << 1;
+	return (SIB >> 6) & 0x3;
 }
 static inline void scf_SIB_setScale(uint8_t* SIB, uint8_t scale)
 {
-	*SIB |= (scale >> 1) << 6;
+	*SIB |= scale << 6;
 }
 
 static inline uint8_t scf_SIB_getIndex(uint8_t SIB)

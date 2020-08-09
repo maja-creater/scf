@@ -149,8 +149,11 @@ static int _var_action_comma(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 		scf_logi("d->expr: %p, d->expr->parent: %p\n", d->expr, d->expr->parent);
 
 		scf_node_add_child((scf_node_t*)parse->ast->current_block, (scf_node_t*)d->expr);
-		d->expr         = NULL;
+		d->expr = NULL;
 	}
+
+	if (d->current_var)
+		scf_variable_size(d->current_var);
 
 	return SCF_DFA_SWITCH_TO;
 }
@@ -173,11 +176,15 @@ static int _var_action_semicolon(scf_dfa_t* dfa, scf_vector_t* words, void* data
 		while(d->expr->parent)
 			d->expr = d->expr->parent;
 
-		scf_logi("d->expr: %p, d->expr->parent: %p\n", d->expr, d->expr->parent);
-
-		scf_node_add_child((scf_node_t*)parse->ast->current_block, (scf_node_t*)d->expr);
-		d->expr              = NULL;
+		if (0 == d->expr->nb_nodes)
+			scf_expr_free(d->expr);
+		else
+			scf_node_add_child((scf_node_t*)parse->ast->current_block, (scf_node_t*)d->expr);
+		d->expr = NULL;
 	}
+
+	if (d->current_var)
+		scf_variable_size(d->current_var);
 
 	return SCF_DFA_OK;
 }
@@ -248,6 +255,7 @@ static int _var_action_ls(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 	assert(!d->expr);
 	scf_variable_add_array_dimention(d->current_var, -1);
+	d->current_var->const_literal_flag = 1;
 
 	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "var_rs"), SCF_DFA_HOOK_POST);
 	//SCF_DFA_PUSH_END_WORD(SCF_LEX_WORD_RS, var, 0);

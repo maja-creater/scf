@@ -99,6 +99,8 @@ void scf_dag_node_free(scf_dag_node_t* dag_node)
 
 int scf_dag_node_same(scf_dag_node_t* dag_node, const scf_node_t* node)
 {
+	int i;
+
 	if (dag_node->type != node->type)
 		return 0;
 
@@ -136,12 +138,16 @@ int scf_dag_node_same(scf_dag_node_t* dag_node, const scf_node_t* node)
 					);
 			return 0;
 		}
+	} else if (SCF_OP_ARRAY_INDEX == node->type) {
+		assert(3 == dag_node->childs->size);
+		assert(2 == node->nb_nodes);
+		goto cmp_childs;
 	}
 
 	if (dag_node->childs->size != node->nb_nodes)
 		return 0;
 
-	int i;
+cmp_childs:
 	for (i = 0; i < node->nb_nodes; i++) {
 		scf_dag_node_t*	dag_child = dag_node->childs->data[i];
 		scf_node_t*		child = node->nodes[i];

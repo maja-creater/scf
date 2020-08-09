@@ -19,12 +19,14 @@ struct scf_dag_node_s {
 	scf_vector_t*		childs;
 
 	intptr_t            color;
-	int					active;
+
+	uint32_t            active:1;
+	uint32_t            loaded:1;
 };
 
 struct scf_active_var_s {
-	scf_dag_node_t*		dag_node;
-	int					active;
+	scf_dag_node_t*     dag_node;
+	int                 active;
 };
 
 scf_active_var_t* scf_active_var_alloc(scf_dag_node_t* dag_node);

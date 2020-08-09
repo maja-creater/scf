@@ -1,27 +1,59 @@
 #include"scf_x64.h"
 
-static scf_instruction_t* _x64_make_OpCode(scf_x64_OpCode_t* OpCode, int dst_bytes)
+static scf_instruction_t* _x64_make_OpCode(scf_x64_OpCode_t* OpCode, int bytes, scf_register_x64_t* r0, scf_register_x64_t* r1)
 {
 	scf_instruction_t* inst = calloc(1, sizeof(scf_instruction_t));
 	if (!inst)
 		return NULL;
 
-	inst->OpCode = (scf_OpCode_t*)OpCode;
-
-	if (8 == dst_bytes) {
+	if (8 == bytes) {
 		switch (OpCode->type) {
 			case SCF_X64_MOVSD:
 			case SCF_X64_ADDSD:
 			case SCF_X64_SUBSD:
 			case SCF_X64_MULSD:
 			case SCF_X64_DIVSD:
+			case SCF_X64_PUSH:
+			case SCF_X64_POP:
+			case SCF_X64_RET:
 				break;
 			default:
 				inst->code[inst->len++] = SCF_X64_REX_INIT + SCF_X64_REX_W;
 				break;
 		};
-	} else if (2 == dst_bytes)
+	} else if (2 == bytes) {
 		inst->code[inst->len++] = 0x66;
+
+	} else if (1 == bytes) {
+		if (r0 || r1) {
+			uint8_t prefix = 0;
+
+			if (r0) {
+				switch (X64_COLOR_ID(r0->color)) {
+					case SCF_X64_REG_ESI:
+					case SCF_X64_REG_EDI:
+						prefix = SCF_X64_REX_INIT;
+						break;
+					default:
+						break;
+				};
+			}
+
+			if (r1) {
+				switch (X64_COLOR_ID(r1->color)) {
+					case SCF_X64_REG_ESI:
+					case SCF_X64_REG_EDI:
+						prefix = SCF_X64_REX_INIT;
+						break;
+					default:
+						break;
+				};
+			}
+
+			if (prefix)
+				inst->code[inst->len++] = prefix;
+		}
+	}
 
 	int i;
 	for (i = 0; i < OpCode->nb_OpCodes; i++)
@@ -29,7 +61,6 @@ static scf_instruction_t* _x64_make_OpCode(scf_x64_OpCode_t* OpCode, int dst_byt
 
 	return inst;
 }
-
 
 static int _x64_make_disp(scf_rela_t** prela, scf_instruction_t* inst, uint32_t reg, uint32_t base, int32_t disp)
 {
@@ -110,36 +141,32 @@ scf_instruction_t* x64_make_inst_I(scf_x64_OpCode_t* OpCode, uint8_t* imm, int s
 	return inst;
 }
 
+scf_instruction_t* x64_make_inst(scf_x64_OpCode_t* OpCode, int size)
+{
+	return _x64_make_OpCode(OpCode, size, NULL, NULL);
+}
+
 scf_instruction_t* x64_make_inst_G(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r)
 {
-	scf_instruction_t* inst = calloc(1, sizeof(scf_instruction_t));
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r->bytes, r, NULL);
 	if (!inst)
 		return NULL;
 
 	inst->OpCode = (scf_OpCode_t*)OpCode;
 	assert(1 == OpCode->nb_OpCodes);
 
-	inst->code[inst->len++] = OpCode->OpCodes[0] + r->id;
+	inst->code[inst->len - 1] += r->id;
 	return inst;
 }
 
 scf_instruction_t* x64_make_inst_I2G(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_dst, uint8_t* imm, int size)
 {
-	scf_instruction_t* inst = calloc(1, sizeof(scf_instruction_t));
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_dst->bytes, r_dst, NULL);
 	if (!inst)
 		return NULL;
 
-	size = size > r_dst->bytes ? r_dst->bytes : size;
-
-	inst->OpCode = (scf_OpCode_t*)OpCode;
-
-	if (8 == r_dst->bytes)
-		inst->code[inst->len++] = SCF_X64_REX_INIT + SCF_X64_REX_W;
-	else if (2 == r_dst->bytes)
-		inst->code[inst->len++] = 0x66;
-
 	assert(1 == OpCode->nb_OpCodes);
-	inst->code[inst->len++] = OpCode->OpCodes[0] + r_dst->id;
+	inst->code[inst->len - 1] += r_dst->id;
 
 	int i;
 	for (i = 0; i < size; i++)
@@ -149,20 +176,9 @@ scf_instruction_t* x64_make_inst_I2G(scf_x64_OpCode_t* OpCode, scf_register_x64_
 
 scf_instruction_t* x64_make_inst_E(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r)
 {
-	scf_instruction_t* inst = calloc(1, sizeof(scf_instruction_t));
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r->bytes, r, NULL);
 	if (!inst)
 		return NULL;
-
-	inst->OpCode = (scf_OpCode_t*)OpCode;
-
-	if (8 == r->bytes)
-		inst->code[inst->len++] = SCF_X64_REX_INIT + SCF_X64_REX_W;
-	else if (2 == r->bytes)
-		inst->code[inst->len++] = 0x66;
-
-	int i;
-	for (i = 0; i < OpCode->nb_OpCodes; i++)
-		inst->code[inst->len++] = OpCode->OpCodes[i];
 
 	uint8_t ModRM = 0;
 	if (OpCode->ModRM_OpCode_used)
@@ -219,7 +235,7 @@ scf_instruction_t* x64_make_inst_M(scf_rela_t** prela, scf_x64_OpCode_t* OpCode,
 			offset = v->offset;
 	}
 
-	scf_instruction_t* inst = _x64_make_OpCode(OpCode, v->size);
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, v->size, NULL, NULL);
 	if (!inst)
 		return NULL;
 
@@ -276,7 +292,7 @@ scf_instruction_t* x64_make_inst_G2M(scf_rela_t** prela, scf_x64_OpCode_t* OpCod
 			offset = v_dst->offset;
 	}
 
-	scf_instruction_t* inst = _x64_make_OpCode(OpCode, v_dst->size);
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, v_dst->size, r_src, NULL);
 	if (!inst)
 		return NULL;
 
@@ -319,7 +335,7 @@ scf_instruction_t* x64_make_inst_M2G(scf_rela_t** prela, scf_x64_OpCode_t* OpCod
 			offset = v_src->offset;
 	}
 
-	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_dst->bytes);
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_dst->bytes, r_dst, NULL);
 	if (!inst)
 		return NULL;
 
@@ -338,7 +354,7 @@ scf_instruction_t* x64_make_inst_P2G(scf_x64_OpCode_t* OpCode, scf_register_x64_
 		return NULL;
 	}
 
-	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_dst->bytes);
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_dst->bytes, r_dst, NULL);
 	if (!inst)
 		return NULL;
 
@@ -357,7 +373,7 @@ scf_instruction_t* x64_make_inst_G2P(scf_x64_OpCode_t* OpCode, scf_register_x64_
 		return NULL;
 	}
 
-	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_src->bytes);
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_src->bytes, r_src, NULL);
 	if (!inst)
 		return NULL;
 
@@ -369,14 +385,14 @@ scf_instruction_t* x64_make_inst_G2P(scf_x64_OpCode_t* OpCode, scf_register_x64_
 	return inst;
 }
 
-scf_instruction_t* x64_make_inst_I2P(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_base, int32_t offset, uint8_t* imm, int size)
+scf_instruction_t* x64_make_inst_P(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_base, int32_t offset, int size)
 {
 	uint8_t reg = 0;
 
 	if (OpCode->ModRM_OpCode_used)
 		reg = OpCode->ModRM_OpCode;
 
-	scf_instruction_t* inst = _x64_make_OpCode(OpCode, size);
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, size, NULL, NULL);
 	if (!inst)
 		return NULL;
 
@@ -384,6 +400,15 @@ scf_instruction_t* x64_make_inst_I2P(scf_x64_OpCode_t* OpCode, scf_register_x64_
 		free(inst);
 		return NULL;
 	}
+
+	return inst;
+}
+
+scf_instruction_t* x64_make_inst_I2P(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_base, int32_t offset, uint8_t* imm, int size)
+{
+	scf_instruction_t* inst = x64_make_inst_P(OpCode, r_base, offset, size);
+	if (!inst)
+		return NULL;
 
 	int i;
 	for (i = 0; i < size; i++)
@@ -398,7 +423,7 @@ scf_instruction_t* x64_make_inst_G2E(scf_x64_OpCode_t* OpCode, scf_register_x64_
 		return NULL;
 	}
 
-	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_dst->bytes);
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_dst->bytes, r_dst, r_src);
 	if (!inst)
 		return NULL;
 
@@ -418,7 +443,7 @@ scf_instruction_t* x64_make_inst_E2G(scf_x64_OpCode_t* OpCode, scf_register_x64_
 		return NULL;
 	}
 
-	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_dst->bytes);
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_dst->bytes, r_dst, r_src);
 	if (!inst)
 		return NULL;
 
@@ -431,12 +456,8 @@ scf_instruction_t* x64_make_inst_E2G(scf_x64_OpCode_t* OpCode, scf_register_x64_
 	return inst;
 }
 
-scf_instruction_t* x64_make_inst_SIB(scf_x64_OpCode_t* OpCode, uint32_t reg,  scf_register_x64_t* r_base,  scf_register_x64_t* r_index, int32_t scale, int32_t disp, int size)
+scf_instruction_t* _x64_make_inst_SIB(scf_instruction_t* inst, scf_x64_OpCode_t* OpCode, uint32_t reg,  scf_register_x64_t* r_base,  scf_register_x64_t* r_index, int32_t scale, int32_t disp, int size)
 {
-	scf_instruction_t* inst = _x64_make_OpCode(OpCode, size);
-	if (!inst)
-		return NULL;
-
 	uint8_t ModRM = 0;
 	scf_ModRM_setReg(&ModRM, reg);
 	scf_ModRM_setRM(&ModRM,  SCF_X64_RM_SIB);
@@ -488,6 +509,19 @@ scf_instruction_t* x64_make_inst_SIB(scf_x64_OpCode_t* OpCode, uint32_t reg,  sc
 	return inst;
 }
 
+scf_instruction_t* x64_make_inst_SIB(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_base,  scf_register_x64_t* r_index, int32_t scale, int32_t disp, int size)
+{
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, size, NULL, NULL);
+	if (!inst)
+		return NULL;
+
+	uint32_t reg = 0;
+	if (OpCode->ModRM_OpCode_used)
+		reg = OpCode->ModRM_OpCode;
+
+	return _x64_make_inst_SIB(inst, OpCode, reg, r_base, r_index, scale, disp, size);
+}
+
 scf_instruction_t* x64_make_inst_SIB2G(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_dst,  scf_register_x64_t* r_base,  scf_register_x64_t* r_index, int32_t scale, int32_t disp)
 {
 	if (OpCode->ModRM_OpCode_used) {
@@ -495,7 +529,11 @@ scf_instruction_t* x64_make_inst_SIB2G(scf_x64_OpCode_t* OpCode, scf_register_x6
 		return NULL;
 	}
 
-	return x64_make_inst_SIB(OpCode, r_dst->id, r_base, r_index, scale, disp, r_dst->bytes);
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_dst->bytes, r_dst, NULL);
+	if (!inst)
+		return NULL;
+
+	return _x64_make_inst_SIB(inst, OpCode, r_dst->id, r_base, r_index, scale, disp, r_dst->bytes);
 }
 
 scf_instruction_t* x64_make_inst_G2SIB(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_base, scf_register_x64_t* r_index, int32_t scale, int32_t disp, scf_register_x64_t* r_src)
@@ -505,7 +543,11 @@ scf_instruction_t* x64_make_inst_G2SIB(scf_x64_OpCode_t* OpCode, scf_register_x6
 		return NULL;
 	}
 
-	return x64_make_inst_SIB(OpCode, r_src->id, r_base, r_index, scale, disp, r_src->bytes);
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_src->bytes, r_src, NULL);
+	if (!inst)
+		return NULL;
+
+	return _x64_make_inst_SIB(inst, OpCode, r_src->id, r_base, r_index, scale, disp, r_src->bytes);
 }
 
 scf_instruction_t* x64_make_inst_I2SIB(scf_x64_OpCode_t* OpCode, scf_register_x64_t* r_base, scf_register_x64_t* r_index, int32_t scale, int32_t disp, uint8_t* imm, int32_t size)
@@ -514,7 +556,11 @@ scf_instruction_t* x64_make_inst_I2SIB(scf_x64_OpCode_t* OpCode, scf_register_x6
 	if (OpCode->ModRM_OpCode_used)
 		reg = OpCode->ModRM_OpCode;
 
-	scf_instruction_t* inst = x64_make_inst_SIB(OpCode, reg, r_base, r_index, scale, disp, size);
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, size, NULL, NULL);
+	if (!inst)
+		return NULL;
+
+	inst = _x64_make_inst_SIB(inst, OpCode, reg, r_base, r_index, scale, disp, size);
 	if (!inst)
 		return NULL;
 

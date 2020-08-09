@@ -20,7 +20,7 @@ struct scf_variable_s {
 	int                 dim_index;
 	int					capacity;
 
-	int					size; // data size for struct type variable
+	int					size; // data size
 	int					offset;
 	int					bp_offset;  // offset based on RBP / EBP register
 
@@ -48,14 +48,6 @@ struct scf_variable_s {
 	uint32_t            arg_flag    :1;
 };
 
-static inline int scf_variable_const(scf_variable_t* v)
-{
-	if (SCF_FUNCTION_PTR == v->type)
-		return v->const_literal_flag;
-
-	return v->const_flag && 0 == v->nb_pointers;
-}
-
 scf_variable_t*	scf_variable_alloc(scf_lex_word_t* w, scf_type_t* t);
 scf_variable_t*	scf_variable_clone(scf_variable_t* var);
 scf_variable_t*	scf_variable_ref(scf_variable_t* var);
@@ -78,6 +70,41 @@ void            scf_variable_zero_extend(scf_variable_t* v, int bytes);
 void            scf_variable_extend_std(scf_variable_t* v, scf_variable_t* std);
 
 void            scf_variable_extend_bytes(scf_variable_t* v, int bytes);
+
+int             scf_variable_size(scf_variable_t* v);
+
+static inline int scf_variable_const(scf_variable_t* v)
+{
+	if (SCF_FUNCTION_PTR == v->type)
+		return v->const_literal_flag;
+
+	return v->const_flag && 0 == v->nb_pointers && 0 == v->nb_dimentions;
+}
+
+static inline int scf_variable_float(scf_variable_t* v)
+{
+	return scf_type_is_float(v->type) && 0 == v->nb_pointers && 0 == v->nb_dimentions;
+}
+
+static inline int scf_variable_interger(scf_variable_t* v)
+{
+	return scf_type_is_integer(v->type) || v->nb_pointers > 0 || v->nb_dimentions > 0;
+}
+
+static inline int scf_variable_signed(scf_variable_t* v)
+{
+	return scf_type_is_signed(v->type) && 0 == v->nb_pointers && 0 == v->nb_dimentions;
+}
+
+static inline int scf_variable_unsigned(scf_variable_t* v)
+{
+	return scf_type_is_unsigned(v->type) || v->nb_pointers > 0 || v->nb_dimentions > 0;
+}
+
+static inline int scf_variable_nb_pointers(scf_variable_t* v)
+{
+	return v->nb_pointers + v->nb_dimentions;
+}
 
 #endif
 

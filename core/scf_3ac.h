@@ -3,6 +3,7 @@
 
 #include"scf_node.h"
 #include"scf_dag.h"
+#include"scf_graph.h"
 #include"scf_basic_block.h"
 
 typedef struct scf_3ac_operator_s	scf_3ac_operator_t;
@@ -43,6 +44,8 @@ struct scf_3ac_code_s {
 	scf_vector_t*		instructions;
 	int                 inst_bytes;
 	int                 bb_offset;
+
+	scf_graph_t*        rcg;
 };
 
 scf_3ac_operand_t*	scf_3ac_operand_alloc();

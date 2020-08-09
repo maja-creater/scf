@@ -42,6 +42,7 @@ int scf_expr_calculate(scf_ast_t* ast, scf_expr_t* expr, scf_variable_t** pret);
 
 int scf_expr_calculate_internal(scf_ast_t* ast, scf_node_t* node, void* data);
 
+scf_string_t* scf_variable_type_name(scf_ast_t* ast, scf_variable_t* v);
 
 static inline void scf_ast_push_block(scf_ast_t* ast, scf_block_t* b)
 {

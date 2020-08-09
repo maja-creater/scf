@@ -16,8 +16,8 @@ static int _x64_color_select(scf_graph_node_t* node, scf_vector_t* colors)
 		int      bytes = X64_COLOR_BYTES(c);
 		uint32_t type  = X64_COLOR_TYPE(c);
 
-		if (bytes == rn->dag_node->var->size
-				&& type == scf_type_is_float(rn->dag_node->var->type))
+		if (bytes == x64_variable_size(rn->dag_node->var)
+				&& type == scf_variable_float(rn->dag_node->var))
 			return c;
 	}
 
@@ -73,18 +73,23 @@ static int _x64_kcolor_delete(scf_graph_t* graph, int k, scf_vector_t* deleted_n
 			scf_graph_node_t* node = graph->nodes->data[i];
 			x64_rcg_node_t*   rn   = node->data;
 
-			scf_logd("graph->nodes->size: %d, neighbors: %d, k: %d, rn->reg: %p\n",
-					graph->nodes->size, node->neighbors->size, k, rn->reg);
+			scf_logd("graph->nodes->size: %d, neighbors: %d, k: %d, node: %p, rn->reg: %p\n",
+					graph->nodes->size, node->neighbors->size, k, node, rn->reg);
 
 			if (!rn->dag_node) {
 				assert(rn->reg);
 				assert(node->color > 0);
-			} else {
-				if (node->neighbors->size >= k) {
-					i++;
-					continue;
-				}
+				i++;
+				continue;
 			}
+
+			if (node->neighbors->size >= k) {
+				i++;
+				continue;
+			}
+
+			scf_logd("graph->nodes->size: %d, neighbors: %d, k: %d, node: %p, rn->reg: %p\n",
+					graph->nodes->size, node->neighbors->size, k, node, rn->reg);
 
 			if (0 != scf_graph_delete_node(graph, node)) {
 				scf_loge("scf_graph_delete_node\n");
@@ -108,7 +113,7 @@ static int _x64_kcolor_delete(scf_graph_t* graph, int k, scf_vector_t* deleted_n
 static int _x64_kcolor_fill(scf_graph_t* graph, int k, scf_vector_t* colors,
 		scf_vector_t* deleted_nodes)
 {
-	//scf_logi("graph->nodes->size: %d\n", graph->nodes->size);
+	scf_logd("graph->nodes->size: %d\n", graph->nodes->size);
 	int i;
 	int j;
 	scf_vector_t* colors2 = NULL;
@@ -133,6 +138,12 @@ static int _x64_kcolor_fill(scf_graph_t* graph, int k, scf_vector_t* colors,
 				int ret = _x64_color_del(colors2, neighbor->color);
 				if (ret < 0)
 					goto error;
+
+				if (X64_COLOR_CONFLICT(node->color, neighbor->color)) {
+					scf_logd("node: %p, neighbor: %p, color: %#lx:%#lx\n", node, neighbor, node->color, neighbor->color);
+					assert(!rn->reg);
+					node->color = 0;
+				}
 			}
 
 			scf_logd("node: %p, neighbor: %p, color: %ld\n", node, neighbor, neighbor->color);
@@ -156,6 +167,7 @@ static int _x64_kcolor_fill(scf_graph_t* graph, int k, scf_vector_t* colors,
 
 		scf_vector_free(colors2);
 		colors2 = NULL;
+		printf("\n");
 	}
 
 	return 0;
@@ -176,14 +188,14 @@ static int _x64_kcolor_find_not_neighbor(scf_graph_t* graph, int k, scf_graph_no
 		scf_graph_node_t* node0 = graph->nodes->data[i];
 		x64_rcg_node_t*   rn    = node0->data;
 
-		if (node0->neighbors->size > k) {
-			continue;
-		}
-
-		if (rn->reg) {
+		if (!rn->dag_node) {
+			assert(rn->reg);
 			assert(node0->color > 0);
 			continue;
 		}
+
+		if (node0->neighbors->size > k)
+			continue;
 
 		scf_graph_node_t* node1 = NULL; 
 		int j;
@@ -237,7 +249,7 @@ static scf_graph_node_t* _x64_max_neighbors(scf_graph_t* graph)
 	return node_max;
 }
 
-static int _x64_kcolor_process_conflict(scf_graph_t* graph)
+static void _x64_kcolor_process_conflict(scf_graph_t* graph)
 {
 	int i;
 	int j;
@@ -248,7 +260,8 @@ static int _x64_kcolor_process_conflict(scf_graph_t* graph)
 		scf_graph_node_t* gn0 = graph->nodes->data[i];
 		x64_rcg_node_t*   rn0 = gn0->data;
 
-		if (0 == gn0->color || !rn0->dag_node)
+		scf_logd("i: %d, rn0->dag_node: %p, rn0->reg: %p\n", i, rn0->dag_node, rn0->reg);
+		if (0 == gn0->color)
 			continue;
 
 		for (j = i + 1; j < graph->nodes->size; j++) {
@@ -256,28 +269,43 @@ static int _x64_kcolor_process_conflict(scf_graph_t* graph)
 			scf_graph_node_t* gn1 = graph->nodes->data[j];
 			x64_rcg_node_t*   rn1 = gn1->data;
 
-			if (0 == gn1->color || !rn1->dag_node)
+			scf_logd("j: %d, rn1->dag_node: %p, rn1->reg: %p\n", j, rn1->dag_node, rn1->reg);
+			if (0 == gn1->color)
 				continue;
 
 			if (!X64_COLOR_CONFLICT(gn0->color, gn1->color))
 				continue;
 
-			int nb_parents0 = rn0->dag_node->parents ? rn0->dag_node->parents->size : 0;
-			int nb_parents1 = rn1->dag_node->parents ? rn1->dag_node->parents->size : 0;
+			if (!rn0->dag_node) {
+				if (!rn1->dag_node) {
+					continue;
+				}
 
-			if (nb_parents0 > nb_parents1) {
 				rn1->reg    = NULL;
 				rn1->OpCode = NULL;
 				gn1->color  = 0;
-			} else {
+
+			} else if (!rn1->dag_node) {
 				rn0->reg    = NULL;
 				rn0->OpCode = NULL;
 				gn0->color  = 0;
+
+			} else {
+				int nb_parents0 = rn0->dag_node->parents ? rn0->dag_node->parents->size : 0;
+				int nb_parents1 = rn1->dag_node->parents ? rn1->dag_node->parents->size : 0;
+
+				if (nb_parents0 > nb_parents1) {
+					rn1->reg    = NULL;
+					rn1->OpCode = NULL;
+					gn1->color  = 0;
+				} else {
+					rn0->reg    = NULL;
+					rn0->OpCode = NULL;
+					gn0->color  = 0;
+				}
 			}
 		}
 	}
-
-	return 0;
 }
 
 static int _x64_graph_kcolor(scf_graph_t* graph, int k, scf_vector_t* colors)
@@ -289,14 +317,14 @@ static int _x64_graph_kcolor(scf_graph_t* graph, int k, scf_vector_t* colors)
 	if (!deleted_nodes)
 		return -ENOMEM;
 
-	//scf_logi("graph->nodes->size: %d, k: %d\n", graph->nodes->size, k);
+	scf_logd("graph->nodes->size: %d, k: %d\n", graph->nodes->size, k);
 
 	ret = _x64_kcolor_delete(graph, k, deleted_nodes);
 	if (ret < 0)
 		goto error;
 
 	if (0 == _x64_kcolor_check(graph)) {
-	//	scf_logi("graph->nodes->size: %d\n", graph->nodes->size);
+		scf_logd("graph->nodes->size: %d\n", graph->nodes->size);
 
 		ret = _x64_kcolor_fill(graph, k, colors, deleted_nodes);
 		if (ret < 0)
@@ -305,7 +333,7 @@ static int _x64_graph_kcolor(scf_graph_t* graph, int k, scf_vector_t* colors)
 		scf_vector_free(deleted_nodes);
 		deleted_nodes = NULL;
 
-	//	scf_logi("graph->nodes->size: %d\n", graph->nodes->size);
+		scf_logd("graph->nodes->size: %d\n", graph->nodes->size);
 		return 0;
 	}
 
@@ -329,20 +357,23 @@ static int _x64_graph_kcolor(scf_graph_t* graph, int k, scf_vector_t* colors)
 			goto error;
 		}
 
-		if (rn0->dag_node->var->size > rn1->dag_node->var->size) {
+		int reg_size0 = x64_variable_size(rn0->dag_node->var);
+		int reg_size1 = x64_variable_size(rn1->dag_node->var);
+
+		if (reg_size0 > reg_size1) {
 
 			node0->color   = _x64_color_select(node0, colors2);
 
 			intptr_t type  = X64_COLOR_TYPE(node0->color);
 			intptr_t id    = X64_COLOR_ID(node0->color);
-			intptr_t mask  = (1 << rn1->dag_node->var->size) - 1; 
+			intptr_t mask  = (1 << reg_size1) - 1;
 			node1->color = X64_COLOR(type, id, mask);
 		} else {
 			node1->color   = _x64_color_select(node1, colors2);
 
 			intptr_t type  = X64_COLOR_TYPE(node0->color);
 			intptr_t id    = X64_COLOR_ID(node0->color);
-			intptr_t mask  = (1 << rn0->dag_node->var->size) - 1; 
+			intptr_t mask  = (1 << reg_size0) - 1;
 			node0->color   = X64_COLOR(type, id, mask);
 		}
 
@@ -398,7 +429,7 @@ static int _x64_graph_kcolor(scf_graph_t* graph, int k, scf_vector_t* colors)
 	scf_vector_free(deleted_nodes);
 	deleted_nodes = NULL;
 
-//	scf_logi("graph->nodes->size: %d\n", graph->nodes->size);
+	scf_logd("graph->nodes->size: %d\n", graph->nodes->size);
 	return 0;
 
 error:

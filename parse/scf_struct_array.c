@@ -5,7 +5,7 @@ static int _scf_array_member_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variabl
 		intptr_t* indexes, int nb_indexes, scf_node_t** pnode)
 {
 	if (!pnode) {
-		printf("%s(), %d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 
@@ -20,7 +20,7 @@ static int _scf_array_member_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variabl
 	printf("%s(), %d, array->nb_dimentions: %d, nb_indexes: %d\n", __func__, __LINE__, array->nb_dimentions, nb_indexes);
 
 	if (nb_indexes < array->nb_dimentions) {
-		printf("%s(), %d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 
@@ -30,11 +30,11 @@ static int _scf_array_member_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variabl
 		int k = indexes[i];
 
 		if (k >= array->dimentions[i]) {
-			printf("%s(), %d, error: \n", __func__, __LINE__);
+			scf_loge("\n");
 			return -1;
 		}
 
-		scf_variable_t* v_index     = scf_variable_alloc(w, t_int);
+		scf_variable_t* v_index     = scf_variable_alloc(NULL, t_int);
 		v_index->const_flag         = 1;
 		v_index->const_literal_flag = 1;
 		v_index->data.i             = k;
@@ -205,8 +205,7 @@ int scf_array_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variable_t* var, scf_v
 	}
 
 	if (nb_unset_dims > 1) {
-
-		printf("%s(), %d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 
 	} else if (1 == nb_unset_dims) {
@@ -239,8 +238,7 @@ int scf_array_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variable_t* var, scf_v
 
 			if ((intptr_t)init_expr->current_index->data[j] >= var->dimentions[j]) {
 
-				printf("%s(), %d, error: index [%d] out of size [%d], in dim: %d\n",
-						__func__, __LINE__,
+				scf_loge("index [%d] out of size [%d], in dim: %d\n",
 						(int)(intptr_t)init_expr->current_index->data[j], var->dimentions[j], j);
 
 				return -1;
@@ -257,7 +255,8 @@ int scf_array_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variable_t* var, scf_v
 		dfa_init_expr_t* init_expr = init_exprs->data[i];
 		printf("%s(), %d, #### data init, i: %d, init_expr->expr: %p\n", __func__, __LINE__, i, init_expr->expr);
 
-		scf_node_t* node_assign = scf_node_alloc(w,    op_assign->type, NULL);
+		scf_expr_t* e           = scf_expr_alloc();
+		scf_node_t* node_assign = scf_node_alloc(w, op_assign->type, NULL);
 		scf_node_t* node        = NULL;
 		intptr_t*   indexes     = (intptr_t*)init_expr->current_index->data;
 		int         nb_indexes  = init_expr->current_index->size;
@@ -269,8 +268,8 @@ int scf_array_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variable_t* var, scf_v
 
 		scf_node_add_child(node_assign, node);
 		scf_node_add_child(node_assign, init_expr->expr);
-
-		scf_node_add_child((scf_node_t*)ast->current_block, node_assign);
+		scf_expr_add_node(e, node_assign);
+		scf_node_add_child((scf_node_t*)ast->current_block, e);
 
 		scf_vector_free(init_expr->current_index);
 		free(init_expr);
@@ -304,12 +303,13 @@ int scf_struct_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variable_t* var, scf_
 			return -1;
 		}
 
-		scf_node_t* node_assign   = scf_node_alloc(w,    op_assign->type, NULL);
+		scf_expr_t* e           = scf_expr_alloc();
+		scf_node_t* node_assign = scf_node_alloc(w, op_assign->type, NULL);
 
 		scf_node_add_child(node_assign, node);
 		scf_node_add_child(node_assign, init_expr->expr);
-
-		scf_node_add_child((scf_node_t*)ast->current_block, node_assign);
+		scf_expr_add_node(e, node_assign);
+		scf_node_add_child((scf_node_t*)ast->current_block, e);
 
 		scf_vector_free(init_expr->current_index);
 		free(init_expr);
