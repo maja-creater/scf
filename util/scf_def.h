@@ -8,6 +8,7 @@
 #include<string.h>
 #include<assert.h>
 #include<errno.h>
+#include<time.h>
 
 // sign-extend low 'src_bits' of src to 64 bits
 static inline uint64_t scf_sign_extend(uint64_t src, int src_bits)

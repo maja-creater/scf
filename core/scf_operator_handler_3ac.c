@@ -6,7 +6,9 @@ typedef struct {
 	scf_vector_t*	_breaks;
 	scf_vector_t*	_continues;
 	scf_vector_t*	_gotos;
+	scf_vector_t*	_labels;
 	scf_vector_t*	_errors;
+	scf_vector_t*	_ends;
 } scf_branch_ops_t;
 
 typedef struct {
@@ -23,7 +25,9 @@ scf_branch_ops_t* scf_branch_ops_alloc()
 	branch_ops->_breaks		= scf_vector_alloc();
 	branch_ops->_continues	= scf_vector_alloc();
 	branch_ops->_gotos		= scf_vector_alloc();
+	branch_ops->_labels     = scf_vector_alloc();
 	branch_ops->_errors     = scf_vector_alloc();
+	branch_ops->_ends       = scf_vector_alloc();
 
 	return branch_ops;
 }
@@ -34,7 +38,9 @@ void scf_branch_ops_free(scf_branch_ops_t* branch_ops)
 		scf_vector_free(branch_ops->_breaks);
 		scf_vector_free(branch_ops->_continues);
 		scf_vector_free(branch_ops->_gotos);
+		scf_vector_free(branch_ops->_labels);
 		scf_vector_free(branch_ops->_errors);
+		scf_vector_free(branch_ops->_ends);
 
 		free(branch_ops);
 		branch_ops = NULL;
@@ -266,7 +272,7 @@ static int _scf_3ac_code_1(scf_list_t* h, int op_type, scf_node_t* n0)
 {
 	scf_3ac_operator_t* _3ac_op = scf_3ac_find_operator(op_type);
 	if (!_3ac_op) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 
@@ -392,7 +398,7 @@ static int _scf_op_array_index(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 		return -1;
 	}
 
-	v0 = _scf_operand_get(nodes[0]);
+	v0 = _scf_operand_get(parent);
 
 	int size = scf_variable_size(v0);
 	assert(size > 0);
@@ -464,13 +470,19 @@ static int _scf_op_block(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void*
 		// for goto
 		if (SCF_LABEL == node->type) {
 			scf_label_t* l = node->label;
-			assert(node == l->node);
 
 			scf_list_t*     tail = scf_list_tail(d->_3ac_list_head);
 			scf_3ac_code_t*	end  = scf_list_data(tail, scf_3ac_code_t, list);
 
+			if (scf_vector_add(d->branch_ops->_labels, end) < 0) {
+				scf_loge("\n");
+				return -1;
+			}
+			end->label = l;
+
 			int j;
 			for (j = 0; j < d->branch_ops->_gotos->size; j++) {
+
 				scf_3ac_code_t* c = d->branch_ops->_gotos->data[j];
 				if (!c)
 					continue;
@@ -497,11 +509,8 @@ static int _scf_op_block(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void*
 
 static int _scf_op_return(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
-	assert(1 == nb_nodes);
-
 	scf_handler_data_t* d = data;
-
-	scf_block_t* b = ast->current_block;
+	scf_block_t*        b = ast->current_block;
 
 	while (b && SCF_FUNCTION  != b->node.type)
 		b = (scf_block_t*)b->node.parent;
@@ -512,18 +521,25 @@ static int _scf_op_return(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 	}
 	assert(SCF_FUNCTION == b->node.type);
 
-	scf_expr_t* e = nodes[0];
+	if (1 == nb_nodes) {
+		scf_expr_t* e      = nodes[0];
+		scf_node_t* parent = nodes[0]->parent;
 
-	if (_scf_expr_calculate_internal(ast, e->nodes[0], d) < 0) {
-		scf_loge("\n");
-		return -1;
+		if (_scf_expr_calculate_internal(ast, e->nodes[0], d) < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+
+		if (_scf_3ac_code_2(d->_3ac_list_head, SCF_OP_RETURN, parent, e->nodes[0]) < 0)
+			return -1;
 	}
 
-	scf_node_t* parent = nodes[0]->parent;
+	scf_3ac_code_t* end = _scf_branch_ops_code(SCF_OP_GOTO, NULL, NULL);
 
-	return _scf_3ac_code_2(d->_3ac_list_head, SCF_OP_RETURN, parent, e->nodes[0]);
+	scf_list_add_tail(d->_3ac_list_head, &end->list);
+
+	return scf_vector_add(d->branch_ops->_ends, end);
 }
-
 
 static int _scf_op_break(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
@@ -597,6 +613,16 @@ static int _scf_op_goto(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* 
 
 	scf_list_add_tail(d->_3ac_list_head, &branch->list);
 
+	int i;
+	for (i = 0; i < d->branch_ops->_labels->size; i++) {
+		scf_3ac_code_t* c = d->branch_ops->_labels->data[i];
+
+		if (!strcmp(l->w->text->data, c->label->w->text->data)) {
+			branch->dst->code = c;
+			break;
+		}
+	}
+
 	scf_vector_add(d->branch_ops->_gotos, branch);
 	return 0;
 }
@@ -665,18 +691,8 @@ static int _scf_op_error(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void*
 	return 0;
 }
 
-static int _scf_op_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+static int _scf_op_cond(scf_ast_t* ast, scf_expr_t* e, scf_handler_data_t* d)
 {
-	if (nb_nodes < 2) {
-		scf_loge("\n");
-		return -1;
-	}
-
-	scf_handler_data_t* d = data;
-
-	scf_expr_t* e      = nodes[0];
-	scf_node_t* parent = e->parent;
-
 	if (_scf_expr_calculate_internal(ast, e->nodes[0], d) < 0) {
 		scf_loge("\n");
 		return -1;
@@ -685,8 +701,9 @@ static int _scf_op_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* da
 	scf_variable_t* result = e->nodes[0]->result;
 	assert(result);
 
-	int is_default = 0;
-	int jmp_op;
+	int is_default =  0;
+	int jmp_op     = -1;
+
 	switch (e->nodes[0]->type) {
 		case SCF_OP_EQ:
 			jmp_op = SCF_OP_3AC_JNZ;
@@ -711,7 +728,7 @@ static int _scf_op_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* da
 			break;
 
 		default:
-			if (_scf_3ac_code_1(d->_3ac_list_head, SCF_OP_3AC_TEQ, nodes[0]) < 0) {
+			if (_scf_3ac_code_1(d->_3ac_list_head, SCF_OP_3AC_TEQ, e->nodes[0]) < 0) {
 				scf_loge("\n");
 				return -1;
 			}
@@ -736,94 +753,12 @@ static int _scf_op_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* da
 		dst = NULL;
 	}
 
-	scf_3ac_code_t*	branch	= scf_3ac_code_alloc();
-	branch->dst				= scf_3ac_operand_alloc();
-	branch->op				= scf_3ac_find_operator(jmp_op);
-
-	assert(branch->op);
-	scf_list_add_tail(d->_3ac_list_head, &branch->list);
-
-	int i;
-	for (i = 1; i < nb_nodes; i++) {
-		scf_node_t* node = nodes[i];
-		scf_operator_t* op = node->op;
-		scf_logd("node: %p, type: %d, i: %d\n", node, node->type, i);
-
-		if (node->w) {
-			scf_logd("node: %p, w: %s, line:%d\n", node, node->w->text->data, node->w->line);
-		}
-		if (!op) {
-			op = scf_find_base_operator_by_type(node->type);
-			if (!op) {
-				scf_loge("\n");
-				return -1;
-			}
-		}
-
-		scf_operator_handler_t* h = scf_find_3ac_operator_handler(op->type, -1, -1, -1);
-		if (!h) {
-			scf_loge("\n");
-			return -1;
-		}
-
-		if (h->func(ast, node->nodes, node->nb_nodes, d) < 0) {
-			scf_loge("\n");
-			return -1;
-		}
-
-		if (1 == i) {
-			scf_list_t* l = scf_list_tail(d->_3ac_list_head);
-
-			branch->dst->code = scf_list_data(l, scf_3ac_code_t, list);
-		}
-	}
-
-	int ret = scf_vector_add(d->branch_ops->_breaks, branch);
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-
-	scf_logi("ok: \n");
-	return 0;
+	return jmp_op;
 }
 
-static int _scf_op_while(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+static int _scf_op_node(scf_ast_t* ast, scf_node_t* node, scf_handler_data_t* d)
 {
-	assert(2 == nb_nodes);
-
-	scf_handler_data_t* d = data;
-
-	scf_expr_t* e = nodes[0];
-	assert(SCF_OP_EXPR == e->type);
-
-	scf_block_t* b = (scf_block_t*)(e->parent);
-
-	// if the code list is empty, 'start' point to list sentinel,
-	// in this status it should NOT be freed by scf_3ac_code_free()
-
-	// we don't know the real start of the while loop here,
-	// we only know it's the next of 'start_prev'
-	scf_list_t* start_prev = scf_list_tail(d->_3ac_list_head);
-
-	if (_scf_expr_calculate(ast, e, d) < 0) {
-		scf_loge("\n");
-		return -1;
-	}
-
-	// test if r = 0
-	if (_scf_3ac_code_1(d->_3ac_list_head, SCF_OP_3AC_TEQ, e->nodes[0]) < 0) {
-		scf_loge("\n");
-		return -1;
-	}
-
-	// if r = 0, je & end the 'while', the 'je destination' should be given later
-	scf_3ac_code_t* je = _scf_branch_ops_code(SCF_OP_3AC_JZ, NULL, NULL);
-	scf_list_add_tail(d->_3ac_list_head, &je->list);
-
-	// while body
-	scf_node_t*     node = nodes[1];
-	scf_operator_t* op   = node->op;
+	scf_operator_t* op = node->op;
 
 	if (!op) {
 		op = scf_find_base_operator_by_type(node->type);
@@ -839,95 +774,295 @@ static int _scf_op_while(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void*
 		return -1;
 	}
 
-	scf_branch_ops_t* local_branch_ops = scf_branch_ops_alloc();
-	scf_branch_ops_t* up_branch_ops    = d->branch_ops;
-	d->branch_ops                      = local_branch_ops;
-
 	if (h->func(ast, node->nodes, node->nb_nodes, d) < 0) {
 		scf_loge("\n");
 		return -1;
 	}
+	return 0;
+}
 
-	// add loop when true, jmp to start with no condition
-	scf_3ac_code_t*	loop = _scf_branch_ops_code(SCF_OP_GOTO, NULL, NULL);
+static int _scf_op_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	if (2 != nb_nodes && 3 != nb_nodes) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	scf_handler_data_t* d = data;
+
+	scf_expr_t* e      = nodes[0];
+	scf_node_t* parent = e->parent;
+
+	int jmp_op = _scf_op_cond(ast, e, d);
+	if (jmp_op < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	scf_3ac_code_t* jmp_else  = _scf_branch_ops_code(jmp_op,      NULL, NULL);
+	scf_3ac_code_t* jmp_endif = NULL;
+	scf_list_t*     l;
+
+	scf_list_add_tail(d->_3ac_list_head, &jmp_else->list);
+
+	int i;
+	for (i = 1; i < nb_nodes; i++) {
+		scf_node_t* node = nodes[i];
+
+		if (_scf_op_node(ast, node, d) < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+
+		if (1 == i) {
+			if (3 == nb_nodes) {
+				jmp_endif = _scf_branch_ops_code(SCF_OP_GOTO, NULL, NULL);
+				scf_list_add_tail(d->_3ac_list_head, &jmp_endif->list);
+			}
+
+			l = scf_list_tail(d->_3ac_list_head);
+			jmp_else->dst->code = scf_list_data(l, scf_3ac_code_t, list);
+		}
+	}
+
+	int ret = scf_vector_add(d->branch_ops->_breaks, jmp_else);
+	if (ret < 0)
+		return ret;
+
+	if (jmp_endif) {
+		l = scf_list_tail(d->_3ac_list_head);
+		jmp_endif->dst->code = scf_list_data(l, scf_3ac_code_t, list);
+
+		ret = scf_vector_add(d->branch_ops->_breaks, jmp_endif);
+		if (ret < 0)
+			return ret;
+	}
+
+	scf_logi("ok: \n");
+	return 0;
+}
+
+static int _scf_op_end_loop(scf_list_t* start_prev, scf_3ac_code_t* jmp_end, scf_branch_ops_t* up_branch_ops, scf_handler_data_t* d)
+{
+	// change 'while (cond) {} ' to
+	// 'if (cond) {
+	//    do {
+    //    } while (cond);
+    //  }'
+	// for optimizer
+
+	// copy cond expr, it MUST NOT has 'jmp jcc' code
+	scf_list_t* l;
+	for (l = scf_list_next(start_prev); l != &jmp_end->list; l = scf_list_next(l)) {
+
+		scf_3ac_code_t* c  = scf_list_data(l, scf_3ac_code_t, list);
+
+		if (scf_type_is_jmp(c->op->type))
+			return -EINVAL;
+
+		scf_3ac_code_t* c2 = scf_3ac_code_clone(c);
+		if (!c2)
+			return -ENOMEM;
+
+		scf_list_add_tail(d->_3ac_list_head, &c2->list);
+	}
+
+	int jmp_op = -1;
+	switch (jmp_end->op->type) {
+
+		case SCF_OP_3AC_JNZ:
+			jmp_op = SCF_OP_3AC_JZ;
+			break;
+		case SCF_OP_3AC_JZ:
+			jmp_op = SCF_OP_3AC_JNZ;
+			break;
+		case SCF_OP_3AC_JLE:
+			jmp_op = SCF_OP_3AC_JGT;
+			break;
+		case SCF_OP_3AC_JLT:
+			jmp_op = SCF_OP_3AC_JGE;
+			break;
+		case SCF_OP_3AC_JGE:
+			jmp_op = SCF_OP_3AC_JLT;
+			break;
+		case SCF_OP_3AC_JGT:
+			jmp_op = SCF_OP_3AC_JLE;
+			break;
+
+		default:
+			jmp_op = -1;
+			break;
+	};
+
+	// add loop when true
+	scf_3ac_code_t*	loop = _scf_branch_ops_code(jmp_op, NULL, NULL);
 	scf_list_add_tail(d->_3ac_list_head, &loop->list);
 
 	// should get the real start here,
-	// because the code may be 'while (1);' & only has the loop itself
-	scf_3ac_code_t*	start	= scf_list_data(scf_list_next(start_prev), scf_3ac_code_t, list);
+	scf_3ac_code_t*	start = scf_list_data(scf_list_next(&jmp_end->list), scf_3ac_code_t, list);
 	loop->dst->code = start;
 
 	// set jmp destination for 'continue',
 	// it's the 'real' dst & needs not to re-fill
 	int i;
-	for (i = 0; i < local_branch_ops->_continues->size; i++) {
-
-		scf_3ac_code_t*	branch = local_branch_ops->_continues->data[i];
+	for (i = 0; i < d->branch_ops->_continues->size; i++) {
+		scf_3ac_code_t*	branch = d->branch_ops->_continues->data[i];
 		assert(branch->dst && !branch->dst->code);
 
 		branch->dst->code = start;
 	}
 
 	// get the end, it's NOT the 'real' dst, but the prev of the 'real'
-	// we can't get the 'real' here, since the later code is not processed.
 	scf_3ac_code_t*	end_prev  = scf_list_data(scf_list_tail(d->_3ac_list_head), scf_3ac_code_t, list);
 
-	// set jmp destination for 'break'
-	for (i = 0; i < local_branch_ops->_breaks->size; i++) {
-
-		scf_3ac_code_t*	branch = local_branch_ops->_breaks->data[i];
+	for (i = 0; i < d->branch_ops->_breaks->size; i++) {
+		scf_3ac_code_t*	branch = d->branch_ops->_breaks->data[i];
 		assert(branch->dst);
 
-		// 'break' may be delivered by the child loop & the code is set
 		if (!branch->dst->code)
 			branch->dst->code = end_prev;
 	}
 
-	// set the 'je destination' to end the 'while'
-	je->dst->code = end_prev;
+	if (jmp_end)
+		jmp_end->dst->code = end_prev;
 
 	if (up_branch_ops) {
-		// deliver the 'break' to parent block
-		for (i = 0; i < local_branch_ops->_breaks->size; i++) {
-
-			scf_3ac_code_t*	branch = local_branch_ops->_breaks->data[i];
+		for (i = 0; i < d->branch_ops->_breaks->size; i++) {
+			scf_3ac_code_t*	branch = d->branch_ops->_breaks->data[i];
 			assert(branch);
 
-			if (scf_vector_add(up_branch_ops->_breaks, branch) < 0) {
-				scf_loge("deliver 'break' to parent failed\n");
+			if (scf_vector_add(up_branch_ops->_breaks, branch) < 0)
 				return -1;
-			}
 		}
 
-		// je to end while is also added to _breaks
-		if (scf_vector_add(up_branch_ops->_breaks, je) < 0) {
-			scf_loge("deliver 'je' to parent failed\n");
+		if (jmp_end) {
+			if (scf_vector_add(up_branch_ops->_breaks, jmp_end) < 0)
+				return -1;
+		}
+
+		for (i = 0; i < d->branch_ops->_gotos->size; i++) {
+			scf_3ac_code_t*	branch = d->branch_ops->_gotos->data[i];
+			assert(branch);
+
+			if (scf_vector_add(up_branch_ops->_gotos, branch) < 0)
+				return -1;
+		}
+
+		for (i = 0; i < d->branch_ops->_errors->size; i++) {
+			scf_3ac_code_t*	branch = d->branch_ops->_errors->data[i];
+			assert(branch);
+
+			if (scf_vector_add(up_branch_ops->_errors, branch) < 0)
+				return -1;
+		}
+
+		for (i = 0; i < d->branch_ops->_ends->size; i++) {
+			scf_3ac_code_t*	branch = d->branch_ops->_ends->data[i];
+			assert(branch);
+
+			if (scf_vector_add(up_branch_ops->_ends, branch) < 0)
+				return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int _scf_op_while(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	assert(2 == nb_nodes);
+
+	scf_handler_data_t* d = data;
+
+	scf_expr_t* e = nodes[0];
+	assert(SCF_OP_EXPR == e->type);
+
+	scf_block_t* b = (scf_block_t*)(e->parent);
+
+	// we don't know the real start of the while loop here,
+	// we only know it's the next of 'start_prev'
+	scf_list_t* start_prev = scf_list_tail(d->_3ac_list_head);
+
+	int jmp_op = _scf_op_cond(ast, e, d);
+	if (jmp_op < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	scf_3ac_code_t* jmp_end = _scf_branch_ops_code(jmp_op, NULL, NULL);
+	scf_list_add_tail(d->_3ac_list_head, &jmp_end->list);
+
+	scf_branch_ops_t* local_branch_ops = scf_branch_ops_alloc();
+	scf_branch_ops_t* up_branch_ops    = d->branch_ops;
+	d->branch_ops                      = local_branch_ops;
+
+	// while body
+	if (_scf_op_node(ast, nodes[1], d) < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	if (_scf_op_end_loop(start_prev, jmp_end, up_branch_ops, d) < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	d->branch_ops    = up_branch_ops;
+	scf_branch_ops_free(local_branch_ops);
+	local_branch_ops = NULL;
+	return 0;
+}
+
+static int _scf_op_for(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	assert(4 == nb_nodes);
+
+	scf_handler_data_t* d = data;
+
+	if (nodes[0]) {
+		if (_scf_op_node(ast, nodes[0], d) < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+	}
+
+	scf_list_t*     start_prev = scf_list_tail(d->_3ac_list_head);
+	scf_3ac_code_t* jmp_end    = NULL;
+
+	if (nodes[1]) {
+		assert(SCF_OP_EXPR == nodes[1]->type);
+
+		int jmp_op = _scf_op_cond(ast, nodes[1], d);
+		if (jmp_op < 0) {
+			scf_loge("\n");
 			return -1;
 		}
 
-		// deliver the 'goto' to parent block
-		for (i = 0; i < local_branch_ops->_gotos->size; i++) {
+		jmp_end = _scf_branch_ops_code(jmp_op, NULL, NULL);
+		scf_list_add_tail(d->_3ac_list_head, &jmp_end->list);
+	}
 
-			scf_3ac_code_t*	branch = local_branch_ops->_gotos->data[i];
-			assert(branch);
+	scf_branch_ops_t* local_branch_ops = scf_branch_ops_alloc();
+	scf_branch_ops_t* up_branch_ops    = d->branch_ops;
+	d->branch_ops                      = local_branch_ops;
 
-			if (scf_vector_add(up_branch_ops->_gotos, branch) < 0) {
-				scf_loge("deliver 'goto' to parent failed\n");
-				return -1;
-			}
+	if (nodes[3]) {
+		if (_scf_op_node(ast, nodes[3], d) < 0) {
+			scf_loge("\n");
+			return -1;
 		}
+	}
 
-		// deliver the 'error' to parent block
-		for (i = 0; i < local_branch_ops->_errors->size; i++) {
-
-			scf_3ac_code_t*	branch = local_branch_ops->_errors->data[i];
-			assert(branch);
-
-			if (scf_vector_add(up_branch_ops->_errors, branch) < 0) {
-				scf_loge("deliver 'error' to parent failed\n");
-				return -1;
-			}
+	if (nodes[2]) {
+		if (_scf_op_node(ast, nodes[2], d) < 0) {
+			scf_loge("\n");
+			return -1;
 		}
+	}
+
+	if (_scf_op_end_loop(start_prev, jmp_end, up_branch_ops, d) < 0) {
+		scf_loge("\n");
+		return -1;
 	}
 
 	d->branch_ops    = up_branch_ops;
@@ -992,7 +1127,10 @@ static int __scf_op_call(scf_ast_t* ast, scf_function_t* f, void* data)
 		return -1;
 	}
 
-	_scf_3ac_code_1(d->_3ac_list_head, SCF_OP_RETURN, NULL);
+	if (_scf_3ac_code_1(d->_3ac_list_head, SCF_OP_3AC_END, NULL) < 0) {
+		scf_loge("\n");
+		return -1;
+	}
 
 	scf_3ac_code_t* err;
 	scf_node_t*     node;
@@ -1029,6 +1167,21 @@ static int __scf_op_call(scf_ast_t* ast, scf_function_t* f, void* data)
 		}
 	}
 
+	// re-fill 'end'
+	for (i = 0; i < local_branch_ops->_ends->size; i++) {
+
+		scf_3ac_code_t* c    = local_branch_ops->_ends->data[i];
+		scf_list_t*     l    = scf_list_tail(d->_3ac_list_head);
+		scf_3ac_code_t* end  = scf_list_data(l, scf_3ac_code_t, list);
+
+		assert(!c->dst->code);
+
+		if (&c->list == scf_list_prev(l))
+			c->op = scf_3ac_find_operator(SCF_OP_3AC_NOP);
+		else
+			c->dst->code = end;
+	}
+
 	if (0 == local_branch_ops->_errors->size)
 		goto end;
 
@@ -1056,7 +1209,11 @@ static int __scf_op_call(scf_ast_t* ast, scf_function_t* f, void* data)
 
 	// pop & return error code
 	_scf_3ac_code_dst(d->_3ac_list_head, SCF_OP_3AC_POP, NULL);
-	_scf_3ac_code_1(d->_3ac_list_head, SCF_OP_RETURN,  NULL);
+
+	if (_scf_3ac_code_1(d->_3ac_list_head, SCF_OP_3AC_END, NULL) < 0) {
+		scf_loge("\n");
+		return -1;
+	}
 
 	// re-fill 'error'
 	for (i = 0; i < local_branch_ops->_errors->size; i++) {
@@ -1225,7 +1382,7 @@ static int _scf_op_left_value_array_index(scf_ast_t* ast, int type, scf_node_t* 
 		srcs[i] = left->nodes[i];
 	}
 
-	v0 = _scf_operand_get(left->nodes[0]);
+	v0 = _scf_operand_get(left);
 
 	int size = scf_variable_size(v0);
 	assert(size > 0);
@@ -1241,7 +1398,8 @@ static int _scf_op_left_value_array_index(scf_ast_t* ast, int type, scf_node_t* 
 		return -ENOMEM;
 
 	srcs[i++] = n_scale;
-	srcs[i++] = right;
+	if (right)
+		srcs[i++] = right;
 
 	if (_scf_3ac_code_N(d->_3ac_list_head, type, NULL, srcs, i) < 0) {
 		scf_loge("\n");
@@ -1265,7 +1423,9 @@ static int _scf_op_left_value(scf_ast_t* ast, int type, scf_node_t* left, scf_no
 
 		srcs[i] = left->nodes[i];
 	}
-	srcs[i++] = right;
+
+	if (right)
+		srcs[i++] = right;
 
 	assert(i <= 3);
 
@@ -1450,6 +1610,76 @@ SCF_OP_BINARY_ASSIGN2(shr, SHR)
 SCF_OP_BINARY_ASSIGN2(mul, MUL)
 SCF_OP_BINARY_ASSIGN2(div, DIV)
 SCF_OP_BINARY_ASSIGN2(mod, MOD)
+
+#define SCF_OP_UNARY_ASSIGN(name, op) \
+static int _scf_op_##name(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data) \
+{ \
+	assert(1 == nb_nodes); \
+	scf_handler_data_t* d = data; \
+	\
+	scf_node_t*     node0 = nodes[0]; \
+	\
+	while (SCF_OP_EXPR == node0->type) \
+		node0 = node0->nodes[0]; \
+	\
+	switch (node0->type) { \
+		case SCF_OP_DEREFERENCE: \
+			return _scf_op_left_value(ast, SCF_OP_3AC_##op##_DEREFERENCE, node0, NULL, d); \
+			break; \
+		case SCF_OP_ARRAY_INDEX: \
+			return _scf_op_left_value_array_index(ast, SCF_OP_3AC_##op##_ARRAY_INDEX, node0, NULL, d); \
+			break; \
+		case SCF_OP_POINTER: \
+			return _scf_op_left_value(ast, SCF_OP_3AC_##op##_POINTER, node0, NULL, d); \
+			break; \
+		default: \
+			break; \
+	}; \
+	\
+	return _scf_3ac_code_1(d->_3ac_list_head, SCF_OP_##op, node0); \
+}
+SCF_OP_UNARY_ASSIGN(inc, INC)
+SCF_OP_UNARY_ASSIGN(dec, DEC)
+
+#define SCF_OP_UNARY_POST_ASSIGN(name, op) \
+static int _scf_op_##name(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data) \
+{ \
+	assert(1 == nb_nodes); \
+	scf_handler_data_t* d  = data; \
+	\
+	scf_node_t*     node0  = nodes[0]; \
+	scf_node_t*     parent = nodes[0]->parent; \
+	\
+	while (SCF_OP_EXPR == node0->type) \
+		node0 = node0->nodes[0]; \
+	\
+	int ret; \
+	switch (node0->type) { \
+		case SCF_OP_DEREFERENCE: \
+			ret = _scf_op_left_value(ast, SCF_OP_3AC_##op##_DEREFERENCE, node0, NULL, d); \
+			break; \
+		case SCF_OP_ARRAY_INDEX: \
+			ret = _scf_op_left_value_array_index(ast, SCF_OP_3AC_##op##_ARRAY_INDEX, node0, NULL, d); \
+			break; \
+		case SCF_OP_POINTER: \
+			ret = _scf_op_left_value(ast, SCF_OP_3AC_##op##_POINTER, node0, NULL, d); \
+			break; \
+		default: \
+		    ret = _scf_3ac_code_2(d->_3ac_list_head, SCF_OP_##op, NULL, node0); \
+			break; \
+	}; \
+	\
+	if (ret < 0) { \
+		scf_loge("\n"); \
+		return -1; \
+	} \
+	scf_list_t*     l = scf_list_tail(d->_3ac_list_head); \
+	scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list); \
+	c->dst->node = parent; \
+	return 0; \
+}
+SCF_OP_UNARY_POST_ASSIGN(inc_post, INC_POST)
+SCF_OP_UNARY_POST_ASSIGN(dec_post, DEC_POST)
 
 #define SCF_OP_CMP(name, op_type) \
 static int _scf_op_##name(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data) \
@@ -1656,6 +1886,12 @@ scf_operator_handler_t _3ac_operator_handlers[] = {
 	{{NULL, NULL}, SCF_OP_NEG,            -1,   -1, -1, _scf_op_neg},
 	{{NULL, NULL}, SCF_OP_POSITIVE,       -1,   -1, -1, _scf_op_positive},
 
+	{{NULL, NULL}, SCF_OP_INC,            -1,   -1, -1, _scf_op_inc},
+	{{NULL, NULL}, SCF_OP_DEC,            -1,   -1, -1, _scf_op_dec},
+
+	{{NULL, NULL}, SCF_OP_INC_POST,       -1,   -1, -1, _scf_op_inc_post},
+	{{NULL, NULL}, SCF_OP_DEC_POST,       -1,   -1, -1, _scf_op_dec_post},
+
 	{{NULL, NULL}, SCF_OP_DEREFERENCE,    -1,   -1, -1, _scf_op_dereference},
 	{{NULL, NULL}, SCF_OP_ADDRESS_OF,     -1,   -1, -1, _scf_op_address_of},
 
@@ -1704,6 +1940,7 @@ scf_operator_handler_t _3ac_operator_handlers[] = {
 
 	{{NULL, NULL}, SCF_OP_IF,             -1,   -1, -1, _scf_op_if},
 	{{NULL, NULL}, SCF_OP_WHILE,          -1,   -1, -1, _scf_op_while},
+	{{NULL, NULL}, SCF_OP_FOR,            -1,   -1, -1, _scf_op_for},
 };
 
 scf_operator_handler_t* scf_find_3ac_operator_handler(const int type, const int src0_type, const int src1_type, const int ret_type)

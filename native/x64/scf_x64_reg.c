@@ -128,6 +128,52 @@ void x64_registers_clear()
 	}
 }
 
+int x64_registers_reset()
+{
+	int i;
+	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
+
+		scf_register_x64_t*	r = &(x64_registers[i]);
+
+		if (SCF_X64_REG_RSP == r->id || SCF_X64_REG_RBP == r->id)
+			continue;
+
+		if (!r->dag_nodes)
+			continue;
+
+		int j = 0;
+		while (j < r->dag_nodes->size) {
+			scf_dag_node_t* dn = r->dag_nodes->data[j];
+
+			if (!scf_variable_const(dn->var)
+				&& scf_type_is_var(dn->type)
+				&& (dn->var->global_flag || dn->var->local_flag)) {
+
+				scf_logw("keep: v_%d_%d/%s\n", dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
+				j++;
+				continue;
+			}
+
+			if (dn->var->w)
+				scf_logw("drop: v_%d_%d/%s\n", dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
+			else
+				scf_logw("drop: v_%#lx\n", 0xffff & (uintptr_t)dn->var);
+
+			int ret = scf_vector_del(r->dag_nodes, dn);
+			if (ret < 0) {
+				scf_loge("\n");
+				return ret;
+			}
+
+			dn->loaded     = 0;
+			dn->color      = 0;
+			dn->color_prev = 0;
+		}
+	}
+
+	return 0;
+}
+
 scf_register_x64_t* x64_find_register(const char* name)
 {
 	int i;
@@ -200,16 +246,21 @@ scf_vector_t* x64_register_colors()
 			return NULL;
 		}
 	}
+#if 1
+//	srand(time(NULL));
+	for (i = 0; i < colors->size; i++) {
+		int j = rand() % colors->size;
 
+		void* t = colors->data[i];
+		colors->data[i] = colors->data[j];
+		colors->data[j] = t;
+	}
+#endif
 	return colors;
 }
 
-int x64_save_var(scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f)
+int x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f)
 {
-	if (dn->color <= 0)
-		return -EINVAL;
-
-	scf_register_x64_t* r    = x64_find_register_color(dn->color);
 	scf_variable_t*     v    = dn->var;
 	scf_rela_t*         rela = NULL;
 	scf_x64_OpCode_t*   mov;
@@ -246,7 +297,7 @@ int x64_save_var(scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f)
 			printf("v_%#lx, bp_offset: %d\n", 0xffff & (uintptr_t)v, v->bp_offset);
 
 	} else {
-		scf_logw("save var: v_%s_%d_%d\n", v->w->text->data, v->w->line, v->w->pos);
+		scf_logw("save var: v_%s_%d_%d, r: %s\n", v->w->text->data, v->w->line, v->w->pos, r->name);
 	}
 
 	if (is_float) {
@@ -275,6 +326,16 @@ end:
 	return 0;
 }
 
+int x64_save_var(scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f)
+{
+	if (dn->color <= 0)
+		return -EINVAL;
+
+	scf_register_x64_t* r = x64_find_register_color(dn->color);
+
+	return x64_save_var2(dn, r, c, f);
+}
+
 int x64_save_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f)
 {
 	int i = 0;
@@ -282,6 +343,7 @@ int x64_save_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f)
 
 		scf_dag_node_t* dn = r->dag_nodes->data[i];
 
+		scf_logw("r: %s, dn->var: %s\n", r->name, dn->var->w->text->data);
 		int ret = x64_save_var(dn, c, f);
 		if (ret < 0) {
 			scf_loge("\n");

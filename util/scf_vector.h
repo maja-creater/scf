@@ -127,6 +127,15 @@ static inline void* scf_vector_find_cmp(const scf_vector_t* v, const void* node,
 	return NULL;
 }
 
+static inline int scf_vector_qsort(const scf_vector_t* v, int (*cmp)(const void*, const void*))
+{
+	if (!v || !v->data || 0 == v->size || !cmp)
+		return -EINVAL;
+
+	qsort(v->data, v->size, sizeof(void*), cmp);
+	return 0;
+}
+
 static inline void scf_vector_clear(scf_vector_t* v, void (*type_free)(void*))
 {
 	if (!v || !v->data)

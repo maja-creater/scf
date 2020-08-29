@@ -20,6 +20,7 @@ CFILES += ../native/x64/scf_x64_inst_binary.c
 CFILES += ../native/x64/scf_x64_inst_mul.c
 CFILES += ../native/x64/scf_x64_inst_div.c
 CFILES += ../native/x64/scf_x64_inst_cmp.c
+CFILES += ../native/x64/scf_x64_inst_unary.c
 
 CFILES += ../native/x64/scf_x64_rcg.c
 CFILES += ../native/x64/scf_x64_graph.c
@@ -62,6 +63,11 @@ CFILES += ../core/scf_dag.c
 CFILES += ../core/scf_operator_dag.c
 CFILES += ../core/scf_basic_block.c
 CFILES += ../core/scf_3ac.c
+
+CFILES += ../core/scf_optimizer.c
+CFILES += ../core/scf_optimizer_active_vars.c
+CFILES += ../core/scf_optimizer_loop.c
+CFILES += ../core/scf_optimizer_generate_loads_saves.c
 
 CFILES += ../core/scf_ast.c
 

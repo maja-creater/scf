@@ -11,6 +11,7 @@ scf_active_var_t* scf_active_var_alloc(scf_dag_node_t* dag_node)
 
 	v->dag_node = dag_node;
 	v->active   = dag_node->active;
+	v->updated  = dag_node->updated;
 	return v;
 }
 
@@ -94,6 +95,23 @@ void scf_dag_node_free(scf_dag_node_t* dag_node)
 
 		free(dag_node);
 		dag_node = NULL;
+	}
+}
+
+void scf_dag_node_free_list(scf_list_t* dag_list_head)
+{
+	scf_list_t* l;
+
+	for (l = scf_list_head(dag_list_head); l != scf_list_sentinel(dag_list_head); ) {
+
+		scf_dag_node_t* dn = scf_list_data(l, scf_dag_node_t, list);
+
+		l = scf_list_next(l);
+
+		scf_list_del(&dn->list);
+
+		scf_dag_node_free(dn);
+		dn = NULL;
 	}
 }
 
@@ -194,6 +212,65 @@ int scf_dag_get_node(scf_list_t* h, const scf_node_t* node, scf_dag_node_t** pp)
 	}
 
 	*pp = dag_node;
+	return 0;
+}
+
+int scf_dag_dn_same(scf_dag_node_t* dn0, scf_dag_node_t* dn1)
+{
+	int i;
+
+	if (dn0->type != dn1->type)
+		return 0;
+
+	if (scf_type_is_var(dn0->type)) {
+		if (dn0->var == dn1->var)
+			return 1;
+		else
+			return 0;
+	}
+
+	if (!dn0->childs || !dn1->childs)
+		return 0;
+
+	if (dn0->childs->size != dn1->childs->size)
+		return 0;
+
+	for (i = 0; i < dn0->childs->size; i++) {
+		scf_dag_node_t*	child0 = dn0->childs->data[i];
+		scf_dag_node_t*	child1 = dn1->childs->data[i];
+
+		if (0 == scf_dag_dn_same(child0, child1))
+			return 0;
+	}
+	return 1;
+}
+
+scf_dag_node_t* scf_dag_find_dn(scf_list_t* h, const scf_dag_node_t* dn0)
+{
+	scf_list_t* l;
+	for (l = scf_list_tail(h); l != scf_list_sentinel(h); l = scf_list_prev(l)) {
+
+		scf_dag_node_t* dn1 = scf_list_data(l, scf_dag_node_t, list);
+
+		if (scf_dag_dn_same(dn1, (scf_dag_node_t*)dn0))
+			return dn1;
+	}
+	return NULL;
+}
+
+int scf_dag_get_dn(scf_list_t* h, const scf_dag_node_t* dn0, scf_dag_node_t** pp)
+{
+	scf_dag_node_t* dn1 = scf_dag_find_dn(h, dn0);
+
+	if (!dn1) {
+		dn1 = scf_dag_node_alloc(dn0->type, dn0->var);
+		if (!dn1)
+			return -ENOMEM;
+
+		scf_list_add_tail(h, &dn1->list);
+	}
+
+	*pp = dn1;
 	return 0;
 }
 

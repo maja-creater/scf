@@ -131,7 +131,10 @@ static int _if_action_lp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	scf_stack_t*      s     = d->module_datas[dfa_module_if.index];
 	dfa_if_data_t*    ifd   = scf_stack_top(s);
 
-	assert(!d->expr);
+	if (d->expr) {
+		scf_expr_free(d->expr);
+		d->expr = NULL;
+	}
 	d->expr_local_flag = 1;
 
 	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "if_rp"), SCF_DFA_HOOK_POST);

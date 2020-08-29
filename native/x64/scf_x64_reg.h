@@ -39,6 +39,14 @@ static uint32_t x64_abi_regs[] =
 	SCF_X64_REG_RDX,
 	SCF_X64_REG_RCX,
 };
+
+static uint32_t x64_abi_float_regs[] =
+{
+	SCF_X64_REG_XMM0,
+	SCF_X64_REG_XMM1,
+	SCF_X64_REG_XMM2,
+	SCF_X64_REG_XMM3,
+};
 #define X64_ABI_NB (sizeof(x64_abi_regs) / sizeof(x64_abi_regs[0]))
 
 typedef struct {
@@ -69,6 +77,7 @@ static inline int x64_variable_size(scf_variable_t* v)
 typedef int         (*x64_sib_fill_pt)(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* index, scf_3ac_code_t* c, scf_function_t* f);
 
 int                 x64_registers_init();
+int                 x64_registers_reset();
 void                x64_registers_clear();
 scf_vector_t*       x64_register_colors();
 
@@ -85,6 +94,8 @@ scf_register_x64_t*	x64_find_abi_register(int index, int bytes);
 scf_register_x64_t* x64_select_overflowed_reg(scf_dag_node_t* dn, scf_3ac_code_t* c);
 
 int                 x64_save_var(scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f);
+
+int                 x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f);
 
 int                 x64_save_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f);
 

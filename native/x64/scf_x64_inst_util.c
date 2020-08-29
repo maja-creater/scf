@@ -124,20 +124,26 @@ static int _x64_make_disp(scf_rela_t** prela, scf_instruction_t* inst, uint32_t 
 	return 0;
 }
 
+void x64_make_inst_I2(scf_instruction_t* inst, scf_x64_OpCode_t* OpCode, uint8_t* imm, int size)
+{
+	inst->OpCode = (scf_OpCode_t*)OpCode;
+	inst->len    = 0;
+
+	int i;
+	for (i = 0; i < OpCode->nb_OpCodes; i++)
+		inst->code[inst->len++] = OpCode->OpCodes[i];
+
+	for (i = 0; i < size; i++)
+		inst->code[inst->len++] = imm[i];
+}
+
 scf_instruction_t* x64_make_inst_I(scf_x64_OpCode_t* OpCode, uint8_t* imm, int size)
 {
 	scf_instruction_t* inst = calloc(1, sizeof(scf_instruction_t));
 	if (!inst)
 		return NULL;
 
-	inst->OpCode = (scf_OpCode_t*)OpCode;
-
-	int i;
-	for (i = 0; i < size; i++)
-		inst->code[inst->len++] = OpCode->OpCodes[i];
-
-	for (i = 0; i < size; i++)
-		inst->code[inst->len++] = imm[i];
+	x64_make_inst_I2(inst, OpCode, imm, size);
 	return inst;
 }
 

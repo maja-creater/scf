@@ -142,90 +142,152 @@ static void _x64_inst_printf(scf_3ac_code_t* c)
 	printf("\n");
 }
 
+static int _x64_argv_prepare(scf_graph_t* g, scf_basic_block_t* bb, scf_function_t* f)
+{
+	int i;
+	int nb_ints   = 0;
+	int nb_floats = 0;
+
+	for (i = 0; i < f->argv->size; i++) {
+		scf_variable_t*     v = f->argv->data[i];
+
+		if (!v->arg_flag)
+			continue;
+
+		scf_list_t*         l;
+		scf_graph_node_t*   gn;
+		scf_dag_node_t*     dn;
+		scf_register_x64_t* rabi;
+
+		int is_float = scf_variable_float(v);
+		int size     = x64_variable_size(v);
+
+		if (is_float) {
+			if (nb_floats >= X64_ABI_NB)
+				continue;
+
+			rabi = x64_find_register_type_id_bytes(is_float, x64_abi_float_regs[nb_floats], size);
+			nb_floats++;
+		} else {
+			if (nb_ints >= X64_ABI_NB)
+				continue;
+
+			rabi = x64_find_register_type_id_bytes(is_float, x64_abi_regs[nb_ints], size);
+			nb_ints++;
+		}
+
+		for (l = scf_list_head(&f->dag_list_head); l != scf_list_sentinel(&f->dag_list_head);
+				l = scf_list_next(l)) {
+
+			dn = scf_list_data(l, scf_dag_node_t, list);
+			if (dn->var == v)
+				break;
+		}
+
+		if (l == scf_list_sentinel(&f->dag_list_head)) {
+			dn = scf_dag_node_alloc(v->type, v);
+			if (!dn)
+				return -ENOMEM;
+
+			scf_list_add_tail(&f->dag_list_head, &dn->list);
+		}
+
+		int ret = _x64_rcg_make_node(&gn, g, dn, rabi, NULL);
+		if (ret < 0)
+			return ret;
+
+		ret = scf_vector_add_unique(rabi->dag_nodes, dn);
+		if (ret < 0)
+			return ret;
+
+		dn->rabi   = rabi;
+		dn->loaded = 1;
+	}
+
+	return 0;
+}
+
+static int _x64_argv_save(scf_graph_t* g, scf_basic_block_t* bb, scf_function_t* f)
+{
+	assert(!scf_list_empty(&bb->code_list_head));
+
+	scf_list_t*     l = scf_list_head(&bb->code_list_head);
+	scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
+
+	if (!c->instructions) {
+		c->instructions = scf_vector_alloc();
+		if (!c->instructions)
+			return -ENOMEM;
+	}
+
+	int i;
+	for (i = 0; i < f->argv->size; i++) {
+		scf_variable_t*     v = f->argv->data[i];
+
+		if (!v->arg_flag)
+			continue;
+
+		scf_dag_node_t*     dn;
+		scf_register_x64_t* rabi;
+		scf_register_x64_t* r    = NULL;
+
+		for (l = scf_list_head(&f->dag_list_head); l != scf_list_sentinel(&f->dag_list_head);
+				l = scf_list_next(l)) {
+
+			dn = scf_list_data(l, scf_dag_node_t, list);
+			if (dn->var == v)
+				break;
+		}
+
+		if (l == scf_list_sentinel(&f->dag_list_head))
+			continue;
+
+		if (!dn->rabi)
+			continue;
+
+		rabi = dn->rabi;
+
+		if (dn->color > 0)
+			r = x64_find_register_color(dn->color);
+
+		if (!r || r->color != rabi->color) {
+			int ret = x64_save_var2(dn, rabi, c, f);
+			if (ret < 0)
+				return ret;
+		}
+	}
+
+	return 0;
+}
+
 static int _x64_select_regs(scf_native_t* ctx, scf_basic_block_t* bb, scf_function_t* f)
 {
+	x64_registers_reset();
+
 	scf_graph_t* g = scf_graph_alloc();
 	if (!g)
 		return -ENOMEM;
 
-	scf_vector_t* colors = NULL;
-	scf_list_t*   l;
+	scf_vector_t*   colors = NULL;
+	scf_list_t*     l;
+	scf_3ac_code_t* c;
 
 	int ret = 0;
 	int i;
 
-	for (i = 0; i < f->argv->size && i < X64_ABI_NB; i++) {
-		scf_variable_t*     v = f->argv->data[i];
+	ret = _x64_argv_prepare(g, bb, f);
+	if (ret < 0)
+		goto error;
 
-		scf_logw("v: %s\n", v->w->text->data);
-
-		x64_rcg_node_t*     rn;
-		scf_graph_node_t*   gn;
-		scf_dag_node_t*     dn;
-		scf_register_x64_t* r;
-
-		for (l = scf_list_head(&bb->dag_list_head); l != scf_list_sentinel(&bb->dag_list_head);
-				l = scf_list_next(l)) {
-			dn = scf_list_data(l, scf_dag_node_t, list);
-
-			if (dn->var == v) {
-				r = x64_find_register_type_id_bytes(0, x64_abi_regs[i], v->size);
-				dn->color = r->color;
-				break;
-			}
-		}
-
-		if (l == scf_list_sentinel(&bb->dag_list_head)) {
-			dn = scf_dag_node_alloc(v->type, v);
-			if (!dn) {
-				scf_loge("\n");
-				ret = -ENOMEM;
-				goto error;
-			}
-
-			r = x64_find_register_type_id_bytes(0, x64_abi_regs[i], v->size);
-			dn->color = r->color;
-			scf_list_add_tail(&bb->dag_list_head, &dn->list);
-		}
-
-		rn = calloc(1, sizeof(x64_rcg_node_t));
-		if (!rn) {
-			scf_loge("\n");
-			ret = -ENOMEM;
-			goto error;
-		}
-
-		gn = scf_graph_node_alloc();
-		if (!gn) {
-			scf_loge("\n");
-			free(rn);
-			rn = NULL;
-			ret = -ENOMEM;
-			goto error;
-		}
-
-		rn->dag_node = dn;
-		rn->reg      = r;
-		rn->OpCode   = NULL;
-		gn->data     = rn;
-		gn->color    = r->color;
-
-		ret = scf_graph_add_node(g, gn);
-		if (ret < 0) {
-			free(rn);
-			scf_graph_node_free(gn);
-			goto error;
-		}
-	}
-	scf_logd("g->nodes->size: %d\n", g->nodes->size);
+	scf_logi("g->nodes->size: %d\n", g->nodes->size);
 
 	for (l = scf_list_head(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head); l = scf_list_next(l)) {
 
-		scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
+		c = scf_list_data(l, scf_3ac_code_t, list);
 
 		x64_rcg_handler_t* h = scf_x64_find_rcg_handler(c->op->type);
 		if (!h) {
-			scf_loge("3ac operator %s not supported\n", c->op->name);
+			scf_loge("3ac operator '%s' not supported\n", c->op->name);
 			ret = -EINVAL;
 			goto error;
 		}
@@ -237,7 +299,7 @@ static int _x64_select_regs(scf_native_t* ctx, scf_basic_block_t* bb, scf_functi
 			goto error;
 	}
 
-	scf_logd("g->nodes->size: %d\n", g->nodes->size);
+	scf_logi("g->nodes->size: %d\n", g->nodes->size);
 
 	colors = x64_register_colors();
 	if (!colors) {
@@ -249,21 +311,52 @@ static int _x64_select_regs(scf_native_t* ctx, scf_basic_block_t* bb, scf_functi
 	if (ret < 0)
 		goto error;
 
-	for (i = 0; i < g->nodes->size; i++) {
-		scf_graph_node_t* gn = g->nodes->data[i];
-		x64_rcg_node_t*   rn = gn->data;
+	assert(!scf_list_empty(&bb->code_list_head));
 
-		if (!rn->dag_node) {
+	l = scf_list_head(&bb->code_list_head);
+	c = scf_list_data(l, scf_3ac_code_t, list);
+	if (!c->instructions) {
+		c->instructions = scf_vector_alloc();
+		if (!c->instructions) {
+			ret = -ENOMEM;
+			goto error;
+		}
+	}
+
+	for (i = 0; i < g->nodes->size; i++) {
+		scf_graph_node_t*   gn = g->nodes->data[i];
+		x64_rcg_node_t*     rn = gn->data;
+		scf_dag_node_t*     dn = rn->dag_node;
+		scf_register_x64_t* r  = NULL;
+
+		if (!dn) {
 			_x64_rcg_node_printf(rn);
 			continue;
 		}
+#if 1
+		if (dn->color_prev > 0) {
+			scf_register_x64_t* r_prev = x64_find_register_color(dn->color_prev);
 
-		rn->dag_node->color = gn->color;
+			if (gn->color > 0)
+				r = x64_find_register_color(gn->color);
 
-		if (gn->color > 0) {
-			scf_register_x64_t* r = x64_find_register_color(gn->color);
+			if (!r || r->id != r_prev->id) {
+				scf_logw("save r_prev: %s, v_%d_%d/%s\n", r_prev->name, dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
 
-			ret = scf_vector_add(r->dag_nodes, rn->dag_node);
+				ret = x64_save_var2(dn, r_prev, c, f);
+				if (ret < 0) {
+					scf_loge("\n");
+					goto error;
+				}
+			}
+		}
+#endif
+		dn->color = gn->color;
+
+		if (dn->color > 0) {
+			r   = x64_find_register_color(dn->color);
+
+			ret = scf_vector_add_unique(r->dag_nodes, dn);
 			if (ret < 0)
 				goto error;
 		}
@@ -271,6 +364,9 @@ static int _x64_select_regs(scf_native_t* ctx, scf_basic_block_t* bb, scf_functi
 		_x64_rcg_node_printf(rn);
 	}
 	printf("\n");
+
+	scf_logi("g->nodes->size: %d\n", g->nodes->size);
+	ret = _x64_argv_save(g, bb, f);
 
 error:
 	if (colors)
@@ -326,61 +422,60 @@ static int _x64_make_insts_for_list(scf_native_t* ctx, scf_list_t* h, int bb_off
 
 static void _x64_set_offset_for_jmps(scf_native_t* ctx, scf_function_t* f)
 {
-	int nb_jmps = f->jmps->size;
-	while (nb_jmps > 0) {
+	while (1) {
+		int drop_bytes = 0;
 		int i;
+
 		for (i = 0; i < f->jmps->size; i++) {
-			scf_3ac_code_t* c   = f->jmps->data[i];
-			scf_3ac_code_t* dst = c->dst->code;
+			scf_3ac_code_t*    c      = f->jmps->data[i];
+			scf_3ac_code_t*    dst    = c->dst->code;
 
 			scf_basic_block_t* cur_bb = c->basic_block;
 			scf_basic_block_t* dst_bb = dst->basic_block;
 
-			int32_t bytes = 0;
-			scf_list_t* l = NULL;
-			if (cur_bb->index < dst_bb->index) {
+			scf_basic_block_t* bb     = NULL;
+			scf_list_t*        l      = NULL;
+			int32_t            bytes  = 0;
 
+			if (cur_bb->index < dst_bb->index) {
 				for (l = scf_list_next(&cur_bb->list); l != &dst_bb->list; l = scf_list_next(l)) {
 
-					scf_basic_block_t* bb = scf_list_data(l, scf_basic_block_t, list);
+					bb     = scf_list_data(l, scf_basic_block_t, list);
 
-					if (bb->jmp_flag)
-						break;
 					bytes += bb->code_bytes;
 				}
 			} else {
-				for (l = scf_list_prev(&cur_bb->list); l != &dst_bb->list; l = scf_list_prev(l)) {
+				for (l = &cur_bb->list; l != scf_list_prev(&dst_bb->list); l = scf_list_prev(l)) {
 
-					scf_basic_block_t* bb = scf_list_data(l, scf_basic_block_t, list);
+					bb     = scf_list_data(l, scf_basic_block_t, list);
 
-					if (bb->jmp_flag)
-						break;
-					bytes += bb->code_bytes;
+					bytes -= bb->code_bytes;
 				}
 			}
-
-			if (l != &dst_bb->list)
-				continue;
 
 			assert(c->instructions && 1 == c->instructions->size);
-			if (-128 <= bytes && bytes <= 127) {
-				scf_instruction_t* inst = c->instructions->data[0];
 
-				inst->code[1]  = (int8_t)bytes;
-				inst->len      = 2;
-				cur_bb->code_bytes -= 3; // default is 4 bytes
-				c->inst_bytes      -= 3;
-			} else {
-				scf_instruction_t* inst = c->instructions->data[0];
+			int nb_bytes;
+			if (-128 <= bytes && bytes <= 127)
+				nb_bytes = 1;
+			else
+				nb_bytes = 4;
 
-				uint8_t* p = (uint8_t*)&bytes;
-				int j;
-				for (j = 0; j < 4; j++)
-					inst->code[1 + j] = p[j];
-			}
-			cur_bb->jmp_flag = 0;
-			nb_jmps--;
+			scf_instruction_t* inst = c->instructions->data[0];
+			scf_x64_OpCode_t*  jcc  = x64_find_OpCode(inst->OpCode->type, nb_bytes, nb_bytes, SCF_X64_I);
+
+			int old_len = inst->len;
+			x64_make_inst_I2(inst, jcc, (uint8_t*)&bytes, nb_bytes);
+			int diff    = old_len - inst->len;
+			assert(diff >= 0);
+
+			cur_bb->code_bytes -= diff;
+			c->inst_bytes      -= diff;
+			drop_bytes         += diff;
 		}
+
+		if (0 == drop_bytes)
+			break;
 	}
 }
 
@@ -424,6 +519,7 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 	int ret = 0;
 	scf_list_t* l;
 
+	scf_logw("\n");
 	for (l = scf_list_head(&f->basic_block_list_head); l != scf_list_sentinel(&f->basic_block_list_head);
 			l = scf_list_next(l)) {
 
@@ -435,22 +531,10 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 
 		int bb_offset = 0;
 
-		ret = _x64_make_insts_for_list(ctx, &bb->load_list_head, bb_offset);
-		if (ret < 0)
-			return ret;
-		bb_offset = ret;
-
 		ret = _x64_make_insts_for_list(ctx, &bb->code_list_head, bb_offset);
 		if (ret < 0)
 			return ret;
 		bb_offset = ret;
-
-		if (!bb->ret_flag) {
-			ret = _x64_make_insts_for_list(ctx, &bb->save_list_head, bb_offset);
-			if (ret < 0)
-				return ret;
-			bb_offset = ret;
-		}
 
 		bb->code_bytes = bb_offset;
 	}
@@ -497,28 +581,35 @@ int scf_x64_select_inst(scf_native_t* ctx, scf_function_t* f)
 
 	// ABI: rdi rsi rdx rcx r8 r9
 	int i;
+	int nb_ints   = 0;
+	int nb_floats = 0;
+	int nb_locals = 0;
+
 	for (i = 0; i < f->argv->size; i++) {
 		scf_variable_t* v = f->argv->data[i];
 
-		// arg0-arg5 passed by registers, alloc memory for them in stack.
-		// from arg6, memory already alloced based on rbp by caller
+		int is_float = scf_variable_float(v);
+		int size     = x64_variable_size(v);
 
-		// after 'push %rbp', 'mov %rsp, %rbp', 'sub $local_var_size, %rsp'
-		// stack status:
-		// ...
-		// arg7         : rbp + 24
-		// arg6         : rbp + 16
-		// ret          : rbp + 8
-		// rbp (old rbp): rbp
-		// local vars   :
-		if (i < X64_ABI_NB) {
-			ret = scf_vector_add(local_vars, v);
-			if (ret < 0) {
-				scf_loge("\n");
-				return ret;
+		if (is_float) {
+			if (nb_floats < X64_ABI_NB) {
+				nb_floats++;
+
+				ret = scf_vector_add(local_vars, v);
+				if (ret < 0)
+					return ret;
+				continue;
 			}
-		} else
-			v->bp_offset = 16 + (i - 6) * 8;
+		} else if (nb_ints < X64_ABI_NB) {
+			nb_ints++;
+
+			ret = scf_vector_add(local_vars, v);
+			if (ret < 0)
+				return ret;
+			continue;
+		}
+
+		v->bp_offset = 16 + 8 * nb_locals++;
 	}
 
 	int local_vars_size = _x64_function_init(f, local_vars);

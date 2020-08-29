@@ -10,24 +10,53 @@ scf_basic_block_t* scf_basic_block_alloc()
 
 	scf_list_init(&bb->list);
 	scf_list_init(&bb->dag_list_head);
-	scf_list_init(&bb->load_list_head);
 	scf_list_init(&bb->code_list_head);
-	scf_list_init(&bb->save_list_head);
 
 	bb->prevs = scf_vector_alloc();
-	if (!bb->prevs) {
-		free(bb);
-		return NULL;
-	}
+	if (!bb->prevs)
+		goto error_prevs;
 
 	bb->nexts = scf_vector_alloc();
-	if (!bb->nexts) {
-		scf_vector_free(bb->prevs);
-		free(bb);
-		return NULL;
-	}
+	if (!bb->nexts)
+		goto error_nexts;
+
+	bb->entry_dn_actives = scf_vector_alloc();
+	if (!bb->entry_dn_actives)
+		goto error_entry;
+
+	bb->exit_dn_actives  = scf_vector_alloc();
+	if (!bb->exit_dn_actives)
+		goto error_exit;
+
+	bb->dn_updateds = scf_vector_alloc();
+	if (!bb->dn_updateds)
+		goto error_updateds;
+
+	bb->dn_loads = scf_vector_alloc();
+	if (!bb->dn_loads)
+		goto error_loads;
+
+	bb->dn_saves = scf_vector_alloc();
+	if (!bb->dn_saves)
+		goto error_saves;
 
 	return bb;
+
+error_saves:
+	scf_vector_free(bb->dn_loads);
+error_loads:
+	scf_vector_free(bb->dn_updateds);
+error_updateds:
+	scf_vector_free(bb->exit_dn_actives);
+error_exit:
+	scf_vector_free(bb->entry_dn_actives);
+error_entry:
+	scf_vector_free(bb->nexts);
+error_nexts:
+	scf_vector_free(bb->prevs);
+error_prevs:
+	free(bb);
+	return NULL;
 }
 
 void scf_basic_block_free(scf_basic_block_t* bb)
@@ -36,9 +65,7 @@ void scf_basic_block_free(scf_basic_block_t* bb)
 		// this bb's DAG nodes freed here
 		scf_list_clear(&bb->dag_list_head, scf_dag_node_t, list, scf_dag_node_free);
 
-		scf_list_clear(&bb->load_list_head, scf_3ac_code_t, list, scf_3ac_code_free);
 		scf_list_clear(&bb->code_list_head, scf_3ac_code_t, list, scf_3ac_code_free);
-		scf_list_clear(&bb->save_list_head, scf_3ac_code_t, list, scf_3ac_code_free);
 
 		// DAG nodes were freed by 'scf_list_clear' above, so only free this vector
 		if (bb->var_dag_nodes)
@@ -52,17 +79,39 @@ void scf_basic_block_free(scf_basic_block_t* bb)
 	}
 }
 
+void scf_bb_group_free(scf_bb_group_t* bbg)
+{
+	if (bbg) {
+		if (bbg->body)
+			scf_vector_free(bbg->body);
+
+		free(bbg);
+	}
+}
+
+int scf_basic_block_connect(scf_basic_block_t* prev_bb, scf_basic_block_t* next_bb)
+{
+	int ret = scf_vector_add_unique(prev_bb->nexts, next_bb);
+	if (ret < 0)
+		return ret;
+
+	return scf_vector_add_unique(next_bb->prevs, prev_bb);
+}
+
 void scf_basic_block_print(scf_basic_block_t* bb, scf_list_t* sentinel)
 {
 	if (bb) {
-		scf_list_t* l;
-		for (l = scf_list_head(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head);
-				l = scf_list_next(l)) {
+#define SCF_BB_PRINT(h) \
+		do { \
+			scf_list_t* l; \
+			for (l = scf_list_head(&bb->h); l != scf_list_sentinel(&bb->h); \
+					l = scf_list_next(l)) { \
+				scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list); \
+				scf_3ac_code_print(c, sentinel); \
+			} \
+		} while (0)
 
-			scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
-
-			scf_3ac_code_print(c, sentinel);
-		}
+		SCF_BB_PRINT(code_list_head);
 	}
 }
 
@@ -80,15 +129,29 @@ void scf_basic_block_print_list(scf_list_t* h)
 			scf_basic_block_t* bb = scf_list_data(l, scf_basic_block_t, list);
 
 			printf("\033[33mbasic_block: %p\033[0m\n", bb);
-
 			scf_basic_block_print(bb, sentinel);
+
+			printf("\n");
+
+			int i;
+			if (bb->prevs) {
+				for (i = 0; i < bb->prevs->size; i++)
+					printf("prev     : %p\n", bb->prevs->data[i]);
+			}
+			if (bb->nexts) {
+				for (i = 0; i < bb->nexts->size; i++)
+					printf("next     : %p\n", bb->nexts->data[i]);
+			}
+			if (bb->dominators) {
+				for (i = 0; i < bb->dominators->size; i++)
+					printf("dominator: %p\n", bb->dominators->data[i]);
+			}
 			printf("\n");
 		}
 	}
-	printf("end\n");
 }
 
-static int _copy_active_vars(scf_vector_t* active_vars, scf_vector_t* dag_nodes)
+static int _copy_to_active_vars(scf_vector_t* active_vars, scf_vector_t* dag_nodes)
 {
 	int i;
 	for (i = 0; i < dag_nodes->size; i++) {
@@ -107,7 +170,65 @@ static int _copy_active_vars(scf_vector_t* active_vars, scf_vector_t* dag_nodes)
 	return 0;
 }
 
-int scf_basic_block_active_vars(scf_basic_block_t* bb)
+static int _copy_from_active_vars(scf_vector_t* dag_nodes, scf_vector_t* active_vars)
+{
+	if (!dag_nodes)
+		return -EINVAL;
+
+	if (!active_vars)
+		return 0;
+
+	int j;
+	for (j = 0; j < active_vars->size; j++) {
+		scf_active_var_t* v  = active_vars->data[j];
+		scf_dag_node_t*   dn = v->dag_node;
+
+		if (scf_variable_const(dn->var))
+			continue;
+
+		if (!v->active)
+			continue;
+
+		if (scf_type_is_var(dn->type) && (dn->var->global_flag || dn->var->local_flag)) {
+
+			int ret = scf_vector_add_unique(dag_nodes, dn);
+			if (ret < 0)
+				return ret;
+		}
+	}
+	return 0;
+}
+
+static int _copy_updated_vars(scf_vector_t* dag_nodes, scf_vector_t* active_vars)
+{
+	if (!dag_nodes)
+		return -EINVAL;
+
+	if (!active_vars)
+		return 0;
+
+	int j;
+	for (j = 0; j < active_vars->size; j++) {
+		scf_active_var_t* v  = active_vars->data[j];
+		scf_dag_node_t*   dn = v->dag_node;
+
+		if (scf_variable_const(dn->var))
+			continue;
+
+		if (!v->updated)
+			continue;
+
+		if (scf_type_is_var(dn->type) && (dn->var->global_flag || dn->var->local_flag)) {
+
+			int ret = scf_vector_add_unique(dag_nodes, dn);
+			if (ret < 0)
+				return ret;
+		}
+	}
+	return 0;
+}
+
+static int _bb_active_vars(scf_basic_block_t* bb)
 {
 	int ret = 0;
 	int i;
@@ -144,8 +265,6 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 	} else {
 		scf_vector_clear(bb->var_dag_nodes, NULL);
 	}
-	scf_list_clear(&bb->load_list_head, scf_3ac_code_t, list, scf_3ac_code_free);
-	scf_list_clear(&bb->save_list_head, scf_3ac_code_t, list, scf_3ac_code_free);
 
 	ret = scf_dag_find_roots(&bb->dag_list_head, roots);
 	if (ret < 0)
@@ -156,41 +275,27 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 		goto error;
 
 	for (i = 0; i < leafs->size; i++) {
-		scf_dag_node_t* dag_node = leafs->data[i];
+		scf_dag_node_t* dn = leafs->data[i];
 
 		// it should be 'real' variable, not 'const' variable,
 		// const pointer var can be changed, but what it points to can't be changed.
-		if (!scf_variable_const(dag_node->var)) {
-			dag_node->active = 1;
+		if (!scf_variable_const(dn->var)) {
+			dn->active = 1;
 
-			ret = scf_vector_add(bb->var_dag_nodes, dag_node);
+			ret = scf_vector_add(bb->var_dag_nodes, dn);
 			if (ret < 0)
 				goto error;
 
 			// load global or local var
-			if (scf_type_is_var(dag_node->type) && (dag_node->var->global_flag || dag_node->var->local_flag)) {
+			if (scf_type_is_var(dn->type) && (dn->var->global_flag || dn->var->local_flag)) {
 				scf_logw("type: %d, var: %s, const_flag: %d, const_literal_flag: %d, global_flag: %d, local_flag: %d, nb_pointers: %d\n",
-						dag_node->type,
-						dag_node->var->w->text->data,
-						dag_node->var->const_flag,
-						dag_node->var->const_literal_flag,
-						dag_node->var->global_flag,
-						dag_node->var->local_flag,
-						dag_node->var->nb_pointers);
-#if 1
-				scf_3ac_code_t* load = scf_3ac_alloc_by_dst(SCF_OP_3AC_LOAD, dag_node);
-				if (!load)
-					goto error;
-				scf_list_add_tail(&bb->load_list_head, &load->list);
-				load->basic_block = bb;
-#endif
-#if 0
-				scf_3ac_code_t* save = scf_3ac_alloc_by_src(SCF_OP_3AC_SAVE, dag_node);
-				if (!save)
-					goto error;
-				scf_list_add_tail(&bb->save_list_head, &save->list);
-				save->basic_block = bb;
-#endif
+						dn->type,
+						dn->var->w->text->data,
+						dn->var->const_flag,
+						dn->var->const_literal_flag,
+						dn->var->global_flag,
+						dn->var->local_flag,
+						dn->var->nb_pointers);
 			}
 		}
 	}
@@ -209,6 +314,8 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 				c->dst->dag_node->active = 1;
 			else
 				c->dst->dag_node->active = 0;
+
+			c->dst->dag_node->updated = 1;
 		}
 
 		if (c->srcs) {
@@ -221,6 +328,12 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 
 				assert(src->dag_node);
 				src->dag_node->active = 1;
+
+				if (SCF_OP_INC == c->op->type
+						|| SCF_OP_INC_POST == c->op->type
+						|| SCF_OP_DEC      == c->op->type
+						|| SCF_OP_DEC_POST == c->op->type)
+					src->dag_node->updated = 1;
 
 				if (scf_type_is_operator(src->dag_node->type)
 						|| !scf_variable_const(src->dag_node->var)) {
@@ -239,33 +352,14 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 			if (!c->active_vars) {
 				ret = -ENOMEM;
 				goto error;
+
 			}
 		}
 
-		ret = _copy_active_vars(c->active_vars, bb->var_dag_nodes);
+		ret = _copy_to_active_vars(c->active_vars, bb->var_dag_nodes);
 		if (ret < 0)
 			goto error;
 	}
-#if 1
-	for (l = scf_list_head(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head);
-			l = scf_list_next(l)) {
-
-		scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
-
-		scf_3ac_code_print(c, NULL);
-
-		for (j = 0; j < c->active_vars->size; j++) {
-			scf_active_var_t* v = c->active_vars->data[j];
-			if (v->dag_node->var) {
-				if (v->dag_node->var->w)
-					scf_logd("var: %s, active: %d\n", v->dag_node->var->w->text->data, v->active);
-				else
-					scf_logd("var: %p, active: %d\n", v->dag_node->var, v->active);
-			}
-		}
-		printf("\n");
-	}
-#endif
 
 	return 0;
 
@@ -275,50 +369,99 @@ error:
 	return ret;
 }
 
-static int _graph_node_cmp(const void* v0, const void* v1)
+static int _bb_update_dag(scf_basic_block_t* bb, scf_list_t* dag_list_head)
 {
-	const scf_dag_node_t*   dn = v0;
-	const scf_graph_node_t* gn = v1;
-
-	return dn != gn->data;
-}
-
-int scf_basic_block_kcolor_vars(scf_basic_block_t* bb, scf_vector_t* colors)
-{
-	if (!bb || !colors || 0 == colors->size)
-		return -EINVAL;
-
-	scf_graph_t* g = scf_graph_alloc();
-	if (!g)
-		return -ENOMEM;
-
 	int ret = 0;
 	int i;
+	scf_list_t* l;
+
+	for (l = scf_list_head(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head);
+			l = scf_list_next(l)) {
+
+		scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
+
+		ret = scf_3ac_code_to_dag(c, dag_list_head);
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
+		printf("\n");
+	}
 
 	for (i = 0; i < bb->var_dag_nodes->size; i++) {
+		scf_dag_node_t* dn0 = bb->var_dag_nodes->data[i];
 
-		scf_dag_node_t*   dn = bb->var_dag_nodes->data[i];
-
-		scf_logd("dn: %p, type: %d\n", dn, dn->type);
-
-		scf_graph_node_t* gn = scf_graph_node_alloc();
-		if (!gn) {
-			ret = -ENOMEM;
-			goto error;
+		scf_dag_node_t* dn1 = scf_dag_find_dn(dag_list_head, dn0);
+		if (!dn1) {
+			scf_loge("dn0: v_%d_%d/%s\n", dn0->var->w->line, dn0->var->w->pos, dn0->var->w->text->data);
+			return -EINVAL;
 		}
-		gn->data = dn;
 
-		ret = scf_graph_add_node(g, gn);
-		if (ret < 0) {
-			scf_graph_node_free(gn);
-			gn = NULL;
-			goto error;
+		bb->var_dag_nodes->data[i] = dn1;
+	}
+
+	for (l = scf_list_head(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head);
+			l = scf_list_next(l)) {
+
+		scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
+
+		if (!c->active_vars)
+			continue;
+
+		for (i = 0; i < c->active_vars->size; i++) {
+			scf_active_var_t* v   = c->active_vars->data[i];
+			scf_dag_node_t*   dn0 = v->dag_node;
+
+			scf_dag_node_t*   dn1 = scf_dag_find_dn(dag_list_head, dn0);
+			if (!dn1) {
+				scf_loge("\n");
+				return -EINVAL;
+			}
+
+			v->dag_node = dn1;
 		}
 	}
 
-	scf_logi("\033[33mbasic_block: %p\033[0m\n", bb);
+	scf_dag_node_free_list(&bb->dag_list_head);
+	return 0;
+}
+
+int scf_basic_block_active_vars(scf_basic_block_t* bb, scf_list_t* dag_list_head)
+{
+	int ret = 0;
+	int i;
+	int j;
 
 	scf_list_t* l;
+
+	ret = _bb_active_vars(bb);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	ret = _bb_update_dag(bb, dag_list_head);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	if (!scf_list_empty(&bb->code_list_head)) {
+		scf_3ac_code_t* c;
+#if 1
+		l   = scf_list_head(&bb->code_list_head);
+		c   = scf_list_data(l, scf_3ac_code_t, list);
+
+		ret = _copy_from_active_vars(bb->entry_dn_actives, c->active_vars);
+		if (ret < 0)
+			goto error;
+
+		ret = _copy_updated_vars(bb->dn_updateds, c->active_vars);
+		if (ret < 0)
+			goto error;
+#endif
+	}
+#if 0
 	for (l = scf_list_head(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head);
 			l = scf_list_next(l)) {
 
@@ -326,66 +469,26 @@ int scf_basic_block_kcolor_vars(scf_basic_block_t* bb, scf_vector_t* colors)
 
 		scf_3ac_code_print(c, NULL);
 
-		if (scf_type_is_jmp(c->op->type))
-			continue;
+		if (c->active_vars) {
+			for (j = 0; j < c->active_vars->size; j++) {
+				scf_active_var_t* v = c->active_vars->data[j];
 
-		if (!c->dst || !c->dst->dag_node)
-			continue;
+				if (!v->dag_node->var)
+					continue;
 
-		scf_logd("dn: %p, type: %d\n", c->dst->dag_node, c->dst->dag_node->type);
-
-		scf_dag_node_t*   dn_dst = c->dst->dag_node;
-		scf_graph_node_t* gn_dst = scf_vector_find_cmp(g->nodes, c->dst->dag_node, _graph_node_cmp);
-		assert(gn_dst);
-
-		for (i = 0; i < c->active_vars->size; i++) {
-
-			scf_active_var_t*   active    = c->active_vars->data[i];
-			scf_dag_node_t*     dn_active = active->dag_node;
-
-			scf_graph_node_t*   gn_active = scf_vector_find_cmp(g->nodes, dn_active, _graph_node_cmp);
-			assert(gn_active);
-
-			if (gn_active == gn_dst)
-				continue;
-
-			if (!scf_vector_find(gn_dst->neighbors, gn_active)) {
-				assert(!scf_vector_find(gn_active->neighbors, gn_dst));
-
-				scf_logd("v_%d_%d/%s, v_%d_%d/%s\n",
-						dn_active->var->w->line, dn_active->var->w->pos, dn_active->var->w->text->data,
-						dn_dst->var->w->line, dn_dst->var->w->pos, dn_dst->var->w->text->data);
-
-				ret = scf_graph_make_edge(gn_dst, gn_active);
-				if (ret < 0)
-					goto error;
-
-				ret = scf_graph_make_edge(gn_active, gn_dst);
-				if (ret < 0)
-					goto error;
-			} else
-				assert(scf_vector_find(gn_active->neighbors, gn_dst));
+				if (v->dag_node->var->w)
+					scf_logw("dn: %p, var: %s, active: %d\n", v->dag_node, v->dag_node->var->w->text->data, v->active);
+				else
+					scf_logw("dn: %p, var: %p, active: %d\n", v->dag_node, v->dag_node->var, v->active);
+			}
 		}
+		printf("\n");
 	}
+#endif
 
-	ret = scf_graph_kcolor(g, colors);
-	if (ret < 0)
-		goto error;
-
-	for (i = 0; i < g->nodes->size; i++) {
-
-		scf_graph_node_t* gn = g->nodes->data[i];
-		scf_dag_node_t*   dn = gn->data;
-
-		dn->color = gn->color;
-
-		scf_logi("v_%d_%d/%s, color: %ld\n",
-				dn->var->w->line, dn->var->w->pos, dn->var->w->text->data, dn->color);
-	}
-	printf("\n");
+	return 0;
 
 error:
-	scf_graph_free(g);
 	return ret;
 }
 

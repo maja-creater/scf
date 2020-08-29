@@ -141,7 +141,6 @@ int x64_inst_op2(int OpCode_type, scf_dag_node_t* dst, scf_dag_node_t* src, scf_
 			return -EINVAL;
 		}
 
-		scf_logw("\n");
 		inst = x64_make_inst_M2G(&rela, OpCode, rd, NULL, src->var);
 		X64_INST_ADD_CHECK(c->instructions, inst);
 		X64_RELA_ADD_CHECK(f->data_relas, rela, c, src->var, NULL);
@@ -283,7 +282,7 @@ int x64_inst_jmp(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 
 	uint32_t offset = 0;
 
-	scf_x64_OpCode_t*  jcc  = x64_find_OpCode(OpCode_type, 1,1, SCF_X64_I);
+	scf_x64_OpCode_t*  jcc  = x64_find_OpCode(OpCode_type, 4,4, SCF_X64_I);
 
 	scf_instruction_t* inst = x64_make_inst_I(jcc, (uint8_t*)&offset, sizeof(offset));
 

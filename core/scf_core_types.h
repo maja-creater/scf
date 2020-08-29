@@ -25,13 +25,16 @@ enum scf_core_types {
 	SCF_OP_INC,         // ++
 	SCF_OP_DEC,         // --
 
+	SCF_OP_INC_POST,    // ++
+	SCF_OP_DEC_POST,    // --
+
 	SCF_OP_NEG,         // -
 	SCF_OP_POSITIVE,    // +
 
 	SCF_OP_SHL,         // <<
 	SCF_OP_SHR,         // >>
 
-	// 11
+	// 13
 	SCF_OP_BIT_AND,     // &
 	SCF_OP_BIT_OR,      // |
 	SCF_OP_BIT_NOT,     // ~
@@ -40,7 +43,7 @@ enum scf_core_types {
 	SCF_OP_LOGIC_OR,    // ||
 	SCF_OP_LOGIC_NOT,   // !
 
-	// 17
+	// 19
 	SCF_OP_ASSIGN,      //  = assign
 	SCF_OP_ADD_ASSIGN,  // +=
 	SCF_OP_SUB_ASSIGN,  // -=
@@ -52,7 +55,7 @@ enum scf_core_types {
 	SCF_OP_AND_ASSIGN,  // &=
 	SCF_OP_OR_ASSIGN,   // |=
 
-	// 27
+	// 29
 	SCF_OP_EQ,			// == equal
 	SCF_OP_NE,			// != not equal
 	SCF_OP_LT,			// < less than
@@ -60,7 +63,7 @@ enum scf_core_types {
 	SCF_OP_LE,			// <= less equal 
 	SCF_OP_GE,			// >= greater equal
 
-	// 33
+	// 35
 	SCF_OP_EXPR,		// () expr
 	SCF_OP_CALL,		// () function call
 	SCF_OP_TYPE_CAST,	// (char*) type cast
@@ -118,6 +121,22 @@ enum scf_core_types {
 	SCF_OP_3AC_OR_ASSIGN_ARRAY_INDEX,
 	SCF_OP_3AC_OR_ASSIGN_POINTER,
 
+	SCF_OP_3AC_INC_DEREFERENCE,
+	SCF_OP_3AC_INC_ARRAY_INDEX,
+	SCF_OP_3AC_INC_POINTER,
+
+	SCF_OP_3AC_DEC_DEREFERENCE,
+	SCF_OP_3AC_DEC_ARRAY_INDEX,
+	SCF_OP_3AC_DEC_POINTER,
+
+	SCF_OP_3AC_INC_POST_DEREFERENCE,
+	SCF_OP_3AC_INC_POST_ARRAY_INDEX,
+	SCF_OP_3AC_INC_POST_POINTER,
+
+	SCF_OP_3AC_DEC_POST_DEREFERENCE,
+	SCF_OP_3AC_DEC_POST_ARRAY_INDEX,
+	SCF_OP_3AC_DEC_POST_POINTER,
+
 	SCF_OP_3AC_JZ,		// jz, jmp if 0
 	SCF_OP_3AC_JNZ,		// jnz, jmp if not 0
 	SCF_OP_3AC_JGT,		// jgt, jmp if not 0
@@ -132,6 +151,9 @@ enum scf_core_types {
 
 	SCF_OP_3AC_SAVE,     // save a var to memory,   only for 3ac & native
 	SCF_OP_3AC_LOAD,     // load a var from memory, only for 3ac & native
+
+	SCF_OP_3AC_NOP,
+	SCF_OP_3AC_END,
 
 	SCF_OP_GOTO,		// goto statement
 
@@ -183,6 +205,11 @@ static int scf_type_is_binary_assign(int type)
 	return type >= SCF_OP_ADD_ASSIGN && type <= SCF_OP_OR_ASSIGN;
 }
 
+static int scf_type_is_assign_dereference(int type)
+{
+	return type >= SCF_OP_3AC_ASSIGN_DEREFERENCE && type <= SCF_OP_3AC_DEC_POST_POINTER;
+}
+
 static int scf_type_is_signed(int type)
 {
 	return type >= SCF_VAR_CHAR && type <= SCF_VAR_INTPTR;
@@ -231,6 +258,11 @@ static int scf_type_is_logic_operator(int type)
 static int scf_type_is_jmp(int type)
 {
 	return type == SCF_OP_GOTO || (type >= SCF_OP_3AC_JZ && type <= SCF_OP_3AC_JLE);
+}
+
+static int scf_type_is_jcc(int type)
+{
+	return type >= SCF_OP_3AC_JZ && type <= SCF_OP_3AC_JLE;
 }
 
 #endif

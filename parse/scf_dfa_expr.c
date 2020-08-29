@@ -51,6 +51,14 @@ static int _expr_is_unary_op(scf_dfa_t* dfa, void* word)
 	return 0;
 }
 
+static int _expr_is_unary_post(scf_dfa_t* dfa, void* word)
+{
+	scf_lex_word_t* w = word;
+
+	return SCF_LEX_WORD_INC == w->type
+		|| SCF_LEX_WORD_DEC == w->type;
+}
+
 static int _expr_is_binary_op(scf_dfa_t* dfa, void* word)
 {
 	scf_parse_t*    parse = dfa->priv;
@@ -439,6 +447,42 @@ static int _expr_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	return SCF_DFA_NEXT_WORD;
 }
 
+static int _expr_action_unary_post(scf_dfa_t* dfa, scf_vector_t* words, void* data)
+{
+	scf_parse_t*      parse = dfa->priv;
+	scf_lex_word_t*   w     = words->data[words->size - 1];
+	dfa_parse_data_t* d     = data;
+	scf_node_t*       n     = NULL;
+
+	if (d->current_identity) {
+		if (_expr_add_var(parse, d) < 0) {
+			scf_loge("expr add var error\n");
+			return SCF_DFA_ERROR;
+		}
+	}
+
+	if (SCF_LEX_WORD_INC == w->type)
+		n = scf_node_alloc(w, SCF_OP_INC_POST, NULL);
+
+	else if (SCF_LEX_WORD_DEC == w->type)
+		n = scf_node_alloc(w, SCF_OP_DEC_POST, NULL);
+	else {
+		scf_loge("\n");
+		return SCF_DFA_ERROR;
+	}
+
+	if (!n) {
+		scf_loge("node alloc error\n");
+		return SCF_DFA_ERROR;
+	}
+
+	scf_expr_add_node(d->expr, n);
+
+	scf_logd("n: %p, expr: %p, parent: %p\n", n, d->expr, d->expr->parent);
+
+	return SCF_DFA_NEXT_WORD;
+}
+
 static int _expr_action_ls(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 {
 	scf_parse_t*        parse = dfa->priv;
@@ -561,20 +605,21 @@ static int _expr_action_semicolon(scf_dfa_t* dfa, scf_vector_t* words, void* dat
 
 static int _dfa_init_module_expr(scf_dfa_t* dfa)
 {
-	SCF_DFA_MODULE_NODE(dfa, expr, entry,     _expr_is_expr,        _expr_action_expr);
-	SCF_DFA_MODULE_NODE(dfa, expr, number,    _expr_is_number,      _expr_action_number);
-	SCF_DFA_MODULE_NODE(dfa, expr, unary_op,  _expr_is_unary_op,    _expr_action_unary_op);
-	SCF_DFA_MODULE_NODE(dfa, expr, binary_op, _expr_is_binary_op,   _expr_action_binary_op);
+	SCF_DFA_MODULE_NODE(dfa, expr, entry,      _expr_is_expr,        _expr_action_expr);
+	SCF_DFA_MODULE_NODE(dfa, expr, number,     _expr_is_number,      _expr_action_number);
+	SCF_DFA_MODULE_NODE(dfa, expr, unary_op,   _expr_is_unary_op,    _expr_action_unary_op);
+	SCF_DFA_MODULE_NODE(dfa, expr, binary_op,  _expr_is_binary_op,   _expr_action_binary_op);
+	SCF_DFA_MODULE_NODE(dfa, expr, unary_post, _expr_is_unary_post,  _expr_action_unary_post);
 
-	SCF_DFA_MODULE_NODE(dfa, expr, lp,        scf_dfa_is_lp,        _expr_action_lp);
-	SCF_DFA_MODULE_NODE(dfa, expr, rp,        scf_dfa_is_rp,        _expr_action_rp);
-	SCF_DFA_MODULE_NODE(dfa, expr, rp_cast,   scf_dfa_is_rp,        _expr_action_rp_cast);
+	SCF_DFA_MODULE_NODE(dfa, expr, lp,         scf_dfa_is_lp,        _expr_action_lp);
+	SCF_DFA_MODULE_NODE(dfa, expr, rp,         scf_dfa_is_rp,        _expr_action_rp);
+	SCF_DFA_MODULE_NODE(dfa, expr, rp_cast,    scf_dfa_is_rp,        _expr_action_rp_cast);
 
-	SCF_DFA_MODULE_NODE(dfa, expr, ls,        scf_dfa_is_ls,        _expr_action_ls);
-	SCF_DFA_MODULE_NODE(dfa, expr, rs,        scf_dfa_is_rs,        _expr_action_rs);
+	SCF_DFA_MODULE_NODE(dfa, expr, ls,         scf_dfa_is_ls,        _expr_action_ls);
+	SCF_DFA_MODULE_NODE(dfa, expr, rs,         scf_dfa_is_rs,        _expr_action_rs);
 
-	SCF_DFA_MODULE_NODE(dfa, expr, comma,     scf_dfa_is_comma,     _expr_action_comma);
-	SCF_DFA_MODULE_NODE(dfa, expr, semicolon, scf_dfa_is_semicolon, _expr_action_semicolon);
+	SCF_DFA_MODULE_NODE(dfa, expr, comma,      scf_dfa_is_comma,     _expr_action_comma);
+	SCF_DFA_MODULE_NODE(dfa, expr, semicolon,  scf_dfa_is_semicolon, _expr_action_semicolon);
 
 	scf_parse_t*        parse = dfa->priv;
 	dfa_parse_data_t*   d     = parse->dfa_data;
@@ -637,6 +682,7 @@ static int _dfa_init_syntax_expr(scf_dfa_t* dfa)
 	SCF_DFA_GET_MODULE_NODE(dfa, expr,     number,      number);
 	SCF_DFA_GET_MODULE_NODE(dfa, expr,     unary_op,    unary_op);
 	SCF_DFA_GET_MODULE_NODE(dfa, expr,     binary_op,   binary_op);
+	SCF_DFA_GET_MODULE_NODE(dfa, expr,     unary_post,  unary_post);
 
 	SCF_DFA_GET_MODULE_NODE(dfa, expr,     lp,          lp);
 	SCF_DFA_GET_MODULE_NODE(dfa, expr,     rp,          rp);
@@ -665,83 +711,93 @@ static int _dfa_init_syntax_expr(scf_dfa_t* dfa)
 	// expr start with number, identity, an unary_op, '(',
 	// like: a = b, *p = 1, (a + b)
 	// number start may be only useful in return statement.
-	scf_dfa_node_add_child(expr,      number);
-	scf_dfa_node_add_child(expr,      identity);
-	scf_dfa_node_add_child(expr,      unary_op);
-	scf_dfa_node_add_child(expr,      lp);
-	scf_dfa_node_add_child(expr,      semicolon);
+	scf_dfa_node_add_child(expr,       number);
+	scf_dfa_node_add_child(expr,       identity);
+	scf_dfa_node_add_child(expr,       unary_op);
+	scf_dfa_node_add_child(expr,       unary_post);
+	scf_dfa_node_add_child(expr,       lp);
+	scf_dfa_node_add_child(expr,       semicolon);
 
 	// sizeof()
-	scf_dfa_node_add_child(expr,      _sizeof);
-	scf_dfa_node_add_child(sizeof_rp, rp);
-	scf_dfa_node_add_child(sizeof_rp, binary_op);
-	scf_dfa_node_add_child(sizeof_rp, comma);
-	scf_dfa_node_add_child(sizeof_rp, semicolon);
+	scf_dfa_node_add_child(expr,       _sizeof);
+	scf_dfa_node_add_child(sizeof_rp,  rp);
+	scf_dfa_node_add_child(sizeof_rp,  binary_op);
+	scf_dfa_node_add_child(sizeof_rp,  comma);
+	scf_dfa_node_add_child(sizeof_rp,  semicolon);
 
 	// (expr)
-	scf_dfa_node_add_child(lp,        identity);
-	scf_dfa_node_add_child(lp,        number);
-	scf_dfa_node_add_child(lp,        unary_op);
-	scf_dfa_node_add_child(lp,        _sizeof);
-	scf_dfa_node_add_child(lp,        lp);
+	scf_dfa_node_add_child(lp,         identity);
+	scf_dfa_node_add_child(lp,         number);
+	scf_dfa_node_add_child(lp,         unary_op);
+	scf_dfa_node_add_child(lp,         _sizeof);
+	scf_dfa_node_add_child(lp,         lp);
 
-	scf_dfa_node_add_child(identity,  rp);
-	scf_dfa_node_add_child(number,    rp);
-	scf_dfa_node_add_child(rp,        rp);
+	scf_dfa_node_add_child(identity,   rp);
+	scf_dfa_node_add_child(number,     rp);
+	scf_dfa_node_add_child(rp,         rp);
 
-	scf_dfa_node_add_child(rp,        binary_op);
-	scf_dfa_node_add_child(identity,  binary_op);
-	scf_dfa_node_add_child(number,    binary_op);
+	scf_dfa_node_add_child(rp,         binary_op);
+	scf_dfa_node_add_child(identity,   binary_op);
+	scf_dfa_node_add_child(number,     binary_op);
 
 	// type cast, like: (type*)var
-	scf_dfa_node_add_child(lp,        type_entry);
-	scf_dfa_node_add_child(base_type, rp_cast);
-	scf_dfa_node_add_child(star,      rp_cast);
+	scf_dfa_node_add_child(lp,         type_entry);
+	scf_dfa_node_add_child(base_type,  rp_cast);
+	scf_dfa_node_add_child(star,       rp_cast);
 
-	scf_dfa_node_add_child(rp_cast,   identity);
-	scf_dfa_node_add_child(rp_cast,   number);
-	scf_dfa_node_add_child(rp_cast,   unary_op);
-	scf_dfa_node_add_child(rp_cast,   _sizeof);
-	scf_dfa_node_add_child(rp_cast,   lp);
+	scf_dfa_node_add_child(rp_cast,    identity);
+	scf_dfa_node_add_child(rp_cast,    number);
+	scf_dfa_node_add_child(rp_cast,    unary_op);
+	scf_dfa_node_add_child(rp_cast,    _sizeof);
+	scf_dfa_node_add_child(rp_cast,    lp);
 
 	// identity() means function call, implement in scf_dfa_call.c
-	scf_dfa_node_add_child(identity,  call_lp);
-	scf_dfa_node_add_child(call_rp,   rp);
-	scf_dfa_node_add_child(call_rp,   binary_op);
-	scf_dfa_node_add_child(call_rp,   comma);
-	scf_dfa_node_add_child(call_rp,   semicolon);
+	scf_dfa_node_add_child(identity,   call_lp);
+	scf_dfa_node_add_child(call_rp,    rp);
+	scf_dfa_node_add_child(call_rp,    binary_op);
+	scf_dfa_node_add_child(call_rp,    comma);
+	scf_dfa_node_add_child(call_rp,    semicolon);
 
 	// array index, a[1 + 2], a[]
 	// [] is a special binary op,
 	// should be added before normal binary op such as '+'
-	scf_dfa_node_add_child(identity,  ls);
-	scf_dfa_node_add_child(ls,        expr);
-	scf_dfa_node_add_child(expr,      rs);
-	scf_dfa_node_add_child(ls,        rs);
-	scf_dfa_node_add_child(rs,        ls);
-	scf_dfa_node_add_child(rs,        binary_op);
+	scf_dfa_node_add_child(identity,   ls);
+	scf_dfa_node_add_child(ls,         expr);
+	scf_dfa_node_add_child(expr,       rs);
+	scf_dfa_node_add_child(ls,         rs);
+	scf_dfa_node_add_child(rs,         ls);
+	scf_dfa_node_add_child(rs,         binary_op);
+
+	scf_dfa_node_add_child(rs,         unary_post);
+	scf_dfa_node_add_child(identity,   unary_post);
 
 	// recursive unary_op, like: !*p
-	scf_dfa_node_add_child(unary_op,  unary_op);
-	scf_dfa_node_add_child(unary_op,  number);
-	scf_dfa_node_add_child(unary_op,  identity);
-	scf_dfa_node_add_child(unary_op,  expr);
+	scf_dfa_node_add_child(unary_op,   unary_op);
+	scf_dfa_node_add_child(unary_op,   number);
+	scf_dfa_node_add_child(unary_op,   identity);
+	scf_dfa_node_add_child(unary_op,   expr);
 
-	scf_dfa_node_add_child(binary_op, unary_op);
-	scf_dfa_node_add_child(binary_op, number);
-	scf_dfa_node_add_child(binary_op, identity);
-	scf_dfa_node_add_child(binary_op, expr);
+	scf_dfa_node_add_child(binary_op,  unary_op);
+	scf_dfa_node_add_child(binary_op,  number);
+	scf_dfa_node_add_child(binary_op,  identity);
+	scf_dfa_node_add_child(binary_op,  expr);
 
-	scf_dfa_node_add_child(rp,        comma);
-	scf_dfa_node_add_child(number,    comma);
-	scf_dfa_node_add_child(identity,  comma);
-	scf_dfa_node_add_child(rs,        comma);
-	scf_dfa_node_add_child(comma,     expr);
+	scf_dfa_node_add_child(unary_post, rp);
+	scf_dfa_node_add_child(unary_post, rs);
+	scf_dfa_node_add_child(unary_post, binary_op);
+	scf_dfa_node_add_child(unary_post, comma);
+	scf_dfa_node_add_child(unary_post, semicolon);
 
-	scf_dfa_node_add_child(rp,        semicolon);
-	scf_dfa_node_add_child(number,    semicolon);
-	scf_dfa_node_add_child(identity,  semicolon);
-	scf_dfa_node_add_child(rs,        semicolon);
+	scf_dfa_node_add_child(rp,         comma);
+	scf_dfa_node_add_child(number,     comma);
+	scf_dfa_node_add_child(identity,   comma);
+	scf_dfa_node_add_child(rs,         comma);
+	scf_dfa_node_add_child(comma,      expr);
+
+	scf_dfa_node_add_child(rp,         semicolon);
+	scf_dfa_node_add_child(number,     semicolon);
+	scf_dfa_node_add_child(identity,   semicolon);
+	scf_dfa_node_add_child(rs,         semicolon);
 
 	scf_logi("\n\n");
 	return 0;

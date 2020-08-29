@@ -25,6 +25,13 @@ struct scf_function_s {
 	int               nb_basic_blocks;
 
 	scf_vector_t*     jmps;
+
+	scf_list_t        dag_list_head;
+
+	scf_vector_t*     dfs_tree;
+	scf_vector_t*     bb_loops;
+	int               max_dfo;
+
 	scf_vector_t*     text_relas; // re-localtions in .text segment
 	scf_vector_t*     data_relas; // re-localtions in .data segment
 

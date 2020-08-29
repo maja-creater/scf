@@ -16,6 +16,12 @@ static scf_operator_t	base_operators[] = {
 	{SCF_OP_POSITIVE, 		"+", 		2, 1,	SCF_OP_ASSOCIATIVITY_RIGHT},
 	{SCF_OP_SIZEOF,         "sizeof",   2, 1,   SCF_OP_ASSOCIATIVITY_RIGHT},
 
+	{SCF_OP_INC,            "++",       2, 1,   SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_DEC,            "--",       2, 1,   SCF_OP_ASSOCIATIVITY_RIGHT},
+
+	{SCF_OP_INC_POST,       "++",       2, 1,   SCF_OP_ASSOCIATIVITY_RIGHT},
+	{SCF_OP_DEC_POST,       "--",       2, 1,   SCF_OP_ASSOCIATIVITY_RIGHT},
+
 	{SCF_OP_DEREFERENCE, 	"*", 		2, 1,	SCF_OP_ASSOCIATIVITY_RIGHT},
 	{SCF_OP_ADDRESS_OF, 	"&", 		2, 1,	SCF_OP_ASSOCIATIVITY_RIGHT},
 
@@ -63,6 +69,7 @@ static scf_operator_t	base_operators[] = {
 
 	{SCF_OP_IF, 			"if", 		15, -1, SCF_OP_ASSOCIATIVITY_LEFT},
 	{SCF_OP_WHILE, 			"while", 	15, -1, SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_FOR,            "for",      15, -1, SCF_OP_ASSOCIATIVITY_LEFT},
 };
 
 scf_operator_t* scf_find_base_operator(const char* name, const int nb_operands)

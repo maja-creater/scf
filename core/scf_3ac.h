@@ -37,7 +37,8 @@ struct scf_3ac_code_s {
 	scf_string_t*       extern_fname; // only for call external function
 
 	scf_basic_block_t*  basic_block;
-	int					basic_block_start;
+	uint32_t            basic_block_start:1;
+	uint32_t            jmp_dst_flag     :1;
 
 	scf_vector_t*		active_vars;
 
@@ -52,6 +53,7 @@ scf_3ac_operand_t*	scf_3ac_operand_alloc();
 void				scf_3ac_operand_free(scf_3ac_operand_t* operand);
 
 scf_3ac_code_t*		scf_3ac_code_alloc();
+scf_3ac_code_t*		scf_3ac_code_clone(scf_3ac_code_t* c);
 void				scf_3ac_code_free(scf_3ac_code_t* code);
 void				scf_3ac_code_print(scf_3ac_code_t* c, scf_list_t* sentinel);
 

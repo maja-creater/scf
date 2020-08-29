@@ -20,9 +20,12 @@ struct scf_variable_s {
 	int                 dim_index;
 	int					capacity;
 
-	int					size; // data size
+	int					size;
+	int                 data_size;
+
 	int					offset;
 	int					bp_offset;  // offset based on RBP / EBP register
+	int					sp_offset;  // offset based on RSP / ESP register
 
 	union {
 		int32_t         i;

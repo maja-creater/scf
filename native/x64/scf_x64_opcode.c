@@ -4,8 +4,15 @@ scf_x64_OpCode_t	x64_OpCodes[] = {
 	{SCF_X64_PUSH, "push", 1, {0x50, 0x0, 0x0},1,  8,8, SCF_X64_G,   0,0, 0,{0,0}},
 	{SCF_X64_POP,  "pop",  1, {0x58, 0x0, 0x0},1,  8,8, SCF_X64_G,   0,0, 0,{0,0}},
 
-	{SCF_X64_INC,  "inc",  2, {0xff, 0x0, 0x0},1,  4,4, SCF_X64_G,   0,1, 0,{0,0}},
-	{SCF_X64_DEC,  "dec",  2, {0xff, 0x0, 0x0},1,  4,4, SCF_X64_G,   1,1, 0,{0,0}},
+	{SCF_X64_INC,  "inc",  2, {0xfe, 0x0, 0x0},1,  1,1, SCF_X64_E,   0,1, 0,{0,0}},
+	{SCF_X64_INC,  "inc",  2, {0xff, 0x0, 0x0},1,  2,2, SCF_X64_E,   0,1, 0,{0,0}},
+	{SCF_X64_INC,  "inc",  2, {0xff, 0x0, 0x0},1,  4,4, SCF_X64_E,   0,1, 0,{0,0}},
+	{SCF_X64_INC,  "inc",  2, {0xff, 0x0, 0x0},1,  8,8, SCF_X64_E,   0,1, 0,{0,0}},
+
+	{SCF_X64_DEC,  "dec",  2, {0xfe, 0x0, 0x0},1,  1,1, SCF_X64_E,   1,1, 0,{0,0}},
+	{SCF_X64_DEC,  "dec",  2, {0xff, 0x0, 0x0},1,  2,2, SCF_X64_E,   1,1, 0,{0,0}},
+	{SCF_X64_DEC,  "dec",  2, {0xff, 0x0, 0x0},1,  4,4, SCF_X64_E,   1,1, 0,{0,0}},
+	{SCF_X64_DEC,  "dec",  2, {0xff, 0x0, 0x0},1,  8,8, SCF_X64_E,   1,1, 0,{0,0}},
 
 	{SCF_X64_XOR,  "xor",  2, {0x30, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
 	{SCF_X64_XOR,  "xor",  2, {0x31, 0x0, 0x0},1,  2,2, SCF_X64_G2E, 0,0, 0,{0,0}},
@@ -15,12 +22,12 @@ scf_x64_OpCode_t	x64_OpCodes[] = {
 	{SCF_X64_XOR,  "xor",  2, {0x33, 0x0, 0x0},1,  2,2, SCF_X64_E2G, 0,0, 0,{0,0}},
 	{SCF_X64_XOR,  "xor",  2, {0x33, 0x0, 0x0},1,  4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
 	{SCF_X64_XOR,  "xor",  2, {0x33, 0x0, 0x0},1,  8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
+#if 0
 	{SCF_X64_XOR,  "xor",  2, {0x34, 0x0, 0x0},1,  1,1, SCF_X64_I2G, 0,0, 1,{0,0}},
 	{SCF_X64_XOR,  "xor",  2, {0x35, 0x0, 0x0},1,  2,2, SCF_X64_I2G, 0,0, 1,{0,0}},
 	{SCF_X64_XOR,  "xor",  2, {0x35, 0x0, 0x0},1,  4,4, SCF_X64_I2G, 0,0, 1,{0,0}},
 	{SCF_X64_XOR,  "xor",  2, {0x35, 0x0, 0x0},1,  4,8, SCF_X64_I2G, 0,0, 1,{0,0}},
-
+#endif
 	{SCF_X64_AND,  "and",  2, {0x20, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
 	{SCF_X64_AND,  "and",  2, {0x21, 0x0, 0x0},1,  2,2, SCF_X64_G2E, 0,0, 0,{0,0}},
 	{SCF_X64_AND,  "and",  2, {0x21, 0x0, 0x0},1,  4,4, SCF_X64_G2E, 0,0, 0,{0,0}},
@@ -60,12 +67,6 @@ scf_x64_OpCode_t	x64_OpCodes[] = {
 	{SCF_X64_ADD,  "add",  2, {0x03, 0x0, 0x0},1,  2,2, SCF_X64_E2G, 0,0, 0,{0,0}},
 	{SCF_X64_ADD,  "add",  2, {0x03, 0x0, 0x0},1,  4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
 	{SCF_X64_ADD,  "add",  2, {0x03, 0x0, 0x0},1,  8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
-
-	// add ax, imm
-	{SCF_X64_ADD,  "add",  2, {0x04, 0x0, 0x0},1,  1,1, SCF_X64_I2G, 0,0, 1,{SCF_X64_REG_AL,0}},
-	{SCF_X64_ADD,  "add",  2, {0x05, 0x0, 0x0},1,  2,2, SCF_X64_I2G, 0,0, 1,{SCF_X64_REG_AX,0}},
-	{SCF_X64_ADD,  "add",  2, {0x05, 0x0, 0x0},1,  4,4, SCF_X64_I2G, 0,0, 1,{SCF_X64_REG_EAX,0}},
-	{SCF_X64_ADD,  "add",  2, {0x05, 0x0, 0x0},1,  4,8, SCF_X64_I2G, 0,0, 1,{SCF_X64_REG_RAX,0}},
 
 	// add r/m, imm
 	{SCF_X64_ADD,  "add",  2, {0x80, 0x0, 0x0},1,  1,1, SCF_X64_I2E, 0,1, 0,{0,0}},
@@ -257,13 +258,13 @@ scf_x64_OpCode_t	x64_OpCodes[] = {
 	{SCF_X64_JG,   "jg",   2, {0x7f, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
 	{SCF_X64_JG,   "jg",   6, {0x0f, 0x8f,0x0},1,  4,4, SCF_X64_I, 0,0, 0,{0,0}},
 
-	{SCF_X64_JGE,  "jge",  2, {0x7d, 0x0, 0x0},2,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
+	{SCF_X64_JGE,  "jge",  2, {0x7d, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
 	{SCF_X64_JGE,  "jge",  6, {0x0f, 0x8d,0x0},2,  4,4, SCF_X64_I, 0,0, 0,{0,0}},
 
-	{SCF_X64_JL,   "jl",   2, {0x7c, 0x0, 0x0},2,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
+	{SCF_X64_JL,   "jl",   2, {0x7c, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
 	{SCF_X64_JL,   "jl",   6, {0x0f, 0x8c,0x0},2,  4,4, SCF_X64_I, 0,0, 0,{0,0}},
 
-	{SCF_X64_JLE,  "jle",  2, {0x7e, 0x0, 0x0},2,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
+	{SCF_X64_JLE,  "jle",  2, {0x7e, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
 	{SCF_X64_JLE,  "jle",  6, {0x0f, 0x8e,0x0},2,  4,4, SCF_X64_I, 0,0, 0,{0,0}},
 
 	{SCF_X64_JMP,  "jmp",  2, {0xeb, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},

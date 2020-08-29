@@ -32,7 +32,7 @@ int x64_rcg_find_node(scf_graph_node_t** pp, scf_graph_t* g, scf_dag_node_t* dn,
 	return 0;
 }
 
-static int _x64_rcg_make_node(scf_graph_node_t** pp, scf_graph_t* g, scf_dag_node_t* dn, scf_register_x64_t* reg, scf_x64_OpCode_t* OpCode)
+int _x64_rcg_make_node(scf_graph_node_t** pp, scf_graph_t* g, scf_dag_node_t* dn, scf_register_x64_t* reg, scf_x64_OpCode_t* OpCode)
 {
 	x64_rcg_node_t* rn = calloc(1, sizeof(x64_rcg_node_t));
 	if (!rn)
@@ -52,7 +52,18 @@ static int _x64_rcg_make_node(scf_graph_node_t** pp, scf_graph_t* g, scf_dag_nod
 		}
 
 		gn->data = rn;
+#if 1
+		if (dn->color > 0
+				&& !scf_variable_const(dn->var)
+				&& scf_type_is_var(dn->type)
+				&& (dn->var->global_flag || dn->var->local_flag)) {
 
+			dn->color_prev = dn->color;
+			gn->color      = dn->color;
+		} else {
+			dn->color_prev = 0;
+		}
+#endif
 		if (reg)
 			gn->color = reg->color;
 
@@ -132,19 +143,9 @@ static int _x64_rcg_make(scf_3ac_code_t* c, scf_graph_t* g, scf_dag_node_t* dn,
 			if (gn_active == gn_dst)
 				continue;
 
-			if (!scf_vector_find(gn_dst->neighbors, gn_active)) {
-
-				assert(!scf_vector_find(gn_active->neighbors, gn_dst));
-
-				ret = scf_graph_make_edge(gn_dst, gn_active);
-				if (ret < 0)
-					return ret;
-
-				ret = scf_graph_make_edge(gn_active, gn_dst);
-				if (ret < 0)
-					return ret;
-			} else
-				assert(scf_vector_find(gn_active->neighbors, gn_dst));
+			ret = _x64_rcg_make_edge(gn_dst, gn_active);
+			if (ret < 0)
+				return ret;
 		}
 
 		for (j = i + 1; j < c->active_vars->size; j++) {
@@ -163,19 +164,9 @@ static int _x64_rcg_make(scf_3ac_code_t* c, scf_graph_t* g, scf_dag_node_t* dn,
 
 			assert(gn_active != gn_active2);
 
-			if (!scf_vector_find(gn_active->neighbors, gn_active2)) {
-
-				assert(!scf_vector_find(gn_active2->neighbors, gn_active));
-
-				ret = scf_graph_make_edge(gn_active, gn_active2);
-				if (ret < 0)
-					return ret;
-
-				ret = scf_graph_make_edge(gn_active2, gn_active);
-				if (ret < 0)
-					return ret;
-			} else
-				assert(scf_vector_find(gn_active2->neighbors, gn_active));
+			ret = _x64_rcg_make_edge(gn_active, gn_active2);
+			if (ret < 0)
+				return ret;
 		}
 	}
 
@@ -194,14 +185,28 @@ static int _x64_rcg_make2(scf_3ac_code_t* c, scf_dag_node_t* dn, scf_register_x6
 	return _x64_rcg_make(c, c->rcg, dn, reg, OpCode);
 }
 
-static int _x64_rcg_call_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+static int _x64_rcg_call(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
 	scf_x64_context_t*  x64 = ctx->priv;
 	scf_function_t*     f   = x64->f;
-	scf_3ac_operand_t*  dst = c->dst;
-	scf_register_x64_t* r   = x64_find_register_type_id_bytes(0, SCF_X64_REG_AX, c->dst->dag_node->var->size);
+	scf_dag_node_t*     dn  = NULL;
+	scf_register_x64_t* r   = NULL;
 
-	int ret = _x64_rcg_make(c, g, c->dst->dag_node, r, NULL);
+	if (c->dst) {
+		if (!c->dst->dag_node) {
+			scf_loge("\n");
+			return -EINVAL;
+		}
+
+		dn = c->dst->dag_node;
+
+		int is_float = scf_variable_float(dn->var);
+		int size     = x64_variable_size(dn->var);
+
+		r = x64_find_register_type_id_bytes(is_float, SCF_X64_REG_AX, size);
+	}
+
+	int ret = _x64_rcg_make(c, g, dn, r, NULL);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -209,16 +214,35 @@ static int _x64_rcg_call_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph
 
 	int i;
 	int j;
+	int nb_ints   = 0;
+	int nb_floats = 0;
+
+	for (i = 1; i < c->srcs->size; i++) {
+		scf_3ac_operand_t* src = c->srcs->data[i];
+
+		int is_float = scf_variable_float(src->dag_node->var);
+		int size     = x64_variable_size(src->dag_node->var);
+
+		if (is_float) {
+			if (nb_floats < X64_ABI_NB)
+				src->dag_node->rabi2 = x64_find_register_type_id_bytes(is_float, x64_abi_float_regs[nb_floats++], size);
+			else
+				src->dag_node->rabi2 = NULL;
+		} else {
+			if (nb_ints < X64_ABI_NB)
+				src->dag_node->rabi2 = x64_find_register_type_id_bytes(is_float, x64_abi_regs[nb_ints++], size);
+			else
+				src->dag_node->rabi2 = NULL;
+		}
+	}
+
 	for (i = 1; i < c->srcs->size - 1; i++) {
 		scf_3ac_operand_t*  src0 = c->srcs->data[i];
 		scf_graph_node_t*   gn0  = NULL;
-		scf_register_x64_t* r0   = NULL;
+		scf_register_x64_t* r0   = src0->dag_node->rabi2;
 
 		if (scf_variable_const(src0->dag_node->var))
 			continue;
-
-		if (i - 1 < X64_ABI_NB)
-			r0 = x64_find_register_type_id_bytes(0, x64_abi_regs[i - 1], src0->dag_node->var->size);
 
 		ret = _x64_rcg_make_node(&gn0, g, src0->dag_node, r0, NULL);
 		if (ret < 0) {
@@ -229,13 +253,10 @@ static int _x64_rcg_call_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph
 		for (j = i + 1; j < c->srcs->size; j++) {
 			scf_3ac_operand_t*  src1 = c->srcs->data[j];
 			scf_graph_node_t*   gn1  = NULL;
-			scf_register_x64_t* r1   = NULL;
+			scf_register_x64_t* r1   = src1->dag_node->rabi2;
 
 			if (scf_variable_const(src1->dag_node->var))
 				continue;
-
-			if (j - 1 < X64_ABI_NB)
-				r1 = x64_find_register_type_id_bytes(0, x64_abi_regs[j - 1], src0->dag_node->var->size);
 
 			ret = _x64_rcg_make_node(&gn1, g, src1->dag_node, r1, NULL);
 			if (ret < 0) {
@@ -246,22 +267,29 @@ static int _x64_rcg_call_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph
 			if (gn0 == gn1)
 				continue;
 
-			if (!scf_vector_find(gn0->neighbors, gn1)) {
-				assert(!scf_vector_find(gn1->neighbors, gn0));
-
-				ret = scf_graph_make_edge(gn0, gn1);
-				if (ret < 0)
-					return ret;
-
-				ret = scf_graph_make_edge(gn1, gn0);
-				if (ret < 0)
-					return ret;
-			} else
-				assert(scf_vector_find(gn1->neighbors, gn0));
+			ret = _x64_rcg_make_edge(gn0, gn1);
+			if (ret < 0)
+				return ret;
 		}
 	}
 
 	return ret;
+}
+
+static int _x64_rcg_call_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+{
+	if (c->rcg)
+		scf_graph_free(c->rcg);
+
+	c->rcg = scf_graph_alloc();
+	if (!c->rcg)
+		return -ENOMEM;
+
+	int ret = _x64_rcg_call(ctx, c, c->rcg);
+	if (ret < 0)
+		return ret;
+
+	return _x64_rcg_call(ctx, c, g);
 }
 
 static int _x64_rcg_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
@@ -726,6 +754,11 @@ static int _x64_rcg_return_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_gra
 	return _x64_rcg_make(c, g, NULL, NULL, NULL);
 }
 
+static int _x64_rcg_goto_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+{
+	return 0;
+}
+
 static int _x64_rcg_jz_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
 	return 0;
@@ -752,6 +785,23 @@ static int _x64_rcg_jlt_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_
 }
 
 static int _x64_rcg_jle_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+{
+	return 0;
+}
+
+static int _x64_rcg_save_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+{
+	return 0;
+}
+static int _x64_rcg_load_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+{
+	return 0;
+}
+static int _x64_rcg_nop_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+{
+	return 0;
+}
+static int _x64_rcg_end_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
 	return 0;
 }
@@ -800,6 +850,70 @@ static int _x64_rcg_##name##_assign_pointer_handler(scf_native_t* ctx, scf_3ac_c
 X64_RCG_SHIFT_ASSIGN(shl)
 X64_RCG_SHIFT_ASSIGN(shr)
 
+#define X64_RCG_UNARY_ASSIGN(name) \
+static int _x64_rcg_##name##_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
+{ \
+	int ret = _x64_rcg_make2(c, NULL, NULL, NULL); \
+	if (ret < 0) \
+		return ret; \
+	return _x64_rcg_make(c, g, NULL, NULL, NULL); \
+} \
+static int _x64_rcg_##name##_dereference_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
+{ \
+	int ret = _x64_rcg_make2(c, NULL, NULL, NULL); \
+	if (ret < 0) \
+		return ret; \
+	return _x64_rcg_make(c, g, NULL, NULL, NULL); \
+} \
+static int _x64_rcg_##name##_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
+{ \
+	int ret = _x64_rcg_make2(c, NULL, NULL, NULL); \
+	if (ret < 0) \
+		return ret; \
+	return _x64_rcg_make(c, g, NULL, NULL, NULL); \
+} \
+static int _x64_rcg_##name##_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
+{ \
+	int ret = _x64_rcg_make2(c, NULL, NULL, NULL); \
+	if (ret < 0) \
+		return ret; \
+	return _x64_rcg_make(c, g, NULL, NULL, NULL); \
+}
+X64_RCG_UNARY_ASSIGN(inc)
+X64_RCG_UNARY_ASSIGN(dec)
+
+#define X64_RCG_UNARY_POST_ASSIGN(name) \
+static int _x64_rcg_##name##_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
+{ \
+	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL); \
+	if (ret < 0) \
+		return ret; \
+	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL); \
+} \
+static int _x64_rcg_##name##_dereference_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
+{ \
+	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL); \
+	if (ret < 0) \
+		return ret; \
+	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL); \
+} \
+static int _x64_rcg_##name##_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
+{ \
+	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL); \
+	if (ret < 0) \
+		return ret; \
+	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL); \
+} \
+static int _x64_rcg_##name##_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
+{ \
+	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL); \
+	if (ret < 0) \
+		return ret; \
+	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL); \
+}
+X64_RCG_UNARY_POST_ASSIGN(inc_post)
+X64_RCG_UNARY_POST_ASSIGN(dec_post)
+
 static x64_rcg_handler_t x64_rcg_handlers[] = {
 
 	{SCF_OP_CALL,			_x64_rcg_call_handler},
@@ -809,6 +923,12 @@ static x64_rcg_handler_t x64_rcg_handlers[] = {
 	{SCF_OP_LOGIC_NOT, 		_x64_rcg_logic_not_handler},
 	{SCF_OP_BIT_NOT,        _x64_rcg_bit_not_handler},
 	{SCF_OP_NEG, 			_x64_rcg_neg_handler},
+
+	{SCF_OP_INC,            _x64_rcg_inc_handler},
+	{SCF_OP_DEC,            _x64_rcg_dec_handler},
+
+	{SCF_OP_INC_POST,       _x64_rcg_inc_post_handler},
+	{SCF_OP_DEC_POST,       _x64_rcg_dec_post_handler},
 
 	{SCF_OP_DEREFERENCE, 	_x64_rcg_dereference_handler},
 	{SCF_OP_ADDRESS_OF, 	_x64_rcg_address_of_handler},
@@ -854,12 +974,19 @@ static x64_rcg_handler_t x64_rcg_handlers[] = {
 	{SCF_OP_3AC_SETZ,       _x64_rcg_setz_handler},
 	{SCF_OP_3AC_SETNZ,      _x64_rcg_setnz_handler},
 
+	{SCF_OP_GOTO,           _x64_rcg_goto_handler},
 	{SCF_OP_3AC_JZ,         _x64_rcg_jz_handler},
 	{SCF_OP_3AC_JNZ,        _x64_rcg_jnz_handler},
 	{SCF_OP_3AC_JGT,        _x64_rcg_jgt_handler},
 	{SCF_OP_3AC_JGE,        _x64_rcg_jge_handler},
 	{SCF_OP_3AC_JLT,        _x64_rcg_jlt_handler},
 	{SCF_OP_3AC_JLE,        _x64_rcg_jle_handler},
+
+	{SCF_OP_3AC_SAVE,       _x64_rcg_save_handler},
+	{SCF_OP_3AC_LOAD,       _x64_rcg_load_handler},
+
+	{SCF_OP_3AC_NOP,        _x64_rcg_nop_handler},
+	{SCF_OP_3AC_END,        _x64_rcg_end_handler},
 
 	{SCF_OP_3AC_ASSIGN_DEREFERENCE,     _x64_rcg_assign_dereference_handler},
 	{SCF_OP_3AC_ASSIGN_ARRAY_INDEX,     _x64_rcg_assign_array_index_handler},
@@ -880,6 +1007,22 @@ static x64_rcg_handler_t x64_rcg_handlers[] = {
 	{SCF_OP_3AC_OR_ASSIGN_DEREFERENCE,  _x64_rcg_or_assign_dereference_handler},
 	{SCF_OP_3AC_OR_ASSIGN_ARRAY_INDEX,  _x64_rcg_or_assign_array_index_handler},
 	{SCF_OP_3AC_OR_ASSIGN_POINTER,      _x64_rcg_or_assign_pointer_handler},
+
+	{SCF_OP_3AC_INC_DEREFERENCE,        _x64_rcg_inc_dereference_handler},
+	{SCF_OP_3AC_INC_ARRAY_INDEX,        _x64_rcg_inc_array_index_handler},
+	{SCF_OP_3AC_INC_POINTER,            _x64_rcg_inc_pointer_handler},
+
+	{SCF_OP_3AC_INC_POST_DEREFERENCE,   _x64_rcg_inc_post_dereference_handler},
+	{SCF_OP_3AC_INC_POST_ARRAY_INDEX,   _x64_rcg_inc_post_array_index_handler},
+	{SCF_OP_3AC_INC_POST_POINTER,       _x64_rcg_inc_post_pointer_handler},
+
+	{SCF_OP_3AC_DEC_DEREFERENCE,        _x64_rcg_dec_dereference_handler},
+	{SCF_OP_3AC_DEC_ARRAY_INDEX,        _x64_rcg_dec_array_index_handler},
+	{SCF_OP_3AC_DEC_POINTER,            _x64_rcg_dec_pointer_handler},
+
+	{SCF_OP_3AC_DEC_POST_DEREFERENCE,   _x64_rcg_dec_post_dereference_handler},
+	{SCF_OP_3AC_DEC_POST_ARRAY_INDEX,   _x64_rcg_dec_post_array_index_handler},
+	{SCF_OP_3AC_DEC_POST_POINTER,       _x64_rcg_dec_post_pointer_handler},
 };
 
 x64_rcg_handler_t* scf_x64_find_rcg_handler(const int op_type)

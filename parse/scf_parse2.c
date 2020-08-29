@@ -4,6 +4,7 @@
 #include"scf_operator_handler_const.h"
 #include"scf_dfa.h"
 #include"scf_basic_block.h"
+#include"scf_optimizer.h"
 #include"scf_elf.h"
 
 scf_base_type_t	base_types[] = {
@@ -368,15 +369,7 @@ static int _fill_function_inst(scf_string_t* code, scf_function_t* f)
 
 		scf_basic_block_t* bb = scf_list_data(l, scf_basic_block_t, list);
 
-		int ret = _fill_code_list_inst(code, &bb->load_list_head);
-		if (ret < 0)
-			return ret;
-
 		ret = _fill_code_list_inst(code, &bb->code_list_head);
-		if (ret < 0)
-			return ret;
-
-		ret = _fill_code_list_inst(code, &bb->save_list_head);
 		if (ret < 0)
 			return ret;
 
@@ -425,6 +418,35 @@ static int _find_global_var(scf_node_t* node, void* arg, scf_vector_t* vec)
 	return 0;
 }
 
+static void _scf_loops_print(scf_vector_t* loops)
+{
+	int i;
+	int j;
+	int k;
+
+	for (i = 0; i < loops->size; i++) {
+		scf_bb_group_t* loop = loops->data[i];
+
+		printf("loop:  %p\n", loop);
+		printf("entry: %p\n", loop->entry);
+		printf("exit:  %p\n", loop->exit);
+		printf("body: ");
+		for (j = 0; j < loop->body->size; j++)
+			printf("%p ", loop->body->data[j]);
+		printf("\n");
+
+		if (loop->loop_childs) {
+			printf("childs: ");
+			for (k = 0; k < loop->loop_childs->size; k++)
+				printf("%p ", loop->loop_childs->data[k]);
+			printf("\n");
+		}
+		if (loop->loop_parent)
+			printf("parent: %p\n", loop->loop_parent);
+		printf("loop_layers: %d\n\n", loop->loop_layers);
+	}
+}
+
 int scf_parse_compile_function(scf_parse_t* parse, scf_native_t* native, scf_function_t* f)
 {
 	int ret = 0;
@@ -458,20 +480,29 @@ int scf_parse_compile_function(scf_parse_t* parse, scf_native_t* native, scf_fun
 	}
 	assert(scf_list_empty(&code_list_head));
 
-	scf_basic_block_print_list(&f->basic_block_list_head);
-
 	for (l = scf_list_head(&f->basic_block_list_head); l != scf_list_sentinel(&f->basic_block_list_head);
 			l = scf_list_next(l)) {
 
 		scf_basic_block_t* bb = scf_list_data(l, scf_basic_block_t, list);
 
-		ret = scf_basic_block_active_vars(bb);
+		ret = scf_basic_block_active_vars(bb, &f->dag_list_head);
 		if (ret < 0) {
 			scf_loge("\n");
 			return ret;
 		}
 	}
 
+	ret = scf_optimize(f, &f->basic_block_list_head);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	scf_basic_block_print_list(&f->basic_block_list_head);
+#if 1
+	_scf_loops_print(f->bb_loops);
+#endif
+	return 0;
 	return scf_native_select_inst(native, f);
 
 error:

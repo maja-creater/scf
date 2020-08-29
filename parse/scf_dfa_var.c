@@ -186,6 +186,7 @@ static int _var_action_semicolon(scf_dfa_t* dfa, scf_vector_t* words, void* data
 	if (d->current_var)
 		scf_variable_size(d->current_var);
 
+	scf_logw("d->expr: %p\n", d->expr);
 	return SCF_DFA_OK;
 }
 

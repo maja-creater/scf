@@ -226,14 +226,14 @@ static int _scf_op_const_return(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 {
 	scf_handler_data_t* d = data;
 
-	scf_block_t* b = ast->current_block;
+	if (1 == nb_nodes) {
+		scf_expr_t*     e = nodes[0];
+		scf_variable_t* r = NULL;
 
-	scf_expr_t* e = nodes[0];
-
-	scf_variable_t* r = NULL;
-	if (_scf_expr_calculate_internal(ast, e, &r) < 0) {
-		scf_loge("\n");
-		return -1;
+		if (_scf_expr_calculate_internal(ast, e, &r) < 0) {
+			scf_loge("\n");
+			return -1;
+		}
 	}
 
 	return 0;
@@ -256,6 +256,33 @@ static int _scf_op_const_label(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 
 static int _scf_op_const_goto(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
+	return 0;
+}
+
+static int _scf_op_const_node(scf_ast_t* ast, scf_node_t* node, scf_handler_data_t* d)
+{
+	scf_operator_t* op = node->op;
+
+	if (!op) {
+		op = scf_find_base_operator_by_type(node->type);
+		if (!op) {
+			scf_loge("\n");
+			return -1;
+		}
+	}
+
+	scf_operator_handler_t*	h = scf_find_const_operator_handler(op->type, -1, -1, -1);
+	if (!h) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	int ret = h->func(ast, node->nodes, node->nb_nodes, d);
+	if (ret < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
 	return 0;
 }
 
@@ -322,46 +349,56 @@ static int _scf_op_const_while(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 	scf_expr_t* e = nodes[0];
 	assert(SCF_OP_EXPR == e->type);
 
-	scf_block_t* b = (scf_block_t*)(e->parent);
-
-	scf_logi("e: %p, b: %p, b->node.nodes: %p, b->node.nb_nodes: %d\n",
-			e, b, b->node.nodes, b->node.nb_nodes);
-
 	scf_variable_t* r = NULL;
 	if (_scf_expr_calculate_internal(ast, e, &r) < 0) {
 		scf_loge("\n");
 		return -1;
 	}
 
-	// while body
-	scf_node_t* node = nodes[1];
-	scf_operator_t* op = node->op;
+	if (_scf_op_const_node(ast, nodes[1], d) < 0) {
+		scf_loge("\n");
+		return -1;
+	}
 
-	if (node->w)
-		scf_logi("node: %p, w: %s, line:%d\n", node, node->w->text->data, node->w->line);
+	return 0;
+}
 
-	if (!op) {
-		op = scf_find_base_operator_by_type(node->type);
-		if (!op) {
+static int _scf_op_const_for(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	assert(4 == nb_nodes);
+
+	scf_handler_data_t* d = data;
+
+	if (nodes[0]) {
+		if (_scf_op_const_node(ast, nodes[0], d) < 0) {
 			scf_loge("\n");
 			return -1;
 		}
 	}
 
-	scf_operator_handler_t*	h = scf_find_const_operator_handler(op->type, -1, -1, -1);
-	if (!h) {
-		scf_loge("\n");
-		return -1;
+	scf_expr_t* e = nodes[1];
+	if (e) {
+		assert(SCF_OP_EXPR == e->type);
+
+		scf_variable_t* r = NULL;
+
+		if (_scf_expr_calculate_internal(ast, e, &r) < 0) {
+			scf_loge("\n");
+			return -1;
+		}
 	}
 
-	int ret = h->func(ast, node->nodes, node->nb_nodes, d);
+	int i;
+	for (i = 2; i < nb_nodes; i++) {
+		if (!nodes[i])
+			continue;
 
-	if (ret < 0) {
-		scf_loge("\n");
-		return -1;
+		if (_scf_op_const_node(ast, nodes[i], d) < 0) {
+			scf_loge("\n");
+			return -1;
+		}
 	}
 
-	scf_logi("ok\n");
 	return 0;
 }
 
@@ -431,6 +468,24 @@ static int _scf_op_const_expr(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, 
 		return -1;
 	}
 
+	return 0;
+}
+
+static int _scf_op_const_inc(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	return 0;
+}
+static int _scf_op_const_inc_post(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	return 0;
+}
+
+static int _scf_op_const_dec(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	return 0;
+}
+static int _scf_op_const_dec_post(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
 	return 0;
 }
 
@@ -794,6 +849,12 @@ scf_operator_handler_t const_operator_handlers[] = {
 	{{NULL, NULL}, SCF_OP_NEG,			  -1, 	-1, -1, _scf_op_const_neg},
 	{{NULL, NULL}, SCF_OP_POSITIVE,		  -1, 	-1, -1, _scf_op_const_positive},
 
+	{{NULL, NULL}, SCF_OP_INC,            -1,   -1, -1, _scf_op_const_inc},
+	{{NULL, NULL}, SCF_OP_DEC,            -1,   -1, -1, _scf_op_const_dec},
+
+	{{NULL, NULL}, SCF_OP_INC_POST,       -1,   -1, -1, _scf_op_const_inc_post},
+	{{NULL, NULL}, SCF_OP_DEC_POST,       -1,   -1, -1, _scf_op_const_dec_post},
+
 	{{NULL, NULL}, SCF_OP_DEREFERENCE,	  -1, 	-1, -1, _scf_op_const_dereference},
 	{{NULL, NULL}, SCF_OP_ADDRESS_OF,	  -1, 	-1, -1, _scf_op_const_address_of},
 
@@ -841,6 +902,7 @@ scf_operator_handler_t const_operator_handlers[] = {
 
 	{{NULL, NULL}, SCF_OP_IF,			  -1,   -1, -1, _scf_op_const_if},
 	{{NULL, NULL}, SCF_OP_WHILE,		  -1,   -1, -1, _scf_op_const_while},
+	{{NULL, NULL}, SCF_OP_FOR,            -1,   -1, -1, _scf_op_const_for},
 };
 
 scf_operator_handler_t* scf_find_const_operator_handler(const int type, const int src0_type, const int src1_type, const int ret_type)
