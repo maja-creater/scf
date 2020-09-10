@@ -4,8 +4,10 @@ typedef int (*bb_find_pt)(scf_basic_block_t* bb, scf_vector_t* queue);
 
 static int _bb_prev_find(scf_basic_block_t* bb, scf_vector_t* queue)
 {
+	int count = 0;
 	int ret;
 	int j;
+
 	for (j = 0; j < bb->prevs->size; j++) {
 		scf_basic_block_t* prev_bb = bb->prevs->data[j];
 
@@ -13,22 +15,28 @@ static int _bb_prev_find(scf_basic_block_t* bb, scf_vector_t* queue)
 		for (k = 0; k < bb->entry_dn_actives->size; k++) {
 			scf_dag_node_t* dn = bb->entry_dn_actives->data[k];
 
-			ret = scf_vector_add_unique(prev_bb->exit_dn_actives, dn);
+			if (scf_vector_find(prev_bb->exit_dn_actives, dn))
+				continue;
+
+			ret = scf_vector_add(prev_bb->exit_dn_actives, dn);
 			if (ret < 0)
 				return ret;
+			++count;
 		}
 
 		ret = scf_vector_add(queue, prev_bb);
 		if (ret < 0)
 			return ret;
 	}
-	return 0;
+	return count;
 }
 
 static int _bb_next_find(scf_basic_block_t* bb, scf_vector_t* queue)
 {
+	int count = 0;
 	int ret;
 	int j;
+
 	for (j = 0; j < bb->nexts->size; j++) {
 		scf_basic_block_t* next_bb = bb->nexts->data[j];
 
@@ -36,16 +44,20 @@ static int _bb_next_find(scf_basic_block_t* bb, scf_vector_t* queue)
 		for (k = 0; k < next_bb->exit_dn_actives->size; k++) {
 			scf_dag_node_t* dn = next_bb->exit_dn_actives->data[k];
 
-			ret = scf_vector_add_unique(bb->exit_dn_actives, dn);
+			if (scf_vector_find(bb->exit_dn_actives, dn))
+				continue;
+
+			ret = scf_vector_add(bb->exit_dn_actives, dn);
 			if (ret < 0)
 				return ret;
+			++count;
 		}
 
 		ret = scf_vector_add(queue, next_bb);
 		if (ret < 0)
 			return ret;
 	}
-	return 0;
+	return count;
 }
 
 static int _bb_search_bfs(scf_basic_block_t* root, bb_find_pt find)
@@ -67,8 +79,9 @@ static int _bb_search_bfs(scf_basic_block_t* root, bb_find_pt find)
 	if (ret < 0)
 		goto failed;
 
-	ret = 0;
-	int i = 0;
+	int count = 0;
+	int i     = 0;
+
 	while (i < queue->size) {
 		scf_basic_block_t* bb = queue->data[i];
 
@@ -80,17 +93,17 @@ static int _bb_search_bfs(scf_basic_block_t* root, bb_find_pt find)
 
 		ret = scf_vector_add(checked, bb);
 		if (ret < 0)
-			break;
-
-		//scf_logw("bb: %p\n", bb);
+			goto failed;
 
 		ret = find(bb, queue);
 		if (ret < 0)
 			goto failed;
+		count += ret;
 next:
 		i++;
 	}
 
+	ret = count;
 failed:
 	scf_vector_free(queue);
 	scf_vector_free(checked);
@@ -156,6 +169,7 @@ static int _optimize_active_vars(scf_function_t* f, scf_list_t* bb_list_head)
 	scf_list_t*        l;
 	scf_basic_block_t* bb;
 
+	int count;
 	int ret;
 	int i;
 
@@ -164,55 +178,31 @@ static int _optimize_active_vars(scf_function_t* f, scf_list_t* bb_list_head)
 
 		bb  = scf_list_data(l, scf_basic_block_t, list);
 
-		ret = scf_basic_block_active_vars(bb, &f->dag_list_head);
+		ret = scf_basic_block_active_vars(bb);
 		if (ret < 0)
 			return ret;
 	}
 
-	l  = scf_list_tail(bb_list_head);
-	bb = scf_list_data(l, scf_basic_block_t, list);
-	assert(bb->end_flag);
+	do {
+		l   = scf_list_tail(bb_list_head);
+		bb  = scf_list_data(l, scf_basic_block_t, list);
+		assert(bb->end_flag);
 
-	ret = _bb_search_bfs(bb, _bb_prev_find);
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
+		ret = _bb_search_bfs(bb, _bb_prev_find);
+		if (ret < 0)
+			return ret;
+		count = ret;
 
-	l  = scf_list_head(bb_list_head);
-	bb = scf_list_data(l, scf_basic_block_t, list);
-	ret = _bb_search_bfs(bb, _bb_next_find);
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
+		l   = scf_list_head(bb_list_head);
+		bb  = scf_list_data(l, scf_basic_block_t, list);
 
-	for (l = scf_list_head(bb_list_head); l != scf_list_sentinel(bb_list_head); l = scf_list_next(l)) {
+		ret = _bb_search_bfs(bb, _bb_next_find);
+		if (ret < 0)
+			return ret;
+		count += ret;
+	} while (count > 0);
 
-		bb = scf_list_data(l, scf_basic_block_t, list);
-
-		for (i = 0; i < bb->entry_dn_actives->size; i++) {
-			scf_dag_node_t* dn   = bb->entry_dn_actives->data[i];
-			scf_variable_t* v    = dn->var;
-
-			ret = scf_vector_add_unique(bb->dn_loads, dn);
-			if (ret < 0)
-				return ret;
-		}
-
-		for (i = 0; i < bb->exit_dn_actives->size; i++) {
-			scf_dag_node_t* dn   = bb->exit_dn_actives->data[i];
-			scf_variable_t* v    = dn->var;
-
-			if (!scf_vector_find(bb->dn_updateds, dn))
-				continue;
-
-			ret = scf_vector_add_unique(bb->dn_saves, dn);
-			if (ret < 0)
-				return ret;
-		}
-	}
-
+//	_bb_info_print_list(bb_list_head);
 	return 0;
 }
 

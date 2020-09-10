@@ -519,6 +519,7 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 	scf_basic_block_t* bb;
 	scf_basic_block_t* bb_first;
 	scf_basic_block_t* bb_last;
+	scf_basic_block_t* jcc_last;
 	scf_basic_block_t* pre;
 	scf_basic_block_t* post;
 
@@ -539,19 +540,25 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 		bb_first  = bbg->body->data[0];
 		bb_last   = bbg->body->data[bbg->body->size - 1];
 
-		if (sentinel != scf_list_prev(&bb_first->list)) {
-			pre = scf_list_data(scf_list_prev(&bb_first->list), scf_basic_block_t, list);
+		assert(sentinel != scf_list_next(&bb_last->list));
+		jcc_last  = scf_list_data(scf_list_next(&bb_last ->list), scf_basic_block_t, list);
 
-			assert(!pre->jmp_flag || (pre->jmp_flag && pre->jcc_flag));
-		} else {
-			pre = scf_basic_block_alloc();
-			if (!pre)
-				return -ENOMEM;
-			scf_list_add_tail(&bb_first->list, &pre->list);
+		assert(jcc_last->jmp_flag);
+		if (!jcc_last->jcc_flag)
+			return -EINVAL;
+
+		pre = scf_basic_block_alloc();
+		if (!pre)
+			return -ENOMEM;
+
+		post = scf_basic_block_alloc();
+		if (!post) {
+			scf_basic_block_free(pre);
+			return -ENOMEM;
 		}
 
-		assert (sentinel != scf_list_next(&bb_last->list));
-		post = scf_list_data(scf_list_next(&bb_last ->list), scf_basic_block_t, list);
+		scf_list_add_tail (&bb_first->list, &pre->list);
+		scf_list_add_front(&jcc_last->list, &post->list);
 
 		bbg->pre  = pre;
 		bbg->post = post;
@@ -563,13 +570,27 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 			bb = bbg->body->data[j];
 
 			for (k = 0; k < bb->dn_loads->size; k++) {
-				if (scf_vector_add_unique(pre->dn_loads, bb->dn_loads->data[k]) < 0)
-					return -1;
+				scf_dag_node_t* dn   = bb->dn_loads->data[k];
+				scf_variable_t* v    = dn->var;
+
+				scf_3ac_code_t* load = scf_3ac_alloc_by_dst(SCF_OP_3AC_LOAD, dn);
+				if (!load)
+					return -ENOMEM;
+				load->basic_block = pre;
+
+				scf_list_add_tail(&pre->code_list_head, &load->list);
 			}
 
 			for (k = 0; k < bb->dn_saves->size; k++) {
-				if (scf_vector_add_unique(post->dn_saves, bb->dn_saves->data[k]) < 0)
-					return -1;
+				scf_dag_node_t* dn   = bb->dn_saves->data[k];
+				scf_variable_t* v    = dn->var;
+
+				scf_3ac_code_t* save = scf_3ac_alloc_by_src(SCF_OP_3AC_SAVE, dn);
+				if (!save)
+					return -ENOMEM;
+				save->basic_block = post;
+
+				scf_list_add_tail(&post->code_list_head, &save->list);
 			}
 
 			bb->group_flag = 1;

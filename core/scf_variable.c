@@ -28,7 +28,7 @@ scf_variable_t*	scf_variable_alloc(scf_lex_word_t* w, scf_type_t* t)
 
 	if (w) {
 		var->w = scf_lex_word_clone(w);
-		printf("%s(),%d, var->w: %p, %s\n", __func__, __LINE__, var->w, var->w->text->data);
+		scf_logd("var->w: %p, %s\n", var->w, var->w->text->data);
 
 		if (scf_lex_is_const(w)) {
 			var->const_flag         = 1;

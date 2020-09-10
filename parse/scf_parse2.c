@@ -480,26 +480,13 @@ int scf_parse_compile_function(scf_parse_t* parse, scf_native_t* native, scf_fun
 	}
 	assert(scf_list_empty(&code_list_head));
 
-	for (l = scf_list_head(&f->basic_block_list_head); l != scf_list_sentinel(&f->basic_block_list_head);
-			l = scf_list_next(l)) {
-
-		scf_basic_block_t* bb = scf_list_data(l, scf_basic_block_t, list);
-
-		ret = scf_basic_block_active_vars(bb, &f->dag_list_head);
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
-		}
-	}
-
 	ret = scf_optimize(f, &f->basic_block_list_head);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
 	}
-
-	scf_basic_block_print_list(&f->basic_block_list_head);
 #if 1
+	scf_basic_block_print_list(&f->basic_block_list_head);
 	_scf_loops_print(f->bb_loops);
 #endif
 	return 0;

@@ -52,18 +52,7 @@ int _x64_rcg_make_node(scf_graph_node_t** pp, scf_graph_t* g, scf_dag_node_t* dn
 		}
 
 		gn->data = rn;
-#if 1
-		if (dn->color > 0
-				&& !scf_variable_const(dn->var)
-				&& scf_type_is_var(dn->type)
-				&& (dn->var->global_flag || dn->var->local_flag)) {
 
-			dn->color_prev = dn->color;
-			gn->color      = dn->color;
-		} else {
-			dn->color_prev = 0;
-		}
-#endif
 		if (reg)
 			gn->color = reg->color;
 
@@ -984,6 +973,9 @@ static x64_rcg_handler_t x64_rcg_handlers[] = {
 
 	{SCF_OP_3AC_SAVE,       _x64_rcg_save_handler},
 	{SCF_OP_3AC_LOAD,       _x64_rcg_load_handler},
+
+	{SCF_OP_3AC_RESAVE,     _x64_rcg_save_handler},
+	{SCF_OP_3AC_RELOAD,     _x64_rcg_load_handler},
 
 	{SCF_OP_3AC_NOP,        _x64_rcg_nop_handler},
 	{SCF_OP_3AC_END,        _x64_rcg_end_handler},

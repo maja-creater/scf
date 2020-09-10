@@ -153,10 +153,12 @@ static inline void scf_vector_clear(scf_vector_t* v, void (*type_free)(void*))
 
 	v->size = 0;
 
-	void* p = realloc(v->data, sizeof(void*) * NB_MEMBER_INC);
-	if (p) {
-		v->data = p;
-		v->capacity = NB_MEMBER_INC;
+	if (v->capacity > NB_MEMBER_INC) {
+		void* p = realloc(v->data, sizeof(void*) * NB_MEMBER_INC);
+		if (p) {
+			v->data = p;
+			v->capacity = NB_MEMBER_INC;
+		}
 	}
 }
 

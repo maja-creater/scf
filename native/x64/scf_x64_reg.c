@@ -144,7 +144,7 @@ int x64_registers_reset()
 		int j = 0;
 		while (j < r->dag_nodes->size) {
 			scf_dag_node_t* dn = r->dag_nodes->data[j];
-
+#if 0
 			if (!scf_variable_const(dn->var)
 				&& scf_type_is_var(dn->type)
 				&& (dn->var->global_flag || dn->var->local_flag)) {
@@ -153,7 +153,7 @@ int x64_registers_reset()
 				j++;
 				continue;
 			}
-
+#endif
 			if (dn->var->w)
 				scf_logw("drop: v_%d_%d/%s\n", dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
 			else
@@ -167,7 +167,6 @@ int x64_registers_reset()
 
 			dn->loaded     = 0;
 			dn->color      = 0;
-			dn->color_prev = 0;
 		}
 	}
 
@@ -247,7 +246,7 @@ scf_vector_t* x64_register_colors()
 		}
 	}
 #if 1
-//	srand(time(NULL));
+	srand(time(NULL));
 	for (i = 0; i < colors->size; i++) {
 		int j = rand() % colors->size;
 
@@ -320,8 +319,7 @@ end:
 
 	int ret = scf_vector_del(r->dag_nodes, dn);
 	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
+		//return ret;
 	}
 	return 0;
 }

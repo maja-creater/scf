@@ -141,7 +141,9 @@ static int _x64_kcolor_fill(scf_graph_t* graph, int k, scf_vector_t* colors,
 
 				if (X64_COLOR_CONFLICT(node->color, neighbor->color)) {
 					scf_logd("node: %p, neighbor: %p, color: %#lx:%#lx\n", node, neighbor, node->color, neighbor->color);
-					assert(!rn->reg);
+					scf_logd("node: %p, dn: %p, reg: %p\n", node, rn->dag_node, rn->reg);
+					//assert(!rn->reg);
+					assert(rn->dag_node);
 					node->color = 0;
 				}
 			}

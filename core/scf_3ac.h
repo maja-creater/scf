@@ -8,7 +8,6 @@
 
 typedef struct scf_3ac_operator_s	scf_3ac_operator_t;
 typedef struct scf_3ac_operand_s	scf_3ac_operand_t;
-typedef struct scf_3ac_code_s		scf_3ac_code_t;
 
 struct scf_3ac_operator_s {
 	int							type;

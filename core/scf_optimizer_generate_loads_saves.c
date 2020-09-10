@@ -10,46 +10,61 @@ static int _optimize_generate_loads_saves(scf_function_t* f, scf_list_t* bb_list
 
 	scf_list_t*        l;
 	scf_basic_block_t* bb;
+	scf_dag_node_t*    dn;
+	scf_3ac_code_t*    load;
+	scf_3ac_code_t*    save;
 
 	int i;
 	int ret;
 
+#define SCF_OPTIMIZER_LOAD(load_type) \
+			do { \
+				load = scf_3ac_alloc_by_dst(load_type, dn); \
+				if (!load) { \
+					scf_loge("\n"); \
+					return -ENOMEM; \
+				} \
+				load->basic_block = bb; \
+				scf_list_add_front(&bb->code_list_head, &load->list); \
+			} while (0)
+
+#define SCF_OPTIMIZER_SAVE(save_type) \
+			do { \
+				save = scf_3ac_alloc_by_src(save_type, dn); \
+				if (!save) { \
+					scf_loge("\n"); \
+					return -ENOMEM; \
+				} \
+				save->basic_block = bb; \
+				scf_list_add_tail(&bb->code_list_head, &save->list); \
+			} while (0)
+
+	f->nb_basic_blocks = 0;
+
 	for (l = scf_list_head(bb_list_head); l != scf_list_sentinel(bb_list_head); l = scf_list_next(l)) {
 
-		bb = scf_list_data(l, scf_basic_block_t, list);
+		bb        = scf_list_data(l, scf_basic_block_t, list);
+
+		bb->index = f->nb_basic_blocks++;
 
 		for (i = 0; i < bb->dn_loads->size; i++) {
+			dn = bb->dn_loads->data[i];
+			SCF_OPTIMIZER_LOAD(SCF_OP_3AC_LOAD);
+		}
 
-			scf_dag_node_t* dn   = bb->dn_loads->data[i];
-			scf_variable_t* v    = dn->var;
-
-			scf_3ac_code_t* load = scf_3ac_alloc_by_dst(SCF_OP_3AC_LOAD, dn);
-			if (!load) {
-				scf_loge("\n");
-				return -ENOMEM;
-			}
-			load->basic_block = bb;
-
-			scf_logd("load: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
-
-			scf_list_add_front(&bb->code_list_head, &load->list);
+		for (i = 0; i < bb->dn_reloads->size; i++) {
+			dn = bb->dn_reloads->data[i];
+			SCF_OPTIMIZER_LOAD(SCF_OP_3AC_RELOAD);
 		}
 
 		for (i = 0; i < bb->dn_saves->size; i++) {
+			dn = bb->dn_saves->data[i];
+			SCF_OPTIMIZER_SAVE(SCF_OP_3AC_SAVE);
+		}
 
-			scf_dag_node_t* dn   = bb->dn_saves->data[i];
-			scf_variable_t* v    = dn->var;
-
-			scf_3ac_code_t* save = scf_3ac_alloc_by_src(SCF_OP_3AC_SAVE, dn);
-			if (!save) {
-				scf_loge("\n");
-				return -ENOMEM;
-			}
-			save->basic_block = bb;
-
-			scf_logd("save: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
-
-			scf_list_add_tail(&bb->code_list_head, &save->list);
+		for (i = 0; i < bb->dn_resaves->size; i++) {
+			dn = bb->dn_resaves->data[i];
+			SCF_OPTIMIZER_SAVE(SCF_OP_3AC_RESAVE);
 		}
 	}
 

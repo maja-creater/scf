@@ -14,6 +14,7 @@ typedef struct scf_function_s   scf_function_t;
 
 typedef struct scf_scope_s      scf_scope_t;
 
+typedef struct scf_3ac_code_s   scf_3ac_code_t;
 
 enum scf_core_types {
 	SCF_OP_ADD	= 0,    // +
@@ -97,44 +98,34 @@ enum scf_core_types {
 	SCF_OP_3AC_SETNZ,
 
 	// these ops will update the value in memory
-	SCF_OP_3AC_ASSIGN_DEREFERENCE, // left value, *p   = expr
-	SCF_OP_3AC_ASSIGN_ARRAY_INDEX, // left value, a[0] = expr
-	SCF_OP_3AC_ASSIGN_POINTER,     // left value, p->a = expr
-
-	// *p += var
+	SCF_OP_3AC_ASSIGN_DEREFERENCE,     // left value, *p = expr
 	SCF_OP_3AC_ADD_ASSIGN_DEREFERENCE,
-	SCF_OP_3AC_ADD_ASSIGN_ARRAY_INDEX,
-	SCF_OP_3AC_ADD_ASSIGN_POINTER,
-
-	// *p -= var
 	SCF_OP_3AC_SUB_ASSIGN_DEREFERENCE,
-	SCF_OP_3AC_SUB_ASSIGN_ARRAY_INDEX,
-	SCF_OP_3AC_SUB_ASSIGN_POINTER,
-
-	// *p &= var
 	SCF_OP_3AC_AND_ASSIGN_DEREFERENCE,
-	SCF_OP_3AC_AND_ASSIGN_ARRAY_INDEX,
-	SCF_OP_3AC_AND_ASSIGN_POINTER,
-
-	// *p |= var
 	SCF_OP_3AC_OR_ASSIGN_DEREFERENCE,
-	SCF_OP_3AC_OR_ASSIGN_ARRAY_INDEX,
-	SCF_OP_3AC_OR_ASSIGN_POINTER,
-
 	SCF_OP_3AC_INC_DEREFERENCE,
-	SCF_OP_3AC_INC_ARRAY_INDEX,
-	SCF_OP_3AC_INC_POINTER,
-
 	SCF_OP_3AC_DEC_DEREFERENCE,
-	SCF_OP_3AC_DEC_ARRAY_INDEX,
-	SCF_OP_3AC_DEC_POINTER,
-
 	SCF_OP_3AC_INC_POST_DEREFERENCE,
-	SCF_OP_3AC_INC_POST_ARRAY_INDEX,
-	SCF_OP_3AC_INC_POST_POINTER,
-
 	SCF_OP_3AC_DEC_POST_DEREFERENCE,
+
+	SCF_OP_3AC_ASSIGN_ARRAY_INDEX,     // left value, a[0] = expr
+	SCF_OP_3AC_ADD_ASSIGN_ARRAY_INDEX,
+	SCF_OP_3AC_SUB_ASSIGN_ARRAY_INDEX,
+	SCF_OP_3AC_AND_ASSIGN_ARRAY_INDEX,
+	SCF_OP_3AC_OR_ASSIGN_ARRAY_INDEX,
+	SCF_OP_3AC_INC_ARRAY_INDEX,
+	SCF_OP_3AC_DEC_ARRAY_INDEX,
+	SCF_OP_3AC_INC_POST_ARRAY_INDEX,
 	SCF_OP_3AC_DEC_POST_ARRAY_INDEX,
+
+	SCF_OP_3AC_ASSIGN_POINTER,         // left value, p->a = expr
+	SCF_OP_3AC_ADD_ASSIGN_POINTER,
+	SCF_OP_3AC_SUB_ASSIGN_POINTER,
+	SCF_OP_3AC_AND_ASSIGN_POINTER,
+	SCF_OP_3AC_OR_ASSIGN_POINTER,
+	SCF_OP_3AC_INC_POINTER,
+	SCF_OP_3AC_DEC_POINTER,
+	SCF_OP_3AC_INC_POST_POINTER,
 	SCF_OP_3AC_DEC_POST_POINTER,
 
 	SCF_OP_3AC_JZ,		// jz, jmp if 0
@@ -151,6 +142,8 @@ enum scf_core_types {
 
 	SCF_OP_3AC_SAVE,     // save a var to memory,   only for 3ac & native
 	SCF_OP_3AC_LOAD,     // load a var from memory, only for 3ac & native
+	SCF_OP_3AC_RELOAD,   // reload a var from memory, only for 3ac & native
+	SCF_OP_3AC_RESAVE,   // resave a var to memory, only for 3ac & native
 
 	SCF_OP_3AC_NOP,
 	SCF_OP_3AC_END,
@@ -207,7 +200,7 @@ static int scf_type_is_binary_assign(int type)
 
 static int scf_type_is_assign_dereference(int type)
 {
-	return type >= SCF_OP_3AC_ASSIGN_DEREFERENCE && type <= SCF_OP_3AC_DEC_POST_POINTER;
+	return type >= SCF_OP_3AC_ASSIGN_DEREFERENCE && type <= SCF_OP_3AC_DEC_POST_DEREFERENCE;
 }
 
 static int scf_type_is_signed(int type)

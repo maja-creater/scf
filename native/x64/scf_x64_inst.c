@@ -1081,6 +1081,31 @@ static int _x64_inst_load_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	return x64_load_reg(r, dn, c, f);
 }
 
+static int _x64_inst_reload_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	if (!c->dst || !c->dst->dag_node)
+		return -EINVAL;
+
+	scf_x64_context_t*  x64 = ctx->priv;
+	scf_function_t*     f   = x64->f;
+	scf_dag_node_t*     dn  = c->dst->dag_node;
+
+	if (dn->color < 0)
+		return 0;
+	assert(dn->color > 0);
+
+	if (!c->instructions) {
+		c->instructions = scf_vector_alloc();
+		if (!c->instructions)
+			return -ENOMEM;
+	}
+
+	scf_register_x64_t* r = x64_find_register_color(dn->color);
+
+	dn->loaded = 0;
+	return x64_load_reg(r, dn, c, f);
+}
+
 static int _x64_inst_save_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 {
 	if (!c->srcs || c->srcs->size != 1)
@@ -1261,6 +1286,9 @@ static x64_inst_handler_t x64_inst_handlers[] = {
 
 	{SCF_OP_3AC_SAVE,       _x64_inst_save_handler},
 	{SCF_OP_3AC_LOAD,       _x64_inst_load_handler},
+
+	{SCF_OP_3AC_RESAVE,     _x64_inst_save_handler},
+	{SCF_OP_3AC_RELOAD,     _x64_inst_reload_handler},
 
 	{SCF_OP_3AC_ASSIGN_DEREFERENCE,     _x64_inst_assign_dereference_handler},
 	{SCF_OP_3AC_ASSIGN_ARRAY_INDEX,     _x64_inst_assign_array_index_handler},

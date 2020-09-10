@@ -1,16 +1,27 @@
 #include"scf_optimizer.h"
 
-extern scf_optimizer_t   scf_optimizer_active_vars;
+extern scf_optimizer_t   scf_optimizer_dag;
 
+extern scf_optimizer_t   scf_optimizer_pointer_alias;
+extern scf_optimizer_t   scf_optimizer_active_vars;
+extern scf_optimizer_t   scf_optimizer_pointer_aliases;
+extern scf_optimizer_t   scf_optimizer_loads_saves;
+
+extern scf_optimizer_t   scf_optimizer_basic_block;
 extern scf_optimizer_t   scf_optimizer_loop;
 
 extern scf_optimizer_t   scf_optimizer_generate_loads_saves;
 
-
 static scf_optimizer_t*  scf_optimizers[] =
 {
-	&scf_optimizer_active_vars,
+	&scf_optimizer_dag,
 
+	&scf_optimizer_pointer_alias,
+	&scf_optimizer_active_vars,
+	&scf_optimizer_pointer_aliases,
+	&scf_optimizer_loads_saves,
+
+	&scf_optimizer_basic_block,
 	&scf_optimizer_loop,
 
 	&scf_optimizer_generate_loads_saves,

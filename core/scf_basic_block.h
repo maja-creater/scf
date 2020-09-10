@@ -49,20 +49,37 @@ struct scf_basic_block_s
 
 	scf_vector_t*   entry_dn_actives;
 	scf_vector_t*   exit_dn_actives;
+
 	scf_vector_t*   dn_updateds;
 	scf_vector_t*   dn_loads;
 	scf_vector_t*   dn_saves;
+	scf_vector_t*   dn_colors;
+
+	scf_vector_t*   dn_status_initeds;
+
+	scf_vector_t*   dn_pointer_aliases;
+	scf_vector_t*   entry_dn_aliases;
+	scf_vector_t*   exit_dn_aliases;
+
+	scf_vector_t*   dn_reloads;
+	scf_vector_t*   dn_resaves;
 
 	int             code_bytes;
 	int             index;
 
 	uint32_t        call_flag   :1;
+	uint32_t        cmp_flag    :1;
 	uint32_t        jmp_flag    :1;
 	uint32_t        jcc_flag    :1;
 	uint32_t        ret_flag    :1;
 	uint32_t        end_flag    :1;
+
+	uint32_t        dereference_flag:1;
+	uint32_t        array_index_flag:1;
+
 	uint32_t        group_flag  :1;
 	uint32_t        visited_flag:1;
+	uint32_t        native_flag :1;
 };
 
 scf_basic_block_t*  scf_basic_block_alloc();
@@ -73,7 +90,9 @@ void                scf_bb_group_free(scf_bb_group_t* bbg);
 void                scf_basic_block_print(scf_basic_block_t* bb, scf_list_t* sentinel);
 void                scf_basic_block_print_list(scf_list_t* h);
 
-int                 scf_basic_block_active_vars(scf_basic_block_t* bb, scf_list_t* dag_list_head);
+int                 scf_basic_block_dag(scf_basic_block_t* bb, scf_list_t* dag_list_head);
+
+int                 scf_basic_block_active_vars(scf_basic_block_t* bb);
 
 int                 scf_basic_block_connect(scf_basic_block_t* prev_bb, scf_basic_block_t* next_bb);
 

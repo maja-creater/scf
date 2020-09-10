@@ -1,17 +1,23 @@
 #include"scf_dag.h"
+#include"scf_3ac.h"
 
-scf_active_var_t* scf_active_var_alloc(scf_dag_node_t* dag_node)
+scf_active_var_t* scf_active_var_alloc(scf_dag_node_t* dn)
 {
-	if (!dag_node)
+	if (!dn)
 		return NULL;
 
 	scf_active_var_t* v = calloc(1, sizeof(scf_active_var_t));
 	if (!v)
 		return NULL;
 
-	v->dag_node = dag_node;
-	v->active   = dag_node->active;
-	v->updated  = dag_node->updated;
+	v->dag_node = dn;
+
+	v->alias    = dn->alias;
+	v->value    = dn->value;
+
+	v->active   = dn->active;
+	v->inited   = dn->inited;
+	v->updated  = dn->updated;
 	return v;
 }
 
@@ -35,13 +41,13 @@ scf_dag_node_t* scf_dag_node_alloc(int type, scf_variable_t* var)
 	else
 		dag_node->var = NULL;
 
-#if 1
-	if (SCF_OP_TYPE_CAST == type) {
+#if 0
+	if (SCF_OP_ADDRESS_OF == type) {
 		scf_logi("dag_node: %#lx, dag_node->type: %d", 0xffff & (uintptr_t)dag_node, dag_node->type);
 		if (var) {
 			printf(", %d", var->type);
 			if (var->w)
-				printf(", w: %s, line: %d, pos: %d", var->w->text->data, var->w->line, var->w->pos);
+				printf(", v_%d_%d/%s", var->w->line, var->w->pos, var->w->text->data);
 			else
 				printf(", v_%#lx", 0xffff & (uintptr_t)var);
 		}
@@ -122,7 +128,7 @@ int scf_dag_node_same(scf_dag_node_t* dag_node, const scf_node_t* node)
 	if (dag_node->type != node->type)
 		return 0;
 
-	if (SCF_OP_TYPE_CAST == node->type) {
+	if (SCF_OP_ADDRESS_OF == node->type) {
 		scf_logd("type: %d, %d, node: %p, %p\n", dag_node->type, node->type, dag_node, node);
 		scf_logd("var: %p, %p\n", dag_node->var, node->var);
 //		scf_logi("var: %#lx, %#lx\n", 0xffff & (uintptr_t)dag_node->var, 0xffff & (uintptr_t)node->var);
@@ -162,8 +168,12 @@ int scf_dag_node_same(scf_dag_node_t* dag_node, const scf_node_t* node)
 		goto cmp_childs;
 	}
 
-	if (dag_node->childs->size != node->nb_nodes)
+	if (dag_node->childs->size != node->nb_nodes) {
+		if (SCF_OP_ADDRESS_OF == node->type) {
+			scf_logd("node: %p, %p, size: %d, %d\n", dag_node, node, dag_node->childs->size, node->nb_nodes);
+		}
 		return 0;
+	}
 
 cmp_childs:
 	for (i = 0; i < node->nb_nodes; i++) {
@@ -229,11 +239,15 @@ int scf_dag_dn_same(scf_dag_node_t* dn0, scf_dag_node_t* dn1)
 			return 0;
 	}
 
-	if (!dn0->childs || !dn1->childs)
+	if (!dn0->childs || !dn1->childs) {
+		scf_logd("dn0: %p, %p, dn1: %p, %p\n", dn0, dn0->childs, dn1, dn1->childs);
 		return 0;
+	}
 
-	if (dn0->childs->size != dn1->childs->size)
+	if (dn0->childs->size != dn1->childs->size) {
+		scf_logd("dn0: %p, %d, dn1: %p, %d\n", dn0, dn0->childs->size, dn1, dn1->childs->size);
 		return 0;
+	}
 
 	for (i = 0; i < dn0->childs->size; i++) {
 		scf_dag_node_t*	child0 = dn0->childs->data[i];
@@ -251,6 +265,12 @@ scf_dag_node_t* scf_dag_find_dn(scf_list_t* h, const scf_dag_node_t* dn0)
 	for (l = scf_list_tail(h); l != scf_list_sentinel(h); l = scf_list_prev(l)) {
 
 		scf_dag_node_t* dn1 = scf_list_data(l, scf_dag_node_t, list);
+
+		if (SCF_OP_ADDRESS_OF == dn0->type && SCF_OP_ADDRESS_OF == dn1->type) {
+			scf_logd("origin dn0: %p, %s, dn1: %p, %s\n",
+					dn0, dn0->var->w->text->data,
+					dn1, dn1->var->w->text->data);
+		}
 
 		if (scf_dag_dn_same(dn1, (scf_dag_node_t*)dn0))
 			return dn1;
@@ -335,5 +355,25 @@ int scf_dag_vector_find_leafs(scf_vector_t* roots, scf_vector_t* leafs)
 			return ret;
 	}
 	return 0;
+}
+
+void scf_dag_pointer_alias(scf_active_var_t* v, scf_dag_node_t* dn, scf_3ac_code_t* c)
+{
+	assert(SCF_OP_ASSIGN == c->op->type);
+
+	assert(c->srcs && c->srcs->size > 0);
+
+	scf_3ac_operand_t* src    = c->srcs->data[0];
+	scf_dag_node_t*    dn_src = src->dag_node;
+	scf_dag_node_t*    alias;
+
+	if (SCF_OP_ADDRESS_OF == dn_src->type) {
+		assert(1 == dn_src->childs->size);
+
+		alias = dn_src->childs->data[0];
+
+		if (scf_type_is_var(alias->type))
+			v->alias = alias;
+	}
 }
 
