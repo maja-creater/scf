@@ -136,7 +136,7 @@ scf_3ac_operator_t*	scf_3ac_find_operator(const int type)
 
 scf_3ac_operand_t* scf_3ac_operand_alloc()
 {
-	scf_3ac_operand_t* operand = calloc(1, sizeof(operand));
+	scf_3ac_operand_t* operand = calloc(1, sizeof(scf_3ac_operand_t));
 	assert(operand);
 	return operand;
 }
@@ -154,6 +154,52 @@ scf_3ac_code_t* scf_3ac_code_alloc()
 	scf_3ac_code_t* c = calloc(1, sizeof(scf_3ac_code_t));
 
 	return c;
+}
+
+int scf_3ac_code_same(scf_3ac_code_t* c0, scf_3ac_code_t* c1)
+{
+	if (c0->op != c1->op)
+		return 0;
+
+	if (c0->dst) {
+		if (!c1->dst)
+			return 0;
+
+		if (c0->dst->dag_node) {
+			if (!c1->dst->dag_node)
+				return 0;
+
+			if (!scf_dag_dn_same(c0->dst->dag_node, c1->dst->dag_node))
+				return 0;
+		} else if (c1->dst->dag_node)
+			return 0;
+	} else if (c1->dst)
+		return 0;
+
+	if (c0->srcs) {
+		if (!c1->srcs)
+			return 0;
+
+		if (c0->srcs->size != c1->srcs->size)
+			return 0;
+
+		int i;
+		for (i = 0; i < c0->srcs->size; i++) {
+			scf_3ac_operand_t* src0 = c0->srcs->data[i];
+			scf_3ac_operand_t* src1 = c1->srcs->data[i];
+
+			if (src0->dag_node) {
+				if (!src1->dag_node)
+					return 0;
+
+				if (!scf_dag_dn_same(src0->dag_node, src1->dag_node))
+					return 0;
+			} else if (src1->dag_node)
+				return 0;
+		}
+	} else if (c1->srcs)
+		return 0;
+	return 1;
 }
 
 scf_3ac_code_t* scf_3ac_code_clone(scf_3ac_code_t* c)
@@ -353,7 +399,10 @@ static void _3ac_print_dag_node(scf_dag_node_t* dn)
 		}
 	} else if (scf_type_is_operator(dn->type)) {
 		scf_3ac_operator_t* op = scf_3ac_find_operator(dn->type);
-		printf("v_/%s, ", op->name);
+		if (dn->var && dn->var->w)
+			printf("v_%d_%d/%s, ", dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
+		else
+			printf("v_/%s, ", op->name);
 	} else {
 		assert(0);
 	}
@@ -379,6 +428,8 @@ void scf_3ac_code_print(scf_3ac_code_t* c, scf_list_t* sentinel)
 			} else {
 				//printf(": end");
 			}
+		} else if (c->dst->bb) {
+			printf(" bb: %p ", c->dst->bb);
 		}
 	}
 
@@ -839,6 +890,9 @@ static int _3ac_connect_basic_blocks(scf_function_t* f)
 		scf_basic_block_t* dst_bb     = dst->basic_block;
 		scf_basic_block_t* prev_bb    = NULL;
 		scf_basic_block_t* next_bb    = NULL;
+
+		c->dst->bb   = dst_bb;
+		c->dst->code = NULL;
 
 		l = scf_list_prev(&current_bb->list);
 		if (l == sentinel)

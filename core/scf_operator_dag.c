@@ -108,6 +108,13 @@ static int _scf_dag_op_address_of(scf_list_t* h, scf_dag_node_t* parent, scf_dag
 	return _scf_3ac_code_2(h, SCF_OP_ADDRESS_OF, parent, nodes[0]);
 }
 
+static int _scf_dag_op_dereference(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
+{
+	assert(1 == nb_nodes);
+
+	return _scf_3ac_code_2(h, SCF_OP_DEREFERENCE, parent, nodes[0]);
+}
+
 static int _scf_dag_op_logic_not(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
 {
 	assert(1 == nb_nodes);
@@ -173,6 +180,7 @@ scf_dag_operator_t	dag_operators[] = {
 	{SCF_OP_NEG, 			"-", 	1, 1, SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_neg},
 
 	{SCF_OP_ADDRESS_OF, 	"&", 	1, 1, SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_address_of},
+	{SCF_OP_DEREFERENCE,    "*",    1, 1, SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_dereference},
 
 	{SCF_OP_MUL, 			"*", 	4, 2, SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_mul},
 	{SCF_OP_DIV, 			"/", 	4, 2, SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_div},

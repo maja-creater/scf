@@ -41,6 +41,7 @@ struct scf_active_var_s {
 
 	scf_dag_node_t*     alias;
 	intptr_t            index;
+	scf_dag_node_t*     dereference;
 
 	intptr_t            color;
 
@@ -78,6 +79,7 @@ void              scf_dag_pointer_alias(scf_active_var_t* v, scf_dag_node_t* dn,
 
 int               scf_dag_expr_calculate(scf_list_t* h, scf_dag_node_t* node);
 
+int               scf_dag_dn_same(scf_dag_node_t* dn0, scf_dag_node_t* dn1);
 
 static int scf_dn_status_cmp(const void* p0, const void* p1)
 {
@@ -85,6 +87,14 @@ static int scf_dn_status_cmp(const void* p0, const void* p1)
 	const scf_active_var_t* v1  = p1;
 
 	return dn0 != v1->dag_node;
+}
+
+static int scf_dn_status_cmp_dereference(const void* p0, const void* p1)
+{
+	const scf_dag_node_t*   dn0 = p0;
+	const scf_active_var_t* v1  = p1;
+
+	return dn0 != v1->dereference;
 }
 
 #endif

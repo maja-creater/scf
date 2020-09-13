@@ -16,9 +16,10 @@ struct scf_3ac_operator_s {
 
 struct scf_3ac_operand_s {
 
-	scf_node_t*			node; // for calculate
-	scf_dag_node_t*		dag_node; // for calculate
-	scf_3ac_code_t*		code; // for branch jump
+	scf_node_t*         node;      // AST node
+	scf_dag_node_t*     dag_node;  // for optimizer and native generator
+	scf_3ac_code_t*     code;      // for branch jump
+	scf_basic_block_t*  bb;        // dst basic block of jmp
 };
 
 struct scf_3ac_code_s {
@@ -64,6 +65,8 @@ scf_3ac_code_t*     scf_3ac_alloc_by_src(int op_type, scf_dag_node_t* src);
 scf_3ac_code_t*     scf_3ac_alloc_by_dst(int op_type, scf_dag_node_t* dst);
 
 int					scf_3ac_split_basic_blocks(scf_list_t* list_head_3ac, scf_function_t* f);
+
+int                 scf_3ac_code_same(scf_3ac_code_t* c0, scf_3ac_code_t* c1);
 
 #endif
 

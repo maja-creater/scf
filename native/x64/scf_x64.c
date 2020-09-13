@@ -475,10 +475,9 @@ static void _x64_set_offset_for_jmps(scf_native_t* ctx, scf_function_t* f)
 
 		for (i = 0; i < f->jmps->size; i++) {
 			scf_3ac_code_t*    c      = f->jmps->data[i];
-			scf_3ac_code_t*    dst    = c->dst->code;
 
 			scf_basic_block_t* cur_bb = c->basic_block;
-			scf_basic_block_t* dst_bb = dst->basic_block;
+			scf_basic_block_t* dst_bb = c->dst->bb;
 
 			scf_basic_block_t* bb     = NULL;
 			scf_list_t*        l      = NULL;
