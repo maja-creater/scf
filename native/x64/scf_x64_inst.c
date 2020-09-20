@@ -416,7 +416,7 @@ static int _x64_inst_dec_post_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 
 static int _x64_inst_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 {
-	return x64_inst_pointer(ctx, c);
+	return x64_inst_pointer(ctx, c, 0);
 }
 
 static int _x64_inst_assign_array_index(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
@@ -514,7 +514,7 @@ static int _x64_inst_assign_array_index(scf_native_t* ctx, scf_3ac_code_t* c, in
 	return 0;
 }
 
-static int _x64_inst_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+static int _x64_inst_array_index(scf_native_t* ctx, scf_3ac_code_t* c, int lea_flag)
 {
 	if (!c->dst || !c->dst->dag_node)
 		return -EINVAL;
@@ -567,7 +567,7 @@ static int _x64_inst_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		return ret;
 	}
 
-	if (vb->nb_dimentions > 1) {
+	if (vb->nb_dimentions > 1 || lea_flag) {
 		OpCode = x64_find_OpCode(SCF_X64_LEA, rd->bytes, rd->bytes, SCF_X64_E2G);
 
 	} else {
@@ -594,6 +594,11 @@ static int _x64_inst_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		X64_INST_ADD_CHECK(c->instructions, inst);
 	}
 	return 0;
+}
+
+static int _x64_inst_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	return _x64_inst_array_index(ctx, c, 0);
 }
 
 static int _x64_inst_dereference_handler(scf_native_t* ctx, scf_3ac_code_t* c)
@@ -1188,7 +1193,7 @@ X64_INST_UNARY_ASSIGN(dec, DEC)
 #define X64_INST_UNARY_POST_ASSIGN(name, op) \
 static int _x64_inst_##name##_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* c) \
 { \
-	int ret = x64_inst_pointer(ctx, c); \
+	int ret = x64_inst_pointer(ctx, c, 0); \
 	if (ret < 0) \
 		return ret; \
 	return x64_unary_assign_pointer(ctx, c, SCF_X64_##op); \
@@ -1209,6 +1214,16 @@ static int _x64_inst_##name##_dereference_handler(scf_native_t* ctx, scf_3ac_cod
 }
 X64_INST_UNARY_POST_ASSIGN(inc_post, INC)
 X64_INST_UNARY_POST_ASSIGN(dec_post, DEC)
+
+static int _x64_inst_address_of_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	return _x64_inst_array_index(ctx, c, 1);
+}
+
+static int _x64_inst_address_of_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	return x64_inst_pointer(ctx, c, 1);
+}
 
 static x64_inst_handler_t x64_inst_handlers[] = {
 
@@ -1325,6 +1340,9 @@ static x64_inst_handler_t x64_inst_handlers[] = {
 	{SCF_OP_3AC_DEC_POST_DEREFERENCE,   _x64_inst_dec_post_dereference_handler},
 	{SCF_OP_3AC_DEC_POST_ARRAY_INDEX,   _x64_inst_dec_post_array_index_handler},
 	{SCF_OP_3AC_DEC_POST_POINTER,       _x64_inst_dec_post_pointer_handler},
+
+	{SCF_OP_3AC_ADDRESS_OF_ARRAY_INDEX, _x64_inst_address_of_array_index_handler},
+	{SCF_OP_3AC_ADDRESS_OF_POINTER,     _x64_inst_address_of_pointer_handler},
 };
 
 x64_inst_handler_t* scf_x64_find_inst_handler(const int op_type)

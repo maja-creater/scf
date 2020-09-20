@@ -21,7 +21,9 @@ typedef struct {
 static int _class_is_class(scf_dfa_t* dfa, void* word)
 {
 	scf_lex_word_t* w = word;
-	return SCF_LEX_WORD_KEY_CLASS == w->type;
+
+	return SCF_LEX_WORD_KEY_CLASS  == w->type
+		|| SCF_LEX_WORD_KEY_STRUCT == w->type;
 }
 
 static int _class_action_identity(scf_dfa_t* dfa, scf_vector_t* words, void* data)

@@ -86,7 +86,6 @@ CFILES += scf_dfa_create.c
 CFILES += scf_dfa_sizeof.c
 CFILES += scf_dfa_expr.c
 
-CFILES += scf_dfa_struct.c
 CFILES += scf_dfa_union.c
 CFILES += scf_dfa_class.c
 

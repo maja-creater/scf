@@ -120,6 +120,9 @@ static scf_3ac_operator_t _3ac_operators[] = {
 	{SCF_OP_3AC_DEC_POST_DEREFERENCE,   "dereference--"},
 	{SCF_OP_3AC_DEC_POST_ARRAY_INDEX,   "array_index--"},
 	{SCF_OP_3AC_DEC_POST_POINTER,       "pointer--"},
+
+	{SCF_OP_3AC_ADDRESS_OF_ARRAY_INDEX, "&array_index"},
+	{SCF_OP_3AC_ADDRESS_OF_POINTER,     "&pointer"},
 };
 
 scf_3ac_operator_t*	scf_3ac_find_operator(const int type)
@@ -404,7 +407,8 @@ static void _3ac_print_dag_node(scf_dag_node_t* dn)
 		else
 			printf("v_/%s, ", op->name);
 	} else {
-		assert(0);
+		//printf("type: %d, v_%#lx\n", dn->type, 0xffff & (uintptr_t)dn->var);
+		//assert(0);
 	}
 }
 
@@ -557,7 +561,11 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 
 			int nb_operands = op->nb_operands;
 			if (SCF_OP_ARRAY_INDEX == op->type)
-				++nb_operands;
+				nb_operands = 3;
+			else if (SCF_OP_3AC_ADDRESS_OF_ARRAY_INDEX == c->op->type)
+				nb_operands = 3;
+			else if (SCF_OP_3AC_ADDRESS_OF_POINTER == c->op->type)
+				nb_operands = 2;
 
 			if (!dag_dst->childs || dag_dst->childs->size < nb_operands) {
 
@@ -571,7 +579,7 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 						break;
 				}
 				if (j == dag_dst->childs->size) {
-					scf_loge("\n");
+					scf_loge("c->op: %s, op: %s\n", c->op->name, op->name);
 					return -1;
 				}
 			}

@@ -47,7 +47,6 @@ extern scf_dfa_module_t  dfa_module_call;
 extern scf_dfa_module_t  dfa_module_sizeof;
 extern scf_dfa_module_t  dfa_module_init_data;
 
-extern scf_dfa_module_t  dfa_module_struct;
 extern scf_dfa_module_t  dfa_module_union;
 extern scf_dfa_module_t  dfa_module_class;
 
@@ -82,7 +81,6 @@ scf_dfa_module_t* dfa_modules[] =
 	&dfa_module_sizeof,
 	&dfa_module_init_data,
 
-	&dfa_module_struct,
 	&dfa_module_union,
 	&dfa_module_class,
 
@@ -489,7 +487,7 @@ int scf_parse_compile_function(scf_parse_t* parse, scf_native_t* native, scf_fun
 	scf_basic_block_print_list(&f->basic_block_list_head);
 	_scf_loops_print(f->bb_loops);
 #endif
-	return 0;
+//	return 0;
 	return scf_native_select_inst(native, f);
 
 error:

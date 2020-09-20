@@ -130,8 +130,7 @@ int x64_unary_assign_array_index(scf_native_t* ctx, scf_3ac_code_t* c, int OpCod
 int x64_inst_int_mul(scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t* c, scf_function_t* f);
 int x64_inst_int_div(scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t* c, scf_function_t* f, int mod_flag);
 
-int x64_inst_pointer(scf_native_t* ctx, scf_3ac_code_t* c);
-int x64_inst_array_index(scf_native_t* ctx, scf_3ac_code_t* c);
+int x64_inst_pointer(scf_native_t* ctx, scf_3ac_code_t* c, int lea_flag);
 int x64_inst_dereference(scf_native_t* ctx, scf_3ac_code_t* c);
 
 int x64_inst_float_cast(scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t* c, scf_function_t* f);

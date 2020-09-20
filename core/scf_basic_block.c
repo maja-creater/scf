@@ -404,7 +404,7 @@ static int _bb_update_dag(scf_basic_block_t* bb, scf_list_t* dag_list_head)
 
 		scf_dag_node_t* dn1 = scf_dag_find_dn(dag_list_head, dn0);
 		if (!dn1) {
-			scf_loge("dn0: v_%d_%d/%s\n", dn0->var->w->line, dn0->var->w->pos, dn0->var->w->text->data);
+			scf_loge("dn0: %p, v_%d_%d/%s\n", dn0, dn0->var->w->line, dn0->var->w->pos, dn0->var->w->text->data);
 			return -EINVAL;
 		}
 
@@ -509,21 +509,6 @@ int scf_basic_block_inited_vars(scf_basic_block_t* bb)
 			if (scf_type_is_var(dn->type)
 					&& (dn->var->global_flag || dn->var->local_flag)) {
 
-#define SCF_DN_STATUS_GET(ds, vec, dn) \
-				do { \
-					ds = scf_vector_find_cmp(vec, dn, scf_dn_status_cmp); \
-					if (!ds) { \
-						ds = scf_active_var_alloc(dn); \
-						if (!ds) \
-							return -ENOMEM; \
-						int ret = scf_vector_add(vec, ds); \
-						if (ret < 0) { \
-							scf_active_var_free(ds); \
-							return ret; \
-						} \
-					} \
-				} while (0)
-
 				SCF_DN_STATUS_GET(status, c->active_vars, dn);
 				dn->inited     = 1;
 				status->inited = 1;
@@ -532,10 +517,13 @@ int scf_basic_block_inited_vars(scf_basic_block_t* bb)
 				status2->inited = 1;
 
 				if (dn->var->nb_pointers > 0) {
-					scf_dag_pointer_alias(status, dn, c);
+					ret = scf_dag_pointer_alias(status, dn, c);
+					if (ret < 0)
+						return -1;
 
-					dn->alias      = status->alias;
-					status2->alias = status->alias;
+					dn->alias           = status->alias;
+					status2->alias      = status->alias;
+					status2->alias_type = status->alias_type;
 				}
 			}
 		}
@@ -547,7 +535,8 @@ int scf_basic_block_inited_vars(scf_basic_block_t* bb)
 			SCF_DN_STATUS_GET(status, c->active_vars, dn);
 
 			assert(status);
-			status->alias = status2->alias;
+			status->alias      = status2->alias;
+			status->alias_type = status2->alias_type;
 		}
 	}
 

@@ -8,7 +8,8 @@ static int _type_is__struct(scf_dfa_t* dfa, void* word)
 {
 	scf_lex_word_t* w = word;
 
-	return SCF_LEX_WORD_KEY_STRUCT == w->type;
+	return SCF_LEX_WORD_KEY_CLASS  == w->type
+		|| SCF_LEX_WORD_KEY_STRUCT == w->type;
 }
 
 static int _type_action_base_type(scf_dfa_t* dfa, scf_vector_t* words, void* data)

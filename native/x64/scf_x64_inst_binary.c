@@ -124,8 +124,7 @@ static int _binary_assign_sib(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_t
 		return -EINVAL;
 
 	scf_variable_t* b = base->dag_node->var;
-	scf_logw("b->type: %d, b->nb_pointers: %d, b->nb_dimentions: %d\n", b->type, b->nb_pointers, b->nb_dimentions);
-	assert(b->nb_pointers > 0 || b->nb_dimentions > 0);
+	assert(b->nb_pointers > 0 || b->nb_dimentions > 0 || b->type >= SCF_STRUCT);
 
 	if (!c->instructions) {
 		c->instructions = scf_vector_alloc();
@@ -136,7 +135,6 @@ static int _binary_assign_sib(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_t
 	scf_variable_t* v   = src->dag_node->var;
 	x64_sib_t       sib = {0};
 
-	scf_logw("\n");
 	int ret = fill(&sib, base->dag_node, index->dag_node, c, f);
 	if (ret < 0)
 		return ret;
@@ -145,7 +143,6 @@ static int _binary_assign_sib(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_t
 	if (is_float)
 		return _binary_assign_sib_float(sib.base, sib.index, sib.scale, sib.disp, src->dag_node, c, f, OpCode_type);
 
-	scf_logw("\n");
 	return _binary_assign_sib_int(sib.base, sib.index, sib.scale, sib.disp, src->dag_node, c, f, OpCode_type);
 }
 
@@ -252,18 +249,88 @@ int x64_binary_assign_dereference(scf_native_t* ctx, scf_3ac_code_t* c, int OpCo
 	return _binary_assign_sib(ctx, c, OpCode_type, 2, x64_dereference_reg);
 }
 
+int x64_inst_dereference(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	return _binary_SIB2G(ctx, c, SCF_X64_MOV, 1, x64_dereference_reg);
+}
+
 int x64_binary_assign_pointer(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 {
 	return _binary_assign_sib(ctx, c, OpCode_type, 3, x64_pointer_reg);
 }
 
-int x64_inst_pointer(scf_native_t* ctx, scf_3ac_code_t* c)
+int x64_inst_pointer(scf_native_t* ctx, scf_3ac_code_t* c, int lea_flag)
 {
-	return _binary_SIB2G(ctx, c, SCF_X64_MOV, 2, x64_pointer_reg);
-}
+	if (!c->dst || !c->dst->dag_node)
+		return -EINVAL;
 
-int x64_inst_dereference(scf_native_t* ctx, scf_3ac_code_t* c)
-{
-	return _binary_SIB2G(ctx, c, SCF_X64_MOV, 1, x64_dereference_reg);
+	if (!c->srcs || c->srcs->size != 2)
+		return -EINVAL;
+
+	scf_x64_context_t*  x64    = ctx->priv;
+	scf_function_t*     f      = x64->f;
+
+	scf_3ac_operand_t*  base   = c->srcs->data[0];
+	scf_3ac_operand_t*  member = c->srcs->data[1];
+
+	if (!base || !base->dag_node)
+		return -EINVAL;
+
+	if (!member || !member->dag_node)
+		return -EINVAL;
+
+	if (!c->instructions) {
+		c->instructions = scf_vector_alloc();
+		if (!c->instructions)
+			return -ENOMEM;
+	}
+
+	scf_variable_t*     vd  = c->dst->dag_node->var;
+	scf_variable_t*     vb  = base  ->dag_node->var;
+	scf_variable_t*     vm  = member->dag_node->var;
+
+	scf_register_x64_t* rd  = NULL;
+	x64_sib_t           sib = {0};
+
+	scf_x64_OpCode_t*   lea;
+	scf_x64_OpCode_t*   mov;
+	scf_instruction_t*  inst;
+
+	int ret = x64_select_reg(&rd, c->dst->dag_node, c, f, 0);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	ret = x64_pointer_reg(&sib, base->dag_node, member->dag_node, c, f);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	if (scf_variable_is_struct(vm)
+			|| scf_variable_is_array(vm)
+			|| lea_flag) {
+		mov = x64_find_OpCode(SCF_X64_LEA, rd->bytes, rd->bytes, SCF_X64_E2G);
+
+	} else {
+		int is_float = scf_variable_float(vd);
+		if (is_float) {
+			if (SCF_VAR_FLOAT == vd->type)
+				mov  = x64_find_OpCode(SCF_X64_MOVSS, rd->bytes, rd->bytes, SCF_X64_E2G);
+			else if (SCF_VAR_DOUBLE == vd->type)
+				mov  = x64_find_OpCode(SCF_X64_MOVSD, rd->bytes, rd->bytes, SCF_X64_E2G);
+		} else
+			mov  = x64_find_OpCode(SCF_X64_MOV,   rd->bytes, rd->bytes, SCF_X64_E2G);
+	}
+
+	if (sib.index) {
+		inst = x64_make_inst_SIB2G(mov, rd, sib.base, sib.index, sib.scale, sib.disp);
+		X64_INST_ADD_CHECK(c->instructions, inst);
+	} else {
+		inst = x64_make_inst_P2G(mov, rd, sib.base, sib.disp);
+		X64_INST_ADD_CHECK(c->instructions, inst);
+	}
+	return 0;
 }
 

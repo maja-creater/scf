@@ -903,6 +903,22 @@ static int _x64_rcg_##name##_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* 
 X64_RCG_UNARY_POST_ASSIGN(inc_post)
 X64_RCG_UNARY_POST_ASSIGN(dec_post)
 
+static int _x64_rcg_address_of_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+{
+	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	if (ret < 0)
+		return ret;
+	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+}
+
+static int _x64_rcg_address_of_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+{
+	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	if (ret < 0)
+		return ret;
+	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+}
+
 static x64_rcg_handler_t x64_rcg_handlers[] = {
 
 	{SCF_OP_CALL,			_x64_rcg_call_handler},
@@ -1015,6 +1031,9 @@ static x64_rcg_handler_t x64_rcg_handlers[] = {
 	{SCF_OP_3AC_DEC_POST_DEREFERENCE,   _x64_rcg_dec_post_dereference_handler},
 	{SCF_OP_3AC_DEC_POST_ARRAY_INDEX,   _x64_rcg_dec_post_array_index_handler},
 	{SCF_OP_3AC_DEC_POST_POINTER,       _x64_rcg_dec_post_pointer_handler},
+
+	{SCF_OP_3AC_ADDRESS_OF_ARRAY_INDEX, _x64_rcg_address_of_array_index_handler},
+	{SCF_OP_3AC_ADDRESS_OF_POINTER,     _x64_rcg_address_of_pointer_handler},
 };
 
 x64_rcg_handler_t* scf_x64_find_rcg_handler(const int op_type)

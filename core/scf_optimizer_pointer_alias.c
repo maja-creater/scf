@@ -169,9 +169,16 @@ static int _bb_pointer_aliases(scf_vector_t* aliases, scf_list_t* bb_list_head, 
 		status = scf_vector_find_cmp(bb2->dn_status_initeds, dn_pointer, scf_dn_status_cmp);
 
 		assert(status);
-		assert(status && status->alias);
 
-		ret = scf_vector_add_unique(aliases, status->alias);
+		if (SCF_DN_ALIAS_ARRAY == status->alias_type
+				|| SCF_DN_ALIAS_MEMBER == status->alias_type)
+			continue;
+		assert(status->alias);
+
+		if (scf_vector_find_cmp(aliases, status, scf_dn_status_cmp_alias))
+			continue;
+
+		ret = scf_vector_add(aliases, status);
 		if (ret < 0) {
 			scf_vector_free(initeds);
 			return ret;
@@ -336,35 +343,46 @@ static int _bb_copy_aliases(scf_basic_block_t* bb, scf_dag_node_t* dn_pointer, s
 {
 	scf_dag_node_t*    dn_alias;
 	scf_active_var_t*  status;
+	scf_active_var_t*  status2;
 
 	int ret;
 	int i;
 
 	for (i = 0; i < aliases->size; i++) {
-		dn_alias  = aliases->data[i];
+		status   = aliases->data[i];
+		dn_alias = status->alias;
 
-		if (scf_type_is_var(dn_alias->type)
-				&& !scf_variable_const(dn_alias->var)
-				&& (dn_alias->var->global_flag || dn_alias->var->local_flag)) {
+//		scf_variable_t* v = dn_alias->var;
+//		scf_logw("dn_alias: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
 
-			ret = scf_vector_add_unique(bb->entry_dn_aliases, dn_alias);
-			if (ret < 0)
-				return ret;
+		if (SCF_DN_ALIAS_VAR == status->alias_type) {
+			if (scf_type_is_var(dn_alias->type)
+					&& !scf_variable_const(dn_alias->var)
+					&& (dn_alias->var->global_flag || dn_alias->var->local_flag)) {
+
+				ret = scf_vector_add_unique(bb->entry_dn_aliases, dn_alias);
+				if (ret < 0)
+					return ret;
+			}
 		}
 
-		status = calloc(1, sizeof(scf_active_var_t));
-		if (!status)
+		status2 = calloc(1, sizeof(scf_active_var_t));
+		if (!status2)
 			return -ENOMEM;
 
-		ret = scf_vector_add(bb->dn_pointer_aliases, status);
+		ret = scf_vector_add(bb->dn_pointer_aliases, status2);
 		if (ret < 0) {
-			scf_active_var_free(status);
+			scf_active_var_free(status2);
 			return ret;
 		}
 
-		status->dag_node    = dn_pointer;
-		status->alias       = dn_alias;
-		status->dereference = dn_dereference;
+		status2->dag_node    = dn_pointer;
+		status2->dereference = dn_dereference;
+
+		status2->alias       = status->alias;
+		status2->alias_type  = status->alias_type;
+		status2->index       = status->index;
+		status2->member      = status->member;
 	}
 	return 0;
 }
@@ -425,9 +443,19 @@ static int __alias_dereference(scf_vector_t* aliases, scf_dag_node_t* dn_pointer
 		return 0;
 	}
 
+	if (!scf_type_is_var(dn_pointer->type)) {
+		SCF_DN_STATUS_GET(status, c->active_vars, dn_pointer);
+
+		ret = scf_dag_pointer_alias(status, dn_pointer, c);
+		if (ret < 0)
+			return ret;
+
+		return scf_vector_add_unique(aliases, status);
+	}
+
 	status = scf_vector_find_cmp(c->active_vars, dn_pointer, scf_dn_status_cmp);
 	if (status && status->alias)
-		ret = scf_vector_add_unique(aliases, status->alias);
+		ret = scf_vector_add_unique(aliases, status);
 	else
 		ret = _bb_pointer_aliases(aliases, bb_list_head, bb, dn_pointer);
 	return ret;
@@ -454,7 +482,8 @@ static int _alias_dereference(scf_vector_t** paliases, scf_dag_node_t* dn_pointe
 
 static int _alias_assign_dereference(scf_vector_t** paliases, scf_dag_node_t* dn_pointer, scf_3ac_code_t* c, scf_basic_block_t* bb, scf_list_t* bb_list_head)
 {
-	scf_vector_t*      aliases;
+	scf_active_var_t* status;
+	scf_vector_t*     aliases;
 	int ret;
 
 	aliases = scf_vector_alloc();
@@ -468,11 +497,16 @@ static int _alias_assign_dereference(scf_vector_t** paliases, scf_dag_node_t* dn
 	}
 
 	if (1 == aliases->size) {
-		ret = _3ac_pointer_alias(aliases->data[0], c, bb);
-		scf_vector_free(aliases);
-		if (ret < 0)
-			return ret;
-		return scf_basic_block_inited_vars(bb);
+		status = aliases->data[0];
+
+		if (SCF_DN_ALIAS_VAR == status->alias_type) {
+			ret = _3ac_pointer_alias(status->alias, c, bb);
+			scf_vector_free(aliases);
+			if (ret < 0)
+				return ret;
+			return scf_basic_block_inited_vars(bb);
+		}
+		return 0;
 	}
 
 	*paliases = aliases;

@@ -310,7 +310,7 @@ static int _scf_op_semantic_array_index(scf_ast_t* ast, scf_node_t** nodes, int 
 	assert(v0);
 
 	if (v0->nb_dimentions <= 0) {
-		scf_loge("index out\n");
+		scf_loge("index out, v0: %s\n", v0->w->text->data);
 		return -1;
 	}
 
@@ -1396,6 +1396,8 @@ static int _scf_op_semantic_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 	}
 
 	if (!scf_variable_same_type(v0, v1)) {
+
+		scf_logw("v0: v_%d_%d/%s\n", v0->w->line, v0->w->pos, v0->w->text->data);
 
 		if (scf_type_cast_check(ast, v0, v1) < 0) {
 			scf_loge("\n");

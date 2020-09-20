@@ -10,14 +10,17 @@ scf_active_var_t* scf_active_var_alloc(scf_dag_node_t* dn)
 	if (!v)
 		return NULL;
 
-	v->dag_node = dn;
+	v->dag_node   = dn;
 
-	v->alias    = dn->alias;
-	v->value    = dn->value;
+	v->alias      = dn->alias;
+	v->index      = dn->index;
+	v->member     = dn->member;
+	v->alias_type = dn->alias_type;
 
-	v->active   = dn->active;
-	v->inited   = dn->inited;
-	v->updated  = dn->updated;
+	v->active     = dn->active;
+	v->inited     = dn->inited;
+	v->updated    = dn->updated;
+
 	return v;
 }
 
@@ -42,14 +45,15 @@ scf_dag_node_t* scf_dag_node_alloc(int type, scf_variable_t* var)
 		dag_node->var = NULL;
 
 #if 0
-	if (SCF_OP_ADDRESS_OF == type) {
-		scf_logi("dag_node: %#lx, dag_node->type: %d", 0xffff & (uintptr_t)dag_node, dag_node->type);
+	if (1 || scf_type_is_var(type)) {
+		scf_logw("dag_node: %#lx, dag_node->type: %d", 0xffff & (uintptr_t)dag_node, dag_node->type);
 		if (var) {
-			printf(", %d", var->type);
+			printf(", var->type: %d", var->type);
 			if (var->w)
 				printf(", v_%d_%d/%s", var->w->line, var->w->pos, var->w->text->data);
-			else
-				printf(", v_%#lx", 0xffff & (uintptr_t)var);
+			else {
+				//printf(", v_%#lx", 0xffff & (uintptr_t)var);
+			}
 		}
 		printf("\n");
 	}
@@ -166,11 +170,30 @@ int scf_dag_node_same(scf_dag_node_t* dag_node, const scf_node_t* node)
 		assert(3 == dag_node->childs->size);
 		assert(2 == node->nb_nodes);
 		goto cmp_childs;
+
+	} else if (SCF_OP_ADDRESS_OF == node->type) {
+		assert(1 == node->nb_nodes);
+
+		if (SCF_OP_ARRAY_INDEX == node->nodes[0]->type) {
+			assert(3 == dag_node->childs->size);
+			assert(2 == node->nodes[0]->nb_nodes);
+			node = node->nodes[0];
+			goto cmp_childs;
+
+		} else if (SCF_OP_POINTER == node->nodes[0]->type) {
+			assert(2 == node->nodes[0]->nb_nodes);
+
+			if (!dag_node->childs || 2 != dag_node->childs->size)
+				return 0;
+
+			node = node->nodes[0];
+			goto cmp_childs;
+		}
 	}
 
 	if (dag_node->childs->size != node->nb_nodes) {
 		if (SCF_OP_ADDRESS_OF == node->type) {
-			scf_logd("node: %p, %p, size: %d, %d\n", dag_node, node, dag_node->childs->size, node->nb_nodes);
+			scf_loge("node: %p, %p, size: %d, %d\n", dag_node, node, dag_node->childs->size, node->nb_nodes);
 		}
 		return 0;
 	}
@@ -239,10 +262,16 @@ int scf_dag_dn_same(scf_dag_node_t* dn0, scf_dag_node_t* dn1)
 			return 0;
 	}
 
-	if (!dn0->childs || !dn1->childs) {
-		scf_logd("dn0: %p, %p, dn1: %p, %p\n", dn0, dn0->childs, dn1, dn1->childs);
+	if (!dn0->childs) {
+		if (dn1->childs)
+			return 0;
+
+		scf_logd("dn0: %p, %p, dn1: %p, %p, var: %p, %p\n", dn0, dn0->childs, dn1, dn1->childs, dn0->var, dn1->var);
+		if (dn0->var == dn1->var)
+			return 1;
 		return 0;
-	}
+	} else if (!dn1->childs)
+		return 0;
 
 	if (dn0->childs->size != dn1->childs->size) {
 		scf_logd("dn0: %p, %d, dn1: %p, %d\n", dn0, dn0->childs->size, dn1, dn1->childs->size);
@@ -357,9 +386,10 @@ int scf_dag_vector_find_leafs(scf_vector_t* roots, scf_vector_t* leafs)
 	return 0;
 }
 
-void scf_dag_pointer_alias(scf_active_var_t* v, scf_dag_node_t* dn, scf_3ac_code_t* c)
+int scf_dag_pointer_alias(scf_active_var_t* v, scf_dag_node_t* dn, scf_3ac_code_t* c)
 {
-	assert(SCF_OP_ASSIGN == c->op->type);
+	assert(SCF_OP_ASSIGN == c->op->type
+			|| SCF_OP_DEREFERENCE == c->op->type);
 
 	assert(c->srcs && c->srcs->size > 0);
 
@@ -367,13 +397,57 @@ void scf_dag_pointer_alias(scf_active_var_t* v, scf_dag_node_t* dn, scf_3ac_code
 	scf_dag_node_t*    dn_src = src->dag_node;
 	scf_dag_node_t*    alias;
 
+	while (SCF_OP_TYPE_CAST == dn_src->type) {
+		assert(dn_src->childs && 1 == dn_src->childs->size);
+		dn_src = dn_src->childs->data[0];
+	}
+
 	if (SCF_OP_ADDRESS_OF == dn_src->type) {
-		assert(1 == dn_src->childs->size);
 
 		alias = dn_src->childs->data[0];
+		switch (dn_src->childs->size) {
+			case 1:
+				assert(scf_type_is_var(alias->type));
+				v->alias      = alias;
+				v->alias_type = SCF_DN_ALIAS_VAR;
+				break;
+			case 2:
+				v->alias      = NULL;
+				v->alias_type = SCF_DN_ALIAS_MEMBER;
+				break;
+			case 3:
+				v->alias      = NULL;
+				v->alias_type = SCF_DN_ALIAS_ARRAY;
+				break;
+			default:
+				scf_loge("\n");
+				return -1;
+				break;
+		};
+	} else if (SCF_OP_ADD == dn_src->type) {
+		scf_loge("\n");
+		return -1;
+	} else if (scf_type_is_var(dn_src->type)) {
 
-		if (scf_type_is_var(alias->type))
-			v->alias = alias;
+		if (dn_src->var->nb_dimentions > 0) {
+			v->alias      = dn_src;
+			v->index      = 0;
+			v->alias_type = SCF_DN_ALIAS_ARRAY;
+
+		} else if (dn_src->var->nb_pointers > 0) {
+			scf_loge("\n");
+			return -1;
+		} else {
+			v->alias      = dn_src;
+			v->alias_type = SCF_DN_ALIAS_VAR;
+		}
+	} else {
+		if (dn_src->var->w)
+			scf_logw("type: %d, v_%s\n", dn_src->type, dn_src->var->w->text->data);
+		else
+			scf_logw("type: %d, v_%#lx\n", dn_src->type, 0xffff & (uintptr_t)dn_src->var);
+		return -1;
 	}
+	return 0;
 }
 

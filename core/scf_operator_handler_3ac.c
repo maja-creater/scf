@@ -110,7 +110,8 @@ static int _scf_expr_calculate_internal(scf_ast_t* ast, scf_node_t* node, void* 
 		// right associativity
 		scf_logd("right associativity\n");
 
-		if (!scf_type_is_assign(node->op->type)) {
+		if (!scf_type_is_assign(node->op->type)
+				&& SCF_OP_ADDRESS_OF != node->op->type) {
 			int i;
 			for (i = node->nb_nodes - 1; i >= 0; i--) {
 				if (_scf_expr_calculate_internal(ast, node->nodes[i], d) < 0) {
@@ -378,29 +379,16 @@ static int _scf_op_create(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 	return ret;
 }
 
-static int _scf_op_array_index(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+static int _scf_op_array_scale(scf_ast_t* ast, scf_node_t* parent, scf_node_t** pscale)
 {
-	assert(2 == nb_nodes);
-
-	scf_handler_data_t* d = data;
-
-	scf_node_t* parent = nodes[0]->parent;
-
-	scf_variable_t* v0;
+	scf_variable_t* v_member;
 	scf_variable_t* v_scale;
 	scf_type_t*     t_scale;
 	scf_node_t*     n_scale;
-	scf_node_t*     srcs[3];
 
-	int ret = _scf_expr_calculate_internal(ast, nodes[1], d);
-	if (ret < 0) {
-		scf_loge("\n");
-		return -1;
-	}
+	v_member = _scf_operand_get(parent);
 
-	v0 = _scf_operand_get(parent);
-
-	int size = scf_variable_size(v0);
+	int size = scf_variable_size(v_member);
 	assert(size > 0);
 
 	t_scale = scf_ast_find_type_type(ast, SCF_VAR_INTPTR);
@@ -412,6 +400,32 @@ static int _scf_op_array_index(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 	n_scale = scf_node_alloc(NULL, v_scale->type, v_scale);
 	if (!n_scale)
 		return -ENOMEM;
+
+	*pscale = n_scale;
+	return 0;
+}
+
+static int _scf_op_array_index(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	assert(2 == nb_nodes);
+
+	scf_handler_data_t* d   = data;
+
+	scf_node_t*     parent  = nodes[0]->parent;
+	scf_node_t*     n_scale = NULL;
+	scf_node_t*     srcs[3];
+
+	int ret = _scf_expr_calculate_internal(ast, nodes[1], d);
+	if (ret < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	ret = _scf_op_array_scale(ast, parent, &n_scale);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
 
 	srcs[0] = nodes[0];
 	srcs[1] = nodes[1];
@@ -1252,7 +1266,7 @@ int scf_function_to_3ac(scf_ast_t* ast, scf_function_t* f, scf_list_t* _3ac_list
 		return -1;
 	}
 
-	scf_logi("f: %p ok\n", f);
+	scf_logi("f: %p ok\n\n", f);
 	return 0;
 }
 
@@ -1328,9 +1342,68 @@ static int _scf_op_##name(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 SCF_OP_UNARY(neg,         SCF_OP_NEG)
 SCF_OP_UNARY(positive,    SCF_OP_POSITIVE)
 SCF_OP_UNARY(dereference, SCF_OP_DEREFERENCE)
-SCF_OP_UNARY(address_of,  SCF_OP_ADDRESS_OF)
 SCF_OP_UNARY(logic_not,   SCF_OP_LOGIC_NOT)
 SCF_OP_UNARY(bit_not,     SCF_OP_BIT_NOT)
+
+static int _scf_op_address_of(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	assert(1 == nb_nodes);
+
+	scf_handler_data_t* d = data;
+
+	scf_node_t* parent    = nodes[0]->parent;
+	scf_node_t* child     = nodes[0];
+
+	if (scf_type_is_var(child->type))
+		return _scf_3ac_code_2(d->_3ac_list_head, SCF_OP_ADDRESS_OF, parent, child);
+
+	if (SCF_OP_ARRAY_INDEX == child->type) {
+		assert(2 == child->nb_nodes);
+
+		scf_node_t* n_scale = NULL;
+		scf_node_t* srcs[3];
+
+		int i;
+		for (i = 0; i < 2; i++) {
+			if (_scf_expr_calculate_internal(ast, child->nodes[i], d) < 0) {
+				scf_loge("\n");
+				return -1;
+			}
+		}
+
+		int ret = _scf_op_array_scale(ast, child, &n_scale);
+		if (ret < 0)
+			return ret;
+
+		srcs[0] = child->nodes[0];
+		srcs[1] = child->nodes[1];
+		srcs[2] = n_scale;
+
+		return _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_3AC_ADDRESS_OF_ARRAY_INDEX, parent, srcs, 3);
+	}
+
+	if (SCF_OP_POINTER == child->type) {
+		assert(2 == child->nb_nodes);
+
+		scf_node_t* srcs[2];
+
+		int i;
+		for (i = 0; i < 2; i++) {
+			if (_scf_expr_calculate_internal(ast, child->nodes[i], d) < 0) {
+				scf_loge("\n");
+				return -1;
+			}
+		}
+
+		srcs[0] = child->nodes[0];
+		srcs[1] = child->nodes[1];
+
+		return _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_3AC_ADDRESS_OF_POINTER, parent, srcs, 2);
+	}
+
+	scf_loge("\n");
+	return -1;
+}
 
 static int _scf_op_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
@@ -1366,11 +1439,8 @@ static int _scf_op_left_value_array_index(scf_ast_t* ast, int type, scf_node_t* 
 {
 	assert(2 == left->nb_nodes);
 
-	scf_variable_t* v0;
-	scf_variable_t* v_scale;
-	scf_type_t*     t_scale;
-	scf_node_t*     n_scale;
-	scf_node_t*     srcs[4];
+	scf_node_t* n_scale = NULL;
+	scf_node_t* srcs[4];
 
 	int i;
 	for (i = 0; i < 2; i++) {
@@ -1382,20 +1452,11 @@ static int _scf_op_left_value_array_index(scf_ast_t* ast, int type, scf_node_t* 
 		srcs[i] = left->nodes[i];
 	}
 
-	v0 = _scf_operand_get(left);
-
-	int size = scf_variable_size(v0);
-	assert(size > 0);
-
-	t_scale = scf_ast_find_type_type(ast, SCF_VAR_INTPTR);
-	v_scale = SCF_VAR_ALLOC_BY_TYPE(NULL, t_scale, 0, 0, NULL);
-	if (!v_scale)
-		return -ENOMEM;
-	v_scale->data.i = size;
-
-	n_scale = scf_node_alloc(NULL, v_scale->type, v_scale);
-	if (!n_scale)
-		return -ENOMEM;
+	int ret = _scf_op_array_scale(ast, left, &n_scale);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
 
 	srcs[i++] = n_scale;
 	if (right)

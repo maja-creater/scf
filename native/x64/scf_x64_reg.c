@@ -596,7 +596,13 @@ int x64_pointer_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* member
 	int     ret;
 	int32_t disp = 0;
 
-	if (vb->local_flag) {
+	if (vb->nb_pointers > 0 && 0 == vb->nb_dimentions) {
+		ret = x64_select_reg(&rb, base, c, f, 1);
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
+	} else if (vb->local_flag) {
 		rb   = x64_find_register("rbp");
 		disp = vb->bp_offset;
 
