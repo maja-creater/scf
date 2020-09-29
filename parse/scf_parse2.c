@@ -477,6 +477,7 @@ int scf_parse_compile_function(scf_parse_t* parse, scf_native_t* native, scf_fun
 		goto error;
 	}
 	assert(scf_list_empty(&code_list_head));
+	scf_basic_block_print_list(&f->basic_block_list_head);
 
 	ret = scf_optimize(f, &f->basic_block_list_head);
 	if (ret < 0) {
@@ -487,7 +488,7 @@ int scf_parse_compile_function(scf_parse_t* parse, scf_native_t* native, scf_fun
 	scf_basic_block_print_list(&f->basic_block_list_head);
 	_scf_loops_print(f->bb_loops);
 #endif
-//	return 0;
+	return 0;
 	return scf_native_select_inst(native, f);
 
 error:

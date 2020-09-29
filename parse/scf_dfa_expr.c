@@ -76,7 +76,7 @@ static int _expr_is_binary_op(scf_dfa_t* dfa, void* word)
 	return 0;
 }
 
-static int _expr_add_var(scf_parse_t* parse, dfa_parse_data_t* d)
+int _expr_add_var(scf_parse_t* parse, dfa_parse_data_t* d)
 {
 	expr_module_data_t* md   = d->module_datas[dfa_module_expr.index];
 	scf_lex_word_t*     w    = d->current_identity;

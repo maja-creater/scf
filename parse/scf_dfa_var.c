@@ -45,7 +45,7 @@ int _check_recursive(scf_type_t* parent, scf_type_t* child, scf_lex_word_t* w)
 	return SCF_DFA_OK;
 }
 
-int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
+static int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
 {
 	scf_parse_t* parse = dfa->priv;
 

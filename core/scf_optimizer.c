@@ -3,6 +3,7 @@
 extern scf_optimizer_t   scf_optimizer_dag;
 
 extern scf_optimizer_t   scf_optimizer_pointer_alias;
+extern scf_optimizer_t   scf_optimizer_call;
 extern scf_optimizer_t   scf_optimizer_active_vars;
 extern scf_optimizer_t   scf_optimizer_pointer_aliases;
 extern scf_optimizer_t   scf_optimizer_loads_saves;
@@ -15,8 +16,10 @@ extern scf_optimizer_t   scf_optimizer_generate_loads_saves;
 static scf_optimizer_t*  scf_optimizers[] =
 {
 	&scf_optimizer_dag,
-
+#if 1
+	&scf_optimizer_call,
 	&scf_optimizer_pointer_alias,
+
 	&scf_optimizer_active_vars,
 	&scf_optimizer_pointer_aliases,
 	&scf_optimizer_loads_saves,
@@ -25,6 +28,7 @@ static scf_optimizer_t*  scf_optimizers[] =
 //	&scf_optimizer_loop,
 
 	&scf_optimizer_generate_loads_saves,
+#endif
 };
 
 

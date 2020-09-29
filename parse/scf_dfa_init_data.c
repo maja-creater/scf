@@ -7,6 +7,8 @@ extern scf_dfa_module_t dfa_module_init_data;
 int scf_array_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variable_t* var, scf_vector_t* init_exprs);
 int scf_struct_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variable_t* var, scf_vector_t* init_exprs);
 
+int _expr_add_var(scf_parse_t* parse, dfa_parse_data_t* d);
+
 typedef struct {
 	int              nb_lbs;
 	int              nb_rbs;
@@ -139,6 +141,11 @@ static int _data_action_rb(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	data_module_data_t* md    = d->module_datas[dfa_module_init_data.index]; 
 
 	if (d->expr) {
+		if (d->current_identity) {
+			if (_expr_add_var(parse, d) < 0)
+				return SCF_DFA_ERROR;
+		}
+
 		if (_add_data_init_expr(dfa, words, d) < 0)
 			return SCF_DFA_ERROR;
 	}

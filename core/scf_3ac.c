@@ -560,12 +560,22 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 				continue;
 
 			int nb_operands = op->nb_operands;
-			if (SCF_OP_ARRAY_INDEX == op->type)
-				nb_operands = 3;
-			else if (SCF_OP_3AC_ADDRESS_OF_ARRAY_INDEX == c->op->type)
-				nb_operands = 3;
-			else if (SCF_OP_3AC_ADDRESS_OF_POINTER == c->op->type)
-				nb_operands = 2;
+			switch (c->op->type) {
+				case SCF_OP_ARRAY_INDEX:
+				case SCF_OP_3AC_ADDRESS_OF_ARRAY_INDEX:
+					nb_operands = 3;
+					break;
+
+				case SCF_OP_3AC_ADDRESS_OF_POINTER:
+					nb_operands = 2;
+					break;
+
+				case SCF_OP_CALL:
+					nb_operands = c->srcs->size;
+					break;
+				default:
+					break;
+			};
 
 			if (!dag_dst->childs || dag_dst->childs->size < nb_operands) {
 
@@ -579,7 +589,8 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 						break;
 				}
 				if (j == dag_dst->childs->size) {
-					scf_loge("c->op: %s, op: %s\n", c->op->name, op->name);
+					scf_loge("c->op: %s, op: %s, dag_dst->childs->size: %d, c->srcs->size: %d\n",
+							c->op->name, op->name, dag_dst->childs->size, c->srcs->size);
 					return -1;
 				}
 			}
@@ -623,6 +634,7 @@ static void _3ac_find_basic_block_start(scf_list_t* h)
 		}
 #endif
 
+#if 0
 		if (SCF_OP_CALL == c->op->type
 				|| SCF_OP_3AC_CALL_EXTERN == c->op->type) {
 
@@ -635,9 +647,16 @@ static void _3ac_find_basic_block_start(scf_list_t* h)
 //			c->basic_block_start = 1;
 			continue;
 		}
+#endif
 
-		if (SCF_OP_RETURN == c->op->type
-				|| SCF_OP_3AC_END == c->op->type) {
+#if 0
+		if (SCF_OP_RETURN == c->op->type) {
+			c->basic_block_start = 1;
+			continue;
+		}
+#endif
+
+		if (SCF_OP_3AC_END == c->op->type) {
 			c->basic_block_start = 1;
 			continue;
 		}
@@ -834,9 +853,11 @@ static int _3ac_split_basic_blocks(scf_list_t* h, scf_function_t* f)
 			assert(bb);
 			c->basic_block = bb;
 
-			if (scf_type_is_assign_dereference(c->op->type)
-					|| SCF_OP_DEREFERENCE == c->op->type)
+			if (scf_type_is_assign_dereference(c->op->type) || SCF_OP_DEREFERENCE == c->op->type)
 				bb->dereference_flag = 1;
+
+			else if (SCF_OP_CALL == c->op->type || SCF_OP_3AC_CALL_EXTERN == c->op->type)
+				bb->call_flag = 1;
 
 			scf_list_del(&c->list);
 			scf_list_add_tail(&bb->code_list_head, &c->list);

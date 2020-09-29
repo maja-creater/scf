@@ -24,7 +24,8 @@ static int _optimize_loads_saves(scf_function_t* f, scf_list_t* bb_list_head)
 
 			dn = bb->entry_dn_actives->data[i];
 
-			if (scf_vector_find(bb->entry_dn_aliases, dn))
+			if (scf_vector_find(bb->entry_dn_aliases, dn)
+					|| scf_type_is_operator(dn->type))
 				ret = scf_vector_add_unique(bb->dn_reloads, dn);
 			else
 				ret = scf_vector_add_unique(bb->dn_loads, dn);
@@ -41,7 +42,8 @@ static int _optimize_loads_saves(scf_function_t* f, scf_list_t* bb_list_head)
 					continue;
 			}
 
-			if (scf_vector_find(bb->exit_dn_aliases, dn))
+			if (scf_vector_find(bb->exit_dn_aliases, dn)
+					|| scf_type_is_operator(dn->type))
 				ret = scf_vector_add_unique(bb->dn_resaves, dn);
 			else
 				ret = scf_vector_add_unique(bb->dn_saves, dn);

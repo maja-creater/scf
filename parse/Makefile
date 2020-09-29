@@ -64,9 +64,12 @@ CFILES += ../core/scf_operator_dag.c
 CFILES += ../core/scf_basic_block.c
 CFILES += ../core/scf_3ac.c
 
+CFILES += ../core/scf_pointer_alias.c
+
 CFILES += ../core/scf_optimizer.c
 CFILES += ../core/scf_optimizer_dag.c
 CFILES += ../core/scf_optimizer_pointer_alias.c
+CFILES += ../core/scf_optimizer_call.c
 CFILES += ../core/scf_optimizer_active_vars.c
 CFILES += ../core/scf_optimizer_pointer_aliases.c
 CFILES += ../core/scf_optimizer_loads_saves.c

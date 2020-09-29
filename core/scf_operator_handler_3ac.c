@@ -1276,40 +1276,77 @@ static int _scf_op_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* 
 
 	assert(nb_nodes > 0);
 
-	scf_handler_data_t* d = data;
+	scf_handler_data_t* d      = data;
+	scf_variable_t*     v      = NULL;
+	scf_function_t*     f      = NULL;
+	scf_vector_t*       argv   = NULL;
+	scf_node_t*         parent = nodes[0]->parent;
 
+	int i;
 	int ret = _scf_expr_calculate_internal(ast, nodes[0], d);
 	if (ret < 0) {
 		scf_loge("\n");
-		return -1;
+		return ret;
 	}
 
-	scf_variable_t* v0 = _scf_operand_get(nodes[0]);
-
-	scf_function_t* f = v0->func_ptr; 
+	v = _scf_operand_get(nodes[0]);
+	f = v->func_ptr;
 	assert(f->argv->size == nb_nodes - 1);
 
-	scf_vector_t* argv = scf_vector_alloc();
-	scf_vector_add(argv, nodes[0]);
+	argv = scf_vector_alloc();
+	if (!argv) {
+		scf_loge("\n");
+		return -ENOMEM;
+	}
 
-	int i;
+	ret = scf_vector_add(argv, nodes[0]);
+	if (ret < 0) {
+		scf_vector_free(argv);
+		return ret;
+	}
+
 	for (i = 1; i < nb_nodes; i++) {
-		scf_node_t* arg = nodes[i];
+		scf_node_t*     arg   = nodes[i];
+		scf_node_t*     child = NULL;
 
 		while (SCF_OP_EXPR == arg->type)
 			arg = arg->nodes[0];
 
-		scf_vector_add(argv, arg);
+		if (scf_type_is_assign(arg->type)) {
+
+			assert(2 == arg->nb_nodes);
+			child     = arg->nodes[0];
+
+			child->_3ac_done = 0;
+
+			ret = _scf_expr_calculate_internal(ast, child, d);
+			if (ret < 0) {
+				scf_vector_free(argv);
+				return ret;
+			}
+
+			arg = child;
+		}
+
+		ret = scf_vector_add(argv, arg);
+		if (ret < 0) {
+			scf_vector_free(argv);
+			return ret;
+		}
+
+		v = _scf_operand_get(arg);
+		v->local_flag = 1;
 	}
 
-	scf_logw("f: %p, ok\n\n", f);
+	v = _scf_operand_get(parent);
+	if (v)
+		v->local_flag = 1;
 
-	scf_node_t* parent = nodes[0]->parent;
+	scf_logw("f: %p, ok\n\n", f);
 
 	ret = _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_CALL, parent, (scf_node_t**)argv->data, argv->size);
 
 	scf_vector_free(argv);
-	argv = NULL;
 	return ret;
 }
 

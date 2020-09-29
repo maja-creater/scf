@@ -41,6 +41,7 @@ struct scf_3ac_code_s {
 	uint32_t            jmp_dst_flag     :1;
 
 	scf_vector_t*		active_vars;
+	scf_vector_t*		dn_status_initeds;
 
 	scf_vector_t*		instructions;
 	int                 inst_bytes;

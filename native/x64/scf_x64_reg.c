@@ -276,7 +276,8 @@ int x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf_3ac_code_t* c, 
 	}
 
 	// if temp var in register, alloc it in stack
-	if (!v->global_flag && !v->local_flag) {
+//	if (!v->global_flag && !v->local_flag) {
+	if (0 == v->bp_offset) {
 
 		int local_vars_size  = f->local_vars_size;
 		local_vars_size     += var_size;

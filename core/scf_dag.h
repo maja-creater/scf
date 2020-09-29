@@ -5,16 +5,18 @@
 #include"scf_variable.h"
 #include"scf_node.h"
 
-typedef struct scf_dag_node_s	scf_dag_node_t;
-typedef struct scf_active_var_s scf_active_var_t;
+typedef struct scf_dag_node_s    scf_dag_node_t;
+typedef struct scf_dn_index_s    scf_dn_index_t;
+typedef struct scf_active_var_s  scf_active_var_t;
 
 enum scf_dn_alias_type
 {
-	SCF_DN_ALIAS_NONE = 0,
+	SCF_DN_ALIAS_NULL = 0,
 
 	SCF_DN_ALIAS_VAR,
 	SCF_DN_ALIAS_ARRAY,
 	SCF_DN_ALIAS_MEMBER,
+	SCF_DN_ALIAS_ALLOC,
 };
 
 struct scf_dag_node_s {
@@ -26,11 +28,6 @@ struct scf_dag_node_s {
 
 	scf_vector_t*		parents;
 	scf_vector_t*		childs;
-
-	scf_dag_node_t*     alias;
-	intptr_t            index;
-	scf_variable_t*     member;
-	int                 alias_type;
 
 	void*               rabi;
 	void*               rabi2;
@@ -44,12 +41,19 @@ struct scf_dag_node_s {
 	uint32_t            loaded :1;
 };
 
+struct scf_dn_index_s {
+	scf_variable_t*     member;
+	intptr_t            index;
+	int                 refs;
+};
+
 struct scf_active_var_s {
 	scf_dag_node_t*     dag_node;
 
+	scf_vector_t*       dn_indexes;
+
 	scf_dag_node_t*     alias;
-	intptr_t            index;
-	scf_variable_t*     member;
+	scf_vector_t*       alias_indexes;
 	int                 alias_type;
 	scf_dag_node_t*     dereference;
 
@@ -60,8 +64,19 @@ struct scf_active_var_s {
 	uint32_t            updated:1;
 };
 
-scf_active_var_t* scf_active_var_alloc(scf_dag_node_t* dag_node);
-void              scf_active_var_free(scf_active_var_t* v);
+scf_dn_index_t*   scf_dn_index_alloc();
+scf_dn_index_t*   scf_dn_index_clone(scf_dn_index_t* di);
+void              scf_dn_index_free (scf_dn_index_t* di);
+
+int               scf_dn_index_same(const scf_dn_index_t* di0, const scf_dn_index_t* di1);
+int               scf_dn_index_like(const scf_dn_index_t* di0, const scf_dn_index_t* di1);
+
+scf_active_var_t* scf_active_var_alloc(scf_dag_node_t*   dag_node);
+scf_active_var_t* scf_active_var_clone(scf_active_var_t* v);
+void              scf_active_var_free (scf_active_var_t* v);
+void              scf_active_var_print(scf_active_var_t* v);
+
+int               scf_active_var_copy_alias(scf_active_var_t* dst, scf_active_var_t* src);
 
 scf_dag_node_t*   scf_dag_node_alloc (int type, scf_variable_t* var);
 
@@ -85,16 +100,32 @@ int				  scf_dag_find_roots (scf_list_t* h, scf_vector_t* roots);
 scf_dag_node_t*   scf_dag_find_dn(scf_list_t* h, const scf_dag_node_t* dn0);
 int               scf_dag_get_dn (scf_list_t* h, const scf_dag_node_t* dn0, scf_dag_node_t** pp);
 
-int               scf_dag_pointer_alias(scf_active_var_t* v, scf_dag_node_t* dn, scf_3ac_code_t* c);
-
 int               scf_dag_expr_calculate(scf_list_t* h, scf_dag_node_t* node);
 
 int               scf_dag_dn_same(scf_dag_node_t* dn0, scf_dag_node_t* dn1);
+
+int               scf_dn_status_cmp_alias(const void* p0, const void* p1);
+
+int               scf_dn_status_cmp_same_dn_indexes(const void* p0, const void* p1);
+int               scf_dn_status_cmp_like_dn_indexes(const void* p0, const void* p1);
+
+int               scf_dn_status_index(scf_active_var_t* ds, scf_dag_node_t* dn_index, int type);
+
+int               scf_dn_status_alias_index(scf_active_var_t* ds, scf_dag_node_t* dn_index, int type);
+
+static int scf_dn_through_bb(scf_dag_node_t* dn)
+{
+	return (dn->var->global_flag || dn->var->local_flag)
+		&& !scf_variable_const(dn->var);
+}
 
 static int scf_dn_status_cmp(const void* p0, const void* p1)
 {
 	const scf_dag_node_t*   dn0 = p0;
 	const scf_active_var_t* v1  = p1;
+
+	if (v1->dn_indexes)
+		return -1;
 
 	return dn0 != v1->dag_node;
 }
@@ -105,39 +136,6 @@ static int scf_dn_status_cmp_dereference(const void* p0, const void* p1)
 	const scf_active_var_t* v1  = p1;
 
 	return dn0 != v1->dereference;
-}
-
-static int scf_dn_status_cmp_alias(const void* p0, const void* p1)
-{
-	const scf_active_var_t* v0 = p0;
-	const scf_active_var_t* v1 = p1;
-
-	if (v0->alias_type != v1->alias_type)
-		return -1;
-
-	if (v0->alias != v1->alias)
-		return -1;
-
-	switch (v0->alias_type) {
-
-		case SCF_DN_ALIAS_VAR:
-			return 0;
-			break;
-
-		case SCF_DN_ALIAS_ARRAY:
-			if (v0->index == v1->index)
-				return 0;
-			break;
-
-		case SCF_DN_ALIAS_MEMBER:
-			if (v0->member == v1->member)
-				return 0;
-			break;
-		default:
-			break;
-	};
-
-	return -1;
 }
 
 #define SCF_DN_STATUS_GET(ds, vec, dn) \

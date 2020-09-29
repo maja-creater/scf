@@ -97,5 +97,9 @@ int                 scf_basic_block_inited_vars(scf_basic_block_t* bb);
 
 int                 scf_basic_block_connect(scf_basic_block_t* prev_bb, scf_basic_block_t* next_bb);
 
+int                 scf_basic_block_split(scf_basic_block_t* bb_parent, scf_basic_block_t** pbb_child);
+
+void                scf_basic_block_mov_code(scf_list_t* start, scf_basic_block_t* bb_dst, scf_basic_block_t* bb_src);
+
 #endif
 
