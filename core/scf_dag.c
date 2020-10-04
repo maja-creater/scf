@@ -75,6 +75,36 @@ scf_active_var_t* scf_active_var_alloc(scf_dag_node_t* dn)
 	return v;
 }
 
+int scf_active_var_copy_dn(scf_active_var_t* dst, scf_active_var_t* src)
+{
+	scf_dn_index_t*   di;
+	int i;
+
+	if (!dst || !src)
+		return -1;
+
+	dst->dag_node = src->dag_node;
+
+	if (dst->dn_indexes) {
+		scf_vector_clear(dst->dn_indexes, (void (*)(void*))scf_dn_index_free);
+		scf_vector_free (dst->dn_indexes);
+		dst->dn_indexes = NULL;
+	}
+
+	if (src->dn_indexes) {
+		dst->dn_indexes = scf_vector_clone(src->dn_indexes);
+
+		if (!dst->dn_indexes)
+			return -ENOMEM;
+
+		for (i = 0; i < dst->dn_indexes->size; i++) {
+			di = dst->dn_indexes->data[i];
+			di->refs++;
+		}
+	}
+	return 0;
+}
+
 int scf_active_var_copy_alias(scf_active_var_t* dst, scf_active_var_t* src)
 {
 	scf_dn_index_t*   di;
@@ -717,3 +747,26 @@ int scf_dn_status_alias_index(scf_active_var_t* ds, scf_dag_node_t* dn_index, in
 	return _dn_status_index(ds->alias_indexes, dn_index, type);
 }
 
+void scf_dn_status_vector_clear_by_ds(scf_vector_t* vec, scf_active_var_t* ds)
+{
+	scf_active_var_t* ds2;
+
+	while (1) {
+		ds2 = scf_vector_find_cmp(vec, ds, scf_dn_status_cmp_same_dn_indexes);
+		if (!ds2)
+			break;
+		assert(0 == scf_vector_del(vec, ds2));
+	}
+}
+
+void scf_dn_status_vector_clear_by_dn(scf_vector_t* vec, scf_dag_node_t* dn)
+{
+	scf_active_var_t* ds;
+
+	while (1) {
+		ds = scf_vector_find_cmp(vec, dn, scf_dn_status_cmp);
+		if (!ds)
+			break;
+		assert(0 == scf_vector_del(vec, ds));
+	}
+}

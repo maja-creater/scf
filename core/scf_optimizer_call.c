@@ -212,7 +212,7 @@ static int _optimize_call_bb(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 		SCF_BB_SPLIT_MOV_CODE(l, bb, bb_child);
 		bb = bb_child;
 
-		ret = scf_basic_block_inited_vars(bb);
+		ret = scf_basic_block_inited_vars(bb, bb_list_head);
 		if (ret < 0)
 			return ret;
 	}

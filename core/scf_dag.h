@@ -76,6 +76,7 @@ scf_active_var_t* scf_active_var_clone(scf_active_var_t* v);
 void              scf_active_var_free (scf_active_var_t* v);
 void              scf_active_var_print(scf_active_var_t* v);
 
+int               scf_active_var_copy_dn   (scf_active_var_t* dst, scf_active_var_t* src);
 int               scf_active_var_copy_alias(scf_active_var_t* dst, scf_active_var_t* src);
 
 scf_dag_node_t*   scf_dag_node_alloc (int type, scf_variable_t* var);
@@ -112,6 +113,9 @@ int               scf_dn_status_cmp_like_dn_indexes(const void* p0, const void* 
 int               scf_dn_status_index(scf_active_var_t* ds, scf_dag_node_t* dn_index, int type);
 
 int               scf_dn_status_alias_index(scf_active_var_t* ds, scf_dag_node_t* dn_index, int type);
+
+void              scf_dn_status_vector_clear_by_ds(scf_vector_t* vec, scf_active_var_t* ds);
+void              scf_dn_status_vector_clear_by_dn(scf_vector_t* vec, scf_dag_node_t*   dn);
 
 static int scf_dn_through_bb(scf_dag_node_t* dn)
 {

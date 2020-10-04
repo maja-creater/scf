@@ -20,7 +20,7 @@ static int _optimize_dag(scf_function_t* f, scf_list_t* bb_list_head)
 
 		bb  = scf_list_data(l, scf_basic_block_t, list);
 
-		ret = scf_basic_block_dag(bb, &f->dag_list_head);
+		ret = scf_basic_block_dag(bb, bb_list_head, &f->dag_list_head);
 		if (ret < 0) {
 			scf_loge("\n");
 			return ret;

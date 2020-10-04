@@ -298,6 +298,10 @@ static int _scf_op_semantic_pointer(scf_ast_t* ast, scf_node_t** nodes, int nb_n
 	if (!r)
 		return -ENOMEM;
 
+	int i;
+	for (i = 0; i < v1->nb_dimentions; i++)
+		scf_variable_add_array_dimention(r, v1->dimentions[i]);
+
 	*d->pret = r;
 	return 0;
 }

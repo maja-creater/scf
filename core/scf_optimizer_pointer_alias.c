@@ -145,7 +145,7 @@ static int _alias_assign_dereference(scf_vector_t** paliases, scf_dag_node_t* dn
 			scf_vector_free(aliases);
 			if (ret < 0)
 				return ret;
-			return scf_basic_block_inited_vars(bb);
+			return scf_basic_block_inited_vars(bb, bb_list_head);
 		}
 		return 0;
 	}
