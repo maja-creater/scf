@@ -175,7 +175,6 @@ void scf_basic_block_print_list(scf_list_t* h)
 			scf_basic_block_print(bb, sentinel);
 
 			printf("\n");
-#if 1
 			int i;
 			if (bb->prevs) {
 				for (i = 0; i < bb->prevs->size; i++)
@@ -185,6 +184,7 @@ void scf_basic_block_print_list(scf_list_t* h)
 				for (i = 0; i < bb->nexts->size; i++)
 					printf("next     : %p\n", bb->nexts->data[i]);
 			}
+#if 0
 			if (bb->dominators) {
 				for (i = 0; i < bb->dominators->size; i++)
 					printf("dominator: %p\n", bb->dominators->data[i]);
@@ -192,7 +192,7 @@ void scf_basic_block_print_list(scf_list_t* h)
 			if (bb->dn_status_initeds) {
 				for (i = 0; i < bb->dn_status_initeds->size; i++) {
 
-					scf_active_var_t* av = bb->dn_status_initeds->data[i];
+					scf_dn_status_t* av = bb->dn_status_initeds->data[i];
 					scf_dag_node_t*   dn = av->dag_node;
 					scf_variable_t*   v  = dn->var;
 
@@ -200,8 +200,8 @@ void scf_basic_block_print_list(scf_list_t* h)
 						printf("inited: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
 				}
 			}
-			printf("\n");
 #endif
+			printf("\n");
 		}
 	}
 }
@@ -209,7 +209,7 @@ void scf_basic_block_print_list(scf_list_t* h)
 static int _copy_to_active_vars(scf_vector_t* active_vars, scf_vector_t* dag_nodes)
 {
 	scf_dag_node_t*   dn;
-	scf_active_var_t* status;
+	scf_dn_status_t* status;
 
 	int i;
 
@@ -220,13 +220,13 @@ static int _copy_to_active_vars(scf_vector_t* active_vars, scf_vector_t* dag_nod
 		status = scf_vector_find_cmp(active_vars, dn, scf_dn_status_cmp);
 
 		if (!status) {
-			status = scf_active_var_alloc(dn);
+			status = scf_dn_status_alloc(dn);
 			if (!status)
 				return -ENOMEM;
 
 			int ret = scf_vector_add(active_vars, status);
 			if (ret < 0) {
-				scf_active_var_free(status);
+				scf_dn_status_free(status);
 				return ret;
 			}
 		}
@@ -254,7 +254,7 @@ static int _copy_from_active_vars(scf_vector_t* dag_nodes, scf_vector_t* active_
 
 	int j;
 	for (j = 0; j < active_vars->size; j++) {
-		scf_active_var_t* v  = active_vars->data[j];
+		scf_dn_status_t* v  = active_vars->data[j];
 		scf_dag_node_t*   dn = v->dag_node;
 
 		if (scf_variable_const(dn->var))
@@ -282,7 +282,7 @@ static int _copy_updated_vars(scf_vector_t* dag_nodes, scf_vector_t* active_vars
 
 	int j;
 	for (j = 0; j < active_vars->size; j++) {
-		scf_active_var_t* v  = active_vars->data[j];
+		scf_dn_status_t* v  = active_vars->data[j];
 		scf_dag_node_t*   dn = v->dag_node;
 
 		if (scf_variable_const(dn->var))
@@ -357,7 +357,7 @@ static int _bb_vars(scf_basic_block_t* bb)
 	return 0;
 }
 
-static int _bb_dag(scf_basic_block_t* bb)
+static int _bb_dag(scf_basic_block_t* bb, scf_list_t* dag_list_head)
 {
 	int ret = 0;
 	int i;
@@ -369,67 +369,10 @@ static int _bb_dag(scf_basic_block_t* bb)
 
 		scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
 
-		ret = scf_3ac_code_to_dag(c, &bb->dag_list_head);
+		ret = scf_3ac_code_to_dag(c, dag_list_head);
 		if (ret < 0)
 			return ret;
 	}
-	return 0;
-}
-
-static int _bb_update_dag(scf_basic_block_t* bb, scf_list_t* dag_list_head)
-{
-	int ret = 0;
-	int i;
-	scf_list_t* l;
-
-	for (l = scf_list_head(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head);
-			l = scf_list_next(l)) {
-
-		scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
-
-		ret = scf_3ac_code_to_dag(c, dag_list_head);
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
-		}
-		printf("\n");
-	}
-
-	for (i = 0; i < bb->var_dag_nodes->size; i++) {
-		scf_dag_node_t* dn0 = bb->var_dag_nodes->data[i];
-
-		scf_dag_node_t* dn1 = scf_dag_find_dn(dag_list_head, dn0);
-		if (!dn1) {
-			scf_loge("dn0: %p, v_%d_%d/%s\n", dn0, dn0->var->w->line, dn0->var->w->pos, dn0->var->w->text->data);
-			return -EINVAL;
-		}
-
-		bb->var_dag_nodes->data[i] = dn1;
-	}
-
-	for (l = scf_list_head(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head);
-			l = scf_list_next(l)) {
-
-		scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
-
-		if (!c->active_vars)
-			continue;
-
-		for (i = 0; i < c->active_vars->size; i++) {
-			scf_active_var_t* v   = c->active_vars->data[i];
-			scf_dag_node_t*   dn0 = v->dag_node;
-
-			scf_dag_node_t*   dn1 = scf_dag_find_dn(dag_list_head, dn0);
-			if (!dn1) {
-				scf_loge("\n");
-				return -EINVAL;
-			}
-
-			v->dag_node = dn1;
-		}
-	}
-
-//	scf_dag_node_free_list(&bb->dag_list_head);
 	return 0;
 }
 
@@ -440,7 +383,7 @@ int scf_basic_block_dag(scf_basic_block_t* bb, scf_list_t* bb_list_head, scf_lis
 
 	int ret;
 
-	ret = _bb_dag(bb);
+	ret = _bb_dag(bb, dag_list_head);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -458,7 +401,7 @@ int scf_basic_block_dag(scf_basic_block_t* bb, scf_list_t* bb_list_head, scf_lis
 		c = scf_list_data(l, scf_3ac_code_t, list);
 
 		if (c->active_vars)
-			scf_vector_clear(c->active_vars, (void (*)(void*))scf_active_var_free);
+			scf_vector_clear(c->active_vars, (void (*)(void*))scf_dn_status_free);
 		else {
 			c->active_vars = scf_vector_alloc();
 			if (!c->active_vars)
@@ -470,22 +413,14 @@ int scf_basic_block_dag(scf_basic_block_t* bb, scf_list_t* bb_list_head, scf_lis
 			return ret;
 	}
 
-	printf("\n");
-
-	ret = _bb_update_dag(bb, dag_list_head);
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-
 	return scf_basic_block_inited_vars(bb, bb_list_head);
 }
 
-static int _bb_init_pointer_aliases(scf_active_var_t* ds_pointer, scf_dag_node_t* dn_alias, scf_3ac_code_t* c, scf_basic_block_t* bb, scf_list_t* bb_list_head)
+static int _bb_init_pointer_aliases(scf_dn_status_t* ds_pointer, scf_dag_node_t* dn_alias, scf_3ac_code_t* c, scf_basic_block_t* bb, scf_list_t* bb_list_head)
 {
-	scf_active_var_t*  ds;
-	scf_active_var_t*  ds2;
-	scf_active_var_t*  ds3;
+	scf_dn_status_t*  ds;
+	scf_dn_status_t*  ds2;
+	scf_dn_status_t*  ds3;
 	scf_vector_t*      aliases;
 
 	int ret;
@@ -510,32 +445,32 @@ static int _bb_init_pointer_aliases(scf_active_var_t* ds_pointer, scf_dag_node_t
 	for (i = 0; i < aliases->size; i++) {
 		ds = aliases->data[i];
 
-		ds2 = calloc(1, sizeof(scf_active_var_t));
+		ds2 = calloc(1, sizeof(scf_dn_status_t));
 		if (!ds2) {
 			ret = -ENOMEM;
 			break;
 		}
 		ds2->inited = 1;
 
-		ret = scf_active_var_copy_dn(ds2, ds_pointer);
+		ret = scf_dn_status_copy_dn(ds2, ds_pointer);
 		if (ret < 0) {
-			scf_active_var_free(ds2);
+			scf_dn_status_free(ds2);
 			break;
 		}
 
-		ret = scf_active_var_copy_alias(ds2, ds);
+		ret = scf_dn_status_copy_alias(ds2, ds);
 		if (ret < 0) {
-			scf_active_var_free(ds2);
+			scf_dn_status_free(ds2);
 			break;
 		}
 
 		ret = scf_vector_add(c->dn_status_initeds, ds2);
 		if (ret < 0) {
-			scf_active_var_free(ds2);
+			scf_dn_status_free(ds2);
 			break;
 		}
 
-		ds3 = scf_active_var_clone(ds2);
+		ds3 = scf_dn_status_clone(ds2);
 		if (!ds3) {
 			ret = -ENOMEM;
 			break;
@@ -543,7 +478,7 @@ static int _bb_init_pointer_aliases(scf_active_var_t* ds_pointer, scf_dag_node_t
 
 		ret = scf_vector_add(bb->dn_status_initeds, ds3);
 		if (ret < 0) {
-			scf_active_var_free(ds3);
+			scf_dn_status_free(ds3);
 			break;
 		}
 	}
@@ -555,8 +490,8 @@ static int _bb_init_pointer_aliases(scf_active_var_t* ds_pointer, scf_dag_node_t
 
 static int _bb_init_var(scf_dag_node_t* dn, scf_3ac_code_t* c, scf_basic_block_t* bb, scf_list_t* bb_list_head)
 {
-	scf_active_var_t*  ds;
-	scf_active_var_t*  ds2;
+	scf_dn_status_t*  ds;
+	scf_dn_status_t*  ds2;
 	scf_3ac_operand_t* src;
 
 	if (!c->dn_status_initeds) {
@@ -569,7 +504,7 @@ static int _bb_init_var(scf_dag_node_t* dn, scf_3ac_code_t* c, scf_basic_block_t
 	if (dn->var->nb_pointers > 0) {
 		int ret;
 
-		ds = scf_active_var_alloc(dn);
+		ds = scf_dn_status_alloc(dn);
 		if (!ds)
 			return -ENOMEM;
 
@@ -577,7 +512,7 @@ static int _bb_init_var(scf_dag_node_t* dn, scf_3ac_code_t* c, scf_basic_block_t
 		src = c->srcs->data[0];
 
 		ret = _bb_init_pointer_aliases(ds, src->dag_node, c, bb, bb_list_head);
-		scf_active_var_free(ds);
+		scf_dn_status_free(ds);
 		return ret;
 	}
 
@@ -599,8 +534,8 @@ static int _bb_init_array_index(scf_3ac_code_t* c, scf_basic_block_t* bb, scf_li
 	scf_dag_node_t*    dn_index;
 	scf_dag_node_t*    dn_src;
 
-	scf_active_var_t*  ds;
-	scf_active_var_t*  ds2;
+	scf_dn_status_t*  ds;
+	scf_dn_status_t*  ds2;
 
 	if (!c->dn_status_initeds) {
 		c ->dn_status_initeds = scf_vector_alloc();
@@ -609,7 +544,7 @@ static int _bb_init_array_index(scf_3ac_code_t* c, scf_basic_block_t* bb, scf_li
 			return -ENOMEM;
 	}
 
-	ds = calloc(1, sizeof(scf_active_var_t));
+	ds = calloc(1, sizeof(scf_dn_status_t));
 	if (!ds)
 		return -ENOMEM;
 
@@ -674,7 +609,7 @@ static int _bb_init_array_index(scf_3ac_code_t* c, scf_basic_block_t* bb, scf_li
 	if (scf_variable_nb_pointers(dn_src->var) > 0) {
 
 		ret = _bb_init_pointer_aliases(ds, dn_src, c, bb, bb_list_head);
-		scf_active_var_free(ds);
+		scf_dn_status_free(ds);
 		return ret;
 	}
 
@@ -683,17 +618,17 @@ static int _bb_init_array_index(scf_3ac_code_t* c, scf_basic_block_t* bb, scf_li
 
 	ret = scf_vector_add(c->dn_status_initeds, ds);
 	if (ret < 0) {
-		scf_active_var_free(ds);
+		scf_dn_status_free(ds);
 		return ret;
 	}
 
-	ds2= scf_active_var_clone(ds);
+	ds2= scf_dn_status_clone(ds);
 	if (!ds2)
 		return -ENOMEM;
 
 	ret = scf_vector_add(bb->dn_status_initeds, ds2);
 	if (ret < 0) {
-		scf_active_var_free(ds2);
+		scf_dn_status_free(ds2);
 		return ret;
 	}
 	return 0;
@@ -707,8 +642,8 @@ int scf_basic_block_inited_vars(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 	scf_list_t*       l;
 	scf_3ac_code_t*   c;
 	scf_dag_node_t*   dn;
-	scf_active_var_t* status;
-	scf_active_var_t* status2;
+	scf_dn_status_t*  status;
+	scf_dn_status_t*  status2;
 
 	for (l = scf_list_head(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head);
 			l = scf_list_next(l)) {
@@ -729,15 +664,20 @@ int scf_basic_block_inited_vars(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 				scf_logw("init: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
 
 				ret = _bb_init_var(dn, c, bb, bb_list_head);
-				if (ret < 0)
+				if (ret < 0) {
+					scf_loge("\n");
 					return ret;
+				}
 			}
 		} else if (SCF_OP_3AC_ASSIGN_ARRAY_INDEX == c->op->type
 				|| SCF_OP_3AC_ASSIGN_POINTER     == c->op->type) {
 
 			ret = _bb_init_array_index(c, bb, bb_list_head);
-			if (ret < 0)
+			if (ret < 0) {
+				scf_loge("\n");
+				scf_3ac_code_print(c, NULL);
 				return ret;
+			}
 		}
 	}
 
@@ -749,7 +689,6 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 	scf_list_t*       l;
 	scf_3ac_code_t*   c;
 	scf_dag_node_t*   dn;
-	scf_active_var_t* status;
 
 	int i;
 	int j;
@@ -813,7 +752,7 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 		}
 
 		if (c->active_vars)
-			scf_vector_clear(c->active_vars, (void (*)(void*))scf_active_var_free);
+			scf_vector_clear(c->active_vars, (void (*)(void*))scf_dn_status_free);
 		else {
 			c->active_vars = scf_vector_alloc();
 			if (!c->active_vars)

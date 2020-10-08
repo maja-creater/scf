@@ -122,7 +122,7 @@ static int _scf_op_const_array_index(scf_ast_t* ast, scf_node_t** nodes, int nb_
 	scf_variable_t* v0 = _scf_operand_get(nodes[0]);
 	assert(v0);
 
-	if (v0->nb_dimentions <= 0) {
+	if (scf_variable_nb_pointers(v0) <= 0) {
 		scf_loge("index out\n");
 		return -1;
 	}

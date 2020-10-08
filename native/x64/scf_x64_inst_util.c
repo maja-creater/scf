@@ -572,7 +572,7 @@ scf_instruction_t* x64_make_inst_I2SIB(scf_x64_OpCode_t* OpCode, scf_register_x6
 
 	int i;
 	for (i = 0; i < size; i++)
-		inst->code[i] = imm[i];
+		inst->code[inst->len++] = imm[i];
 
 	return inst;
 }

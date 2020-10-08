@@ -108,7 +108,7 @@ int scf_function_same_argv(scf_vector_t* argv0, scf_vector_t* argv1)
 			scf_variable_t* v0 = argv0->data[i];
 			scf_variable_t* v1 = argv1->data[i];
 
-			if (!scf_variable_same_type(v0, v1))
+			if (!scf_variable_type_like(v0, v1))
 				return 0;
 		}
 	} else {
@@ -125,9 +125,8 @@ int scf_function_same_type(scf_function_t* f0, scf_function_t* f1)
 		if (!f1->ret)
 			return 0;
 
-		if (!scf_variable_same_type(f0->ret, f1->ret))
+		if (!scf_variable_type_like(f0->ret, f1->ret))
 			return 0;
-
 	} else {
 		if (f1->ret)
 			return 0;

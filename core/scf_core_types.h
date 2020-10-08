@@ -96,6 +96,10 @@ enum scf_core_types {
 
 	SCF_OP_3AC_SETZ,
 	SCF_OP_3AC_SETNZ,
+	SCF_OP_3AC_SETGT,
+	SCF_OP_3AC_SETLT,
+	SCF_OP_3AC_SETGE,
+	SCF_OP_3AC_SETLE,
 
 	// these ops will update the value in memory
 	SCF_OP_3AC_ASSIGN_DEREFERENCE,     // left value, *p = expr

@@ -414,6 +414,7 @@ static int _scf_op_array_index(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 	scf_node_t*     parent  = nodes[0]->parent;
 	scf_node_t*     n_scale = NULL;
 	scf_node_t*     srcs[3];
+	scf_variable_t* v;
 
 	int ret = _scf_expr_calculate_internal(ast, nodes[1], d);
 	if (ret < 0) {
@@ -430,6 +431,9 @@ static int _scf_op_array_index(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 	srcs[0] = nodes[0];
 	srcs[1] = nodes[1];
 	srcs[2] = n_scale;
+
+	v = _scf_operand_get(parent);
+	v->local_flag = 1;
 
 	return _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_ARRAY_INDEX, parent, srcs, 3);
 }
@@ -865,20 +869,42 @@ static int _scf_op_end_loop(scf_list_t* start_prev, scf_3ac_code_t* jmp_end, scf
     //  }'
 	// for optimizer
 
-	// copy cond expr, it MUST NOT has 'jmp jcc' code
+	// copy cond expr
 	scf_list_t* l;
+	scf_list_t* l2;
+	scf_list_t* cond_prev = scf_list_tail(d->_3ac_list_head);
+
 	for (l = scf_list_next(start_prev); l != &jmp_end->list; l = scf_list_next(l)) {
 
 		scf_3ac_code_t* c  = scf_list_data(l, scf_3ac_code_t, list);
-
-		if (scf_type_is_jmp(c->op->type))
-			return -EINVAL;
 
 		scf_3ac_code_t* c2 = scf_3ac_code_clone(c);
 		if (!c2)
 			return -ENOMEM;
 
 		scf_list_add_tail(d->_3ac_list_head, &c2->list);
+	}
+
+	for (l = scf_list_next(cond_prev); l != scf_list_sentinel(d->_3ac_list_head); l = scf_list_next(l)) {
+
+		scf_3ac_code_t* c  = scf_list_data(l, scf_3ac_code_t, list);
+
+		if (!scf_type_is_jmp(c->op->type))
+			continue;
+
+		for (l2 = scf_list_next(cond_prev); l2 != scf_list_sentinel(d->_3ac_list_head); l2 = scf_list_next(l2)) {
+
+			scf_3ac_code_t* c2  = scf_list_data(l2, scf_3ac_code_t, list);
+
+			if (c->dst->code == c2->origin) {
+				c->dst->code =  c2;
+				break;
+			}
+		}
+		assert(l2 != scf_list_sentinel(d->_3ac_list_head));
+
+		if (scf_vector_add(d->branch_ops->_breaks, c) < 0)
+			return -1;
 	}
 
 	int jmp_op = -1;
@@ -1836,23 +1862,30 @@ static int _scf_op_logic_and_jmp(scf_ast_t* ast, scf_node_t* node, scf_handler_d
 
 	int is_default = 0;
 	int jmp_op;
+	int set_op;
 	switch (node->type) {
 		case SCF_OP_EQ:
+			set_op = SCF_OP_3AC_SETZ;
 			jmp_op = SCF_OP_3AC_JNZ;
 			break;
 		case SCF_OP_NE:
+			set_op = SCF_OP_3AC_SETNZ;
 			jmp_op = SCF_OP_3AC_JZ;
 			break;
 		case SCF_OP_GT:
+			set_op = SCF_OP_3AC_SETGT;
 			jmp_op = SCF_OP_3AC_JLE;
 			break;
 		case SCF_OP_GE:
+			set_op = SCF_OP_3AC_SETGE;
 			jmp_op = SCF_OP_3AC_JLT;
 			break;
 		case SCF_OP_LT:
+			set_op = SCF_OP_3AC_SETLT;
 			jmp_op = SCF_OP_3AC_JGE;
 			break;
 		case SCF_OP_LE:
+			set_op = SCF_OP_3AC_SETLE;
 			jmp_op = SCF_OP_3AC_JGT;
 			break;
 
@@ -1873,12 +1906,23 @@ static int _scf_op_logic_and_jmp(scf_ast_t* ast, scf_node_t* node, scf_handler_d
 	};
 
 	if (!is_default) {
-		scf_list_t*     l = scf_list_tail(d->_3ac_list_head);
-		scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
+		scf_list_t*        l   = scf_list_tail(d->_3ac_list_head);
+		scf_3ac_code_t*    c   = scf_list_data(l, scf_3ac_code_t, list);
+		scf_3ac_operand_t* dst = c->dst;
 
-		c->dst->node = parent;
+		c->op  = scf_3ac_find_operator(SCF_OP_3AC_CMP);
+		c->dst = NULL;
+		scf_3ac_operand_free(dst);
+		dst = NULL;
+
+		if (_scf_3ac_code_dst(d->_3ac_list_head, set_op, parent) < 0) {
+			scf_loge("\n");
+			return -1;
+		}
 	}
 
+	scf_variable_t* v = _scf_operand_get(parent);
+	v->local_flag = 1;
 	return jmp_op;
 }
 
@@ -1896,23 +1940,30 @@ static int _scf_op_logic_or_jmp(scf_ast_t* ast, scf_node_t* node, scf_handler_da
 
 	int is_default = 0;
 	int jmp_op;
+	int set_op;
 	switch (node->type) {
 		case SCF_OP_EQ:
+			set_op = SCF_OP_3AC_SETZ;
 			jmp_op = SCF_OP_3AC_JZ;
 			break;
 		case SCF_OP_NE:
+			set_op = SCF_OP_3AC_SETNZ;
 			jmp_op = SCF_OP_3AC_JNZ;
 			break;
 		case SCF_OP_GT:
+			set_op = SCF_OP_3AC_SETGT;
 			jmp_op = SCF_OP_3AC_JGT;
 			break;
 		case SCF_OP_GE:
+			set_op = SCF_OP_3AC_SETGE;
 			jmp_op = SCF_OP_3AC_JGE;
 			break;
 		case SCF_OP_LT:
+			set_op = SCF_OP_3AC_SETLT;
 			jmp_op = SCF_OP_3AC_JLT;
 			break;
 		case SCF_OP_LE:
+			set_op = SCF_OP_3AC_SETLE;
 			jmp_op = SCF_OP_3AC_JLE;
 			break;
 
@@ -1933,12 +1984,23 @@ static int _scf_op_logic_or_jmp(scf_ast_t* ast, scf_node_t* node, scf_handler_da
 	};
 
 	if (!is_default) {
-		scf_list_t*     l = scf_list_tail(d->_3ac_list_head);
-		scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
+		scf_list_t*        l   = scf_list_tail(d->_3ac_list_head);
+		scf_3ac_code_t*    c   = scf_list_data(l, scf_3ac_code_t, list);
+		scf_3ac_operand_t* dst = c->dst;
 
-		c->dst->node = parent;
+		c->op  = scf_3ac_find_operator(SCF_OP_3AC_CMP);
+		c->dst = NULL;
+		scf_3ac_operand_free(dst);
+		dst = NULL;
+
+		if (_scf_3ac_code_dst(d->_3ac_list_head, set_op, parent) < 0) {
+			scf_loge("\n");
+			return -1;
+		}
 	}
 
+	scf_variable_t* v = _scf_operand_get(parent);
+	v->local_flag = 1;
 	return jmp_op;
 }
 

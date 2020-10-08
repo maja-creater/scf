@@ -458,8 +458,42 @@ scf_register_x64_t* x64_select_overflowed_reg(scf_dag_node_t* dn, scf_3ac_code_t
 			free_regs[nb_free_regs++] = r;
 	}
 
-	assert(nb_free_regs > 0);
-	return _x64_reg_cached_min_vars(free_regs, nb_free_regs);
+	if (nb_free_regs > 0)
+		return _x64_reg_cached_min_vars(free_regs, nb_free_regs);
+
+	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
+
+		scf_register_x64_t*	r = &(x64_registers[i]);
+
+		if (SCF_X64_REG_RSP == r->id || SCF_X64_REG_RBP == r->id)
+			continue;
+
+		if (r->bytes < bytes || X64_COLOR_TYPE(r->color) != is_float)
+			continue;
+
+		if (c->dst && c->dst->dag_node
+				&& c->dst->dag_node->color > 0
+				&& X64_COLOR_CONFLICT(r->color, c->dst->dag_node->color))
+			continue;
+
+		if (c->srcs) {
+			for (j = 0; j < c->srcs->size; j++) {
+				scf_3ac_operand_t* src = c->srcs->data[j];
+
+				if (src->dag_node && src->dag_node->color > 0
+						&& X64_COLOR_CONFLICT(r->color, src->dag_node->color))
+					break;
+			}
+
+			if (j < c->srcs->size)
+				continue;
+		}
+
+		return r;
+	}
+
+	scf_loge("\n");
+	return NULL;
 }
 
 int x64_load_reg(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f)
@@ -657,7 +691,14 @@ int x64_array_index_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* in
 	int i;
 
 	int32_t disp = 0;
-	if (vb->local_flag) {
+
+	if (vb->nb_pointers > 0 && 0 == vb->nb_dimentions) {
+		ret = x64_select_reg(&rb, base, c, f, 1);
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
+	} else if (vb->local_flag) {
 		rb   = x64_find_register("rbp");
 		disp = vb->bp_offset;
 
@@ -674,7 +715,6 @@ int x64_array_index_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* in
 		inst = x64_make_inst_M2G(&rela, lea, rb, NULL, vb);
 		X64_INST_ADD_CHECK(c->instructions, inst);
 		X64_RELA_ADD_CHECK(f->data_relas, rela, c, vb, NULL);
-
 	} else {
 		ret = x64_select_reg(&rb, base, c, f, 0);
 		if (ret < 0) {

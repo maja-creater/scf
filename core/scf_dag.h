@@ -7,7 +7,7 @@
 
 typedef struct scf_dag_node_s    scf_dag_node_t;
 typedef struct scf_dn_index_s    scf_dn_index_t;
-typedef struct scf_active_var_s  scf_active_var_t;
+typedef struct scf_dn_status_s   scf_dn_status_t;
 
 enum scf_dn_alias_type
 {
@@ -47,7 +47,7 @@ struct scf_dn_index_s {
 	int                 refs;
 };
 
-struct scf_active_var_s {
+struct scf_dn_status_s {
 	scf_dag_node_t*     dag_node;
 
 	scf_vector_t*       dn_indexes;
@@ -71,13 +71,13 @@ void              scf_dn_index_free (scf_dn_index_t* di);
 int               scf_dn_index_same(const scf_dn_index_t* di0, const scf_dn_index_t* di1);
 int               scf_dn_index_like(const scf_dn_index_t* di0, const scf_dn_index_t* di1);
 
-scf_active_var_t* scf_active_var_alloc(scf_dag_node_t*   dag_node);
-scf_active_var_t* scf_active_var_clone(scf_active_var_t* v);
-void              scf_active_var_free (scf_active_var_t* v);
-void              scf_active_var_print(scf_active_var_t* v);
+scf_dn_status_t*  scf_dn_status_alloc(scf_dag_node_t*   dag_node);
+scf_dn_status_t*  scf_dn_status_clone(scf_dn_status_t* v);
+void              scf_dn_status_free (scf_dn_status_t* v);
+void              scf_dn_status_print(scf_dn_status_t* v);
 
-int               scf_active_var_copy_dn   (scf_active_var_t* dst, scf_active_var_t* src);
-int               scf_active_var_copy_alias(scf_active_var_t* dst, scf_active_var_t* src);
+int               scf_dn_status_copy_dn   (scf_dn_status_t* dst, scf_dn_status_t* src);
+int               scf_dn_status_copy_alias(scf_dn_status_t* dst, scf_dn_status_t* src);
 
 scf_dag_node_t*   scf_dag_node_alloc (int type, scf_variable_t* var);
 
@@ -110,12 +110,12 @@ int               scf_dn_status_cmp_alias(const void* p0, const void* p1);
 int               scf_dn_status_cmp_same_dn_indexes(const void* p0, const void* p1);
 int               scf_dn_status_cmp_like_dn_indexes(const void* p0, const void* p1);
 
-int               scf_dn_status_index(scf_active_var_t* ds, scf_dag_node_t* dn_index, int type);
+int               scf_dn_status_index(scf_dn_status_t* ds, scf_dag_node_t* dn_index, int type);
 
-int               scf_dn_status_alias_index(scf_active_var_t* ds, scf_dag_node_t* dn_index, int type);
+int               scf_dn_status_alias_index(scf_dn_status_t* ds, scf_dag_node_t* dn_index, int type);
 
-void              scf_dn_status_vector_clear_by_ds(scf_vector_t* vec, scf_active_var_t* ds);
-void              scf_dn_status_vector_clear_by_dn(scf_vector_t* vec, scf_dag_node_t*   dn);
+void              scf_dn_status_vector_clear_by_ds(scf_vector_t* vec, scf_dn_status_t* ds);
+void              scf_dn_status_vector_clear_by_dn(scf_vector_t* vec, scf_dag_node_t*  dn);
 
 static int scf_dn_through_bb(scf_dag_node_t* dn)
 {
@@ -125,33 +125,33 @@ static int scf_dn_through_bb(scf_dag_node_t* dn)
 
 static int scf_dn_status_cmp(const void* p0, const void* p1)
 {
-	const scf_dag_node_t*   dn0 = p0;
-	const scf_active_var_t* v1  = p1;
+	const scf_dag_node_t*  dn0 = p0;
+	const scf_dn_status_t* ds1 = p1;
 
-	if (v1->dn_indexes)
+	if (ds1->dn_indexes)
 		return -1;
 
-	return dn0 != v1->dag_node;
+	return dn0 != ds1->dag_node;
 }
 
 static int scf_dn_status_cmp_dereference(const void* p0, const void* p1)
 {
-	const scf_dag_node_t*   dn0 = p0;
-	const scf_active_var_t* v1  = p1;
+	const scf_dag_node_t*  dn0 = p0;
+	const scf_dn_status_t* ds1 = p1;
 
-	return dn0 != v1->dereference;
+	return dn0 != ds1->dereference;
 }
 
 #define SCF_DN_STATUS_GET(ds, vec, dn) \
 	do { \
 		ds = scf_vector_find_cmp(vec, dn, scf_dn_status_cmp); \
 		if (!ds) { \
-			ds = scf_active_var_alloc(dn); \
+			ds = scf_dn_status_alloc(dn); \
 			if (!ds) \
 				return -ENOMEM; \
 			int ret = scf_vector_add(vec, ds); \
 			if (ret < 0) { \
-				scf_active_var_free(ds); \
+				scf_dn_status_free(ds); \
 				return ret; \
 			} \
 		} \

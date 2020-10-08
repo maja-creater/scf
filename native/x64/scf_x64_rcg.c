@@ -115,7 +115,7 @@ static int _x64_rcg_make(scf_3ac_code_t* c, scf_graph_t* g, scf_dag_node_t* dn,
 	scf_logd("g->nodes->size: %d, active_vars: %d\n", g->nodes->size, c->active_vars->size);
 
 	for (i = 0; i < c->active_vars->size; i++) {
-		scf_active_var_t* active    = c->active_vars->data[i];
+		scf_dn_status_t*  active    = c->active_vars->data[i];
 		scf_dag_node_t*   dn_active = active->dag_node;
 		scf_graph_node_t* gn_active = NULL;
 
@@ -138,7 +138,7 @@ static int _x64_rcg_make(scf_3ac_code_t* c, scf_graph_t* g, scf_dag_node_t* dn,
 		}
 
 		for (j = i + 1; j < c->active_vars->size; j++) {
-			scf_active_var_t* active2    = c->active_vars->data[j];
+			scf_dn_status_t*  active2    = c->active_vars->data[j];
 			scf_dag_node_t*   dn_active2 = active2->dag_node;
 			scf_graph_node_t* gn_active2 = NULL;
 
@@ -610,23 +610,20 @@ static int _x64_rcg_teq_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_
 	return _x64_rcg_make(c, g, NULL, NULL, NULL);
 }
 
-static int _x64_rcg_setz_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
-{
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
-	if (ret < 0)
-		return ret;
-
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+#define X64_RCG_SET(setcc) \
+static int _x64_rcg_##setcc##_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
+{ \
+	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL); \
+	if (ret < 0) \
+		return ret; \
+	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL); \
 }
-
-static int _x64_rcg_setnz_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
-{
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
-	if (ret < 0)
-		return ret;
-
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
-}
+X64_RCG_SET(setz)
+X64_RCG_SET(setnz)
+X64_RCG_SET(setgt)
+X64_RCG_SET(setge)
+X64_RCG_SET(setlt)
+X64_RCG_SET(setle)
 
 static int _x64_rcg_eq_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
@@ -978,6 +975,10 @@ static x64_rcg_handler_t x64_rcg_handlers[] = {
 
 	{SCF_OP_3AC_SETZ,       _x64_rcg_setz_handler},
 	{SCF_OP_3AC_SETNZ,      _x64_rcg_setnz_handler},
+	{SCF_OP_3AC_SETGT,      _x64_rcg_setgt_handler},
+	{SCF_OP_3AC_SETGE,      _x64_rcg_setge_handler},
+	{SCF_OP_3AC_SETLT,      _x64_rcg_setlt_handler},
+	{SCF_OP_3AC_SETLE,      _x64_rcg_setle_handler},
 
 	{SCF_OP_GOTO,           _x64_rcg_goto_handler},
 	{SCF_OP_3AC_JZ,         _x64_rcg_jz_handler},

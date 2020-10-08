@@ -25,7 +25,7 @@ static scf_optimizer_t*  scf_optimizers[] =
 	&scf_optimizer_loads_saves,
 
 //	&scf_optimizer_basic_block,
-//	&scf_optimizer_loop,
+	&scf_optimizer_loop,
 
 	&scf_optimizer_generate_loads_saves,
 #endif

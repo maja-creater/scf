@@ -122,7 +122,7 @@ static int _alias_dereference(scf_vector_t** paliases, scf_dag_node_t* dn_pointe
 
 static int _alias_assign_dereference(scf_vector_t** paliases, scf_dag_node_t* dn_pointer, scf_3ac_code_t* c, scf_basic_block_t* bb, scf_list_t* bb_list_head)
 {
-	scf_active_var_t* status;
+	scf_dn_status_t* status;
 	scf_vector_t*     aliases;
 	int ret;
 

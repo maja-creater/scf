@@ -66,6 +66,7 @@ void 			scf_variable_set_array_member(scf_variable_t* array, int index, scf_vari
 void 			scf_variable_get_array_member(scf_variable_t* array, int index, scf_variable_t* member);
 
 int             scf_variable_same_type(scf_variable_t* v0, scf_variable_t* v1);
+int             scf_variable_type_like(scf_variable_t* v0, scf_variable_t* v1);
 
 void            scf_variable_sign_extend(scf_variable_t* v, int bytes);
 void            scf_variable_zero_extend(scf_variable_t* v, int bytes);

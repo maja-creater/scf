@@ -517,8 +517,7 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 {
 	scf_bb_group_t*    bbg;
 	scf_basic_block_t* bb;
-	scf_basic_block_t* bb_first;
-	scf_basic_block_t* bb_last;
+	scf_basic_block_t* jcc_first;
 	scf_basic_block_t* jcc_last;
 	scf_basic_block_t* pre;
 	scf_basic_block_t* post;
@@ -537,13 +536,20 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 
 		assert(bbg->body->size >= 1);
 
-		bb_first  = bbg->body->data[0];
-		bb_last   = bbg->body->data[bbg->body->size - 1];
+		assert(sentinel != scf_list_next(&bbg->entry->list));
+		assert(sentinel != scf_list_prev(&bbg->exit ->list));
 
-		assert(sentinel != scf_list_next(&bb_last->list));
-		jcc_last  = scf_list_data(scf_list_next(&bb_last ->list), scf_basic_block_t, list);
+		jcc_first = scf_list_data(scf_list_next(&bbg->entry->list), scf_basic_block_t, list);
+		jcc_last  = scf_list_data(scf_list_prev(&bbg->exit ->list), scf_basic_block_t, list);
 
-		assert(jcc_last->jmp_flag);
+		scf_loge("jcc_first: %p, jcc_last: %p\n", jcc_first, jcc_last);
+
+		assert(jcc_first->jmp_flag);
+		assert(jcc_last ->jmp_flag);
+
+		if (!jcc_first->jcc_flag)
+			return -EINVAL;
+
 		if (!jcc_last->jcc_flag)
 			return -EINVAL;
 
@@ -557,8 +563,8 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 			return -ENOMEM;
 		}
 
-		scf_list_add_tail (&bb_first->list, &pre->list);
-		scf_list_add_front(&jcc_last->list, &post->list);
+		scf_list_add_front(&jcc_first->list, &pre ->list);
+		scf_list_add_front(&jcc_last ->list, &post->list);
 
 		bbg->pre  = pre;
 		bbg->post = post;
@@ -570,27 +576,13 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 			bb = bbg->body->data[j];
 
 			for (k = 0; k < bb->dn_loads->size; k++) {
-				scf_dag_node_t* dn   = bb->dn_loads->data[k];
-				scf_variable_t* v    = dn->var;
-
-				scf_3ac_code_t* load = scf_3ac_alloc_by_dst(SCF_OP_3AC_LOAD, dn);
-				if (!load)
-					return -ENOMEM;
-				load->basic_block = pre;
-
-				scf_list_add_tail(&pre->code_list_head, &load->list);
+				if (scf_vector_add_unique(pre->dn_loads, bb->dn_loads->data[k]) < 0)
+					return -1;
 			}
 
 			for (k = 0; k < bb->dn_saves->size; k++) {
-				scf_dag_node_t* dn   = bb->dn_saves->data[k];
-				scf_variable_t* v    = dn->var;
-
-				scf_3ac_code_t* save = scf_3ac_alloc_by_src(SCF_OP_3AC_SAVE, dn);
-				if (!save)
-					return -ENOMEM;
-				save->basic_block = post;
-
-				scf_list_add_tail(&post->code_list_head, &save->list);
+				if (scf_vector_add_unique(post->dn_saves, bb->dn_saves->data[k]) < 0)
+					return -1;
 			}
 
 			bb->group_flag = 1;
@@ -601,6 +593,35 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 	}
 
 	return 0;
+}
+
+static void _scf_loops_print(scf_vector_t* loops)
+{
+	int i;
+	int j;
+	int k;
+
+	for (i = 0; i < loops->size; i++) {
+		scf_bb_group_t* loop = loops->data[i];
+
+		printf("loop:  %p\n", loop);
+		printf("entry: %p\n", loop->entry);
+		printf("exit:  %p\n", loop->exit);
+		printf("body: ");
+		for (j = 0; j < loop->body->size; j++)
+			printf("%p ", loop->body->data[j]);
+		printf("\n");
+
+		if (loop->loop_childs) {
+			printf("childs: ");
+			for (k = 0; k < loop->loop_childs->size; k++)
+				printf("%p ", loop->loop_childs->data[k]);
+			printf("\n");
+		}
+		if (loop->loop_parent)
+			printf("parent: %p\n", loop->loop_parent);
+		printf("loop_layers: %d\n\n", loop->loop_layers);
+	}
 }
 
 static int _optimize_loop(scf_function_t* f, scf_list_t* bb_list_head)
@@ -649,7 +670,9 @@ static int _optimize_loop(scf_function_t* f, scf_list_t* bb_list_head)
 	ret = _bb_loop_layers(f);
 	if (ret < 0)
 		return ret;
-
+#if 0
+	_scf_loops_print(f->bb_loops);
+#endif
 	ret = _optimize_loop_loads_saves(f);
 	if (ret < 0)
 		return ret;

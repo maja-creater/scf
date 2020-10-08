@@ -157,21 +157,17 @@ static int _x64_argv_prepare(scf_graph_t* g, scf_basic_block_t* bb, scf_function
 		scf_list_t*         l;
 		scf_graph_node_t*   gn;
 		scf_dag_node_t*     dn;
-		scf_register_x64_t* rabi;
+		scf_register_x64_t* rabi = NULL;
 
 		int is_float = scf_variable_float(v);
 		int size     = x64_variable_size(v);
 
 		if (is_float) {
-			if (nb_floats >= X64_ABI_NB)
-				continue;
-
-			rabi = x64_find_register_type_id_bytes(is_float, x64_abi_float_regs[nb_floats], size);
-			nb_floats++;
-		} else {
-			if (nb_ints >= X64_ABI_NB)
-				continue;
-
+			if (nb_floats < X64_ABI_NB) {
+				rabi = x64_find_register_type_id_bytes(is_float, x64_abi_float_regs[nb_floats], size);
+				nb_floats++;
+			}
+		} else if (nb_ints < X64_ABI_NB) {
 			rabi = x64_find_register_type_id_bytes(is_float, x64_abi_regs[nb_ints], size);
 			nb_ints++;
 		}
@@ -193,7 +189,11 @@ static int _x64_argv_prepare(scf_graph_t* g, scf_basic_block_t* bb, scf_function
 			return ret;
 
 		dn->rabi   = rabi;
-		dn->loaded = 1;
+
+		if (dn->rabi)
+			dn->loaded =  1;
+		else
+			dn->color  = -1;
 	}
 
 	return 0;
@@ -221,7 +221,7 @@ static int _x64_argv_save(scf_basic_block_t* bb, scf_function_t* f)
 
 		scf_dag_node_t*     dn;
 		scf_dag_node_t*     dn2;
-		scf_active_var_t*   active;
+		scf_dn_status_t*   active;
 		scf_register_x64_t* rabi;
 
 		for (l = scf_list_head(&f->dag_list_head); l != scf_list_sentinel(&f->dag_list_head);
@@ -303,20 +303,20 @@ static int _x64_bb_regs_from_graph(scf_basic_block_t* bb, scf_graph_t* g)
 		x64_rcg_node_t*     rn = gn->data;
 		scf_dag_node_t*     dn = rn->dag_node;
 		scf_register_x64_t* r  = NULL;
-		scf_active_var_t*   v;
+		scf_dn_status_t*   v;
 
 		if (!dn) {
 			_x64_rcg_node_printf(rn);
 			continue;
 		}
 
-		v = scf_active_var_alloc(dn);
+		v = scf_dn_status_alloc(dn);
 		if (!v)
 			return -ENOMEM;
 
 		int ret = scf_vector_add(bb->dn_colors, v);
 		if (ret < 0) {
-			scf_active_var_free(v);
+			scf_dn_status_free(v);
 			return ret;
 		}
 		v ->color = gn->color;
@@ -560,17 +560,17 @@ static void _x64_set_offset_for_relas(scf_native_t* ctx, scf_function_t* f, scf_
 static void _x64_init_bb_colors(scf_basic_block_t* bb)
 {
 	scf_dag_node_t*   dn;
-	scf_active_var_t* v;
+	scf_dn_status_t*  ds;
 
 	int i;
 
 	x64_registers_reset();
 
 	for (i = 0; i < bb->dn_colors->size; i++) {
-		v  = bb->dn_colors->data[i];
-		dn = v->dag_node;
+		ds = bb->dn_colors->data[i];
+		dn = ds->dag_node;
 
-		dn->color  = v->color;
+		dn->color  = ds->color;
 		dn->loaded = 0;
 
 		if (0 == bb->index && dn->rabi)

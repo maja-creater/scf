@@ -7,7 +7,7 @@ static int _alias_call(scf_vector_t* aliases, scf_3ac_code_t* c, scf_basic_block
 	scf_dag_node_t*    dn;
 	scf_variable_t*    v;
 	scf_vector_t*      dn_pointers;
-	scf_active_var_t*  status;
+	scf_dn_status_t*  status;
 	scf_dag_node_t*    dn_pointer;
 	scf_dag_node_t*    dn_alias;
 
@@ -56,7 +56,7 @@ static int _alias_call(scf_vector_t* aliases, scf_3ac_code_t* c, scf_basic_block
 			if (dn != dn_pointer && dn->var->nb_pointers > 1) {
 				scf_loge("pointer: v_%d_%d/%s, SCF_DN_ALIAS_ALLOC\n", v->w->line, v->w->pos, v->w->text->data);
 
-				status = calloc(1, sizeof(scf_active_var_t));
+				status = calloc(1, sizeof(scf_dn_status_t));
 				if (!status) {
 					scf_vector_free(dn_pointers);
 					return -ENOMEM;
@@ -64,7 +64,7 @@ static int _alias_call(scf_vector_t* aliases, scf_3ac_code_t* c, scf_basic_block
 
 				ret = scf_vector_add(aliases, status);
 				if (ret < 0) {
-					scf_active_var_free(status);
+					scf_dn_status_free(status);
 					scf_vector_free(dn_pointers);
 					return ret;
 				}
@@ -99,9 +99,9 @@ static int _alias_call(scf_vector_t* aliases, scf_3ac_code_t* c, scf_basic_block
 
 static void _bb_update_dn_status(scf_vector_t* aliases, scf_list_t* start, scf_basic_block_t* bb)
 {
-	scf_list_t*       l;
-	scf_3ac_code_t*   c;
-	scf_active_var_t* status;
+	scf_list_t*      l;
+	scf_3ac_code_t*  c;
+	scf_dn_status_t* status;
 
 	for (l = start; l != scf_list_sentinel(&bb->code_list_head); l = scf_list_next(l)) {
 

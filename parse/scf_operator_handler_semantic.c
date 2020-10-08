@@ -313,11 +313,6 @@ static int _scf_op_semantic_array_index(scf_ast_t* ast, scf_node_t** nodes, int 
 	scf_variable_t* v0 = _scf_operand_get(nodes[0]);
 	assert(v0);
 
-	if (v0->nb_dimentions <= 0) {
-		scf_loge("index out, v0: %s\n", v0->w->text->data);
-		return -1;
-	}
-
 	scf_handler_data_t* d    = data;
 	scf_variable_t**	pret = d->pret;
 
@@ -337,27 +332,39 @@ static int _scf_op_semantic_array_index(scf_ast_t* ast, scf_node_t** nodes, int 
 		return -1;
 	}
 
-	if (v0->dimentions[0] < 0) {
-		scf_loge("\n");
+	int nb_pointers = 0;
+
+	if (v0->nb_dimentions > 0) {
+		if (v0->dimentions[0] < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+
+		nb_pointers = v0->nb_pointers;
+
+		if (scf_variable_const(v1)) {
+			if (v1->data.i < 0) {
+				scf_loge("error: index %d < 0\n", v1->data.i);
+				return -1;
+			}
+
+			if (v1->data.i >= v0->dimentions[0]) {
+				scf_loge("index %d >= size %d\n", v1->data.i, v0->dimentions[0]);
+				return -1;
+			}
+		}
+	} else if (0 == v0->nb_dimentions && v0->nb_pointers > 0) {
+		nb_pointers = v0->nb_pointers - 1;
+	} else {
+		scf_loge("index out, v0: %s, v0->nb_dimentions: %d, v0->nb_pointers: %d\n",
+				v0->w->text->data, v0->nb_dimentions, v0->nb_pointers);
 		return -1;
-	}
-
-	if (scf_variable_const(v1)) {
-		if (v1->data.i < 0) {
-			scf_loge("error: index %d < 0\n", v1->data.i);
-			return -1;
-		}
-
-		if (v1->data.i >= v0->dimentions[0]) {
-			scf_loge("index %d >= size %d\n", v1->data.i, v0->dimentions[0]);
-			return -1;
-		}
 	}
 
 	scf_type_t*		t = scf_ast_find_type_type(ast, v0->type);
 
 	scf_lex_word_t* w = nodes[0]->parent->w;
-	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, v0->nb_pointers, v0->func_ptr);
+	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, nb_pointers, v0->func_ptr);
 	if (!r)
 		return -ENOMEM;
 
@@ -872,7 +879,7 @@ static int _scf_op_semantic_call(scf_ast_t* ast, scf_node_t** nodes, int nb_node
 		scf_variable_t* v0 = f->argv->data[i];
 		scf_variable_t* v1 = _scf_operand_get(nodes[i + 1]);
 
-		if (!scf_variable_same_type(v0, v1)) {
+		if (!scf_variable_type_like(v0, v1)) {
 			scf_loge("arg var not same type, i: %d\n", i);
 			return -1;
 		}

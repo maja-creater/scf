@@ -36,6 +36,8 @@ struct scf_3ac_code_s {
 
 	scf_string_t*       extern_fname; // only for call external function
 
+	scf_3ac_code_t*     origin;
+
 	scf_basic_block_t*  basic_block;
 	uint32_t            basic_block_start:1;
 	uint32_t            jmp_dst_flag     :1;

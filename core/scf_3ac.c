@@ -66,6 +66,10 @@ static scf_3ac_operator_t _3ac_operators[] = {
 
 	{SCF_OP_3AC_SETZ,        "setz"},
 	{SCF_OP_3AC_SETNZ,       "setnz"},
+	{SCF_OP_3AC_SETGT,       "setgt"},
+	{SCF_OP_3AC_SETGE,       "setge"},
+	{SCF_OP_3AC_SETLT,       "setlt"},
+	{SCF_OP_3AC_SETLE,       "setle"},
 
 	{SCF_OP_3AC_JZ,          "jz"},
 	{SCF_OP_3AC_JNZ,         "jnz"},
@@ -264,6 +268,7 @@ scf_3ac_code_t* scf_3ac_code_clone(scf_3ac_code_t* c)
 		}
 	}
 
+	c2->origin = c;
 	return c2;
 }
 
@@ -286,7 +291,7 @@ void scf_3ac_code_free(scf_3ac_code_t* c)
 		if (c->active_vars) {
 			int i;
 			for (i = 0; i < c->active_vars->size; i++)
-				scf_active_var_free(c->active_vars->data[i]);
+				scf_dn_status_free(c->active_vars->data[i]);
 			scf_vector_free(c->active_vars);
 		}
 
@@ -584,13 +589,14 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 					return ret;
 			} else {
 				int j;
-				for (j = 0; j < dag_dst->childs->size; j++) {
+				for (j = 0; j < dag_dst->childs->size && j < op->nb_operands; j++) {
 					if (src->dag_node == dag_dst->childs->data[j])
 						break;
 				}
 				if (j == dag_dst->childs->size) {
-					scf_loge("c->op: %s, op: %s, dag_dst->childs->size: %d, c->srcs->size: %d\n",
-							c->op->name, op->name, dag_dst->childs->size, c->srcs->size);
+					scf_loge("i: %d, c->op: %s, op: %s, dag_dst->childs->size: %d, c->srcs->size: %d\n",
+							i, c->op->name, op->name, dag_dst->childs->size, c->srcs->size);
+					scf_3ac_code_print(c, NULL);
 					return -1;
 				}
 			}

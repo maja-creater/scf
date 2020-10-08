@@ -769,6 +769,7 @@ static int _dfa_init_syntax_expr(scf_dfa_t* dfa)
 	scf_dfa_node_add_child(rs,         binary_op);
 
 	scf_dfa_node_add_child(rs,         unary_post);
+	scf_dfa_node_add_child(rs,         rp);
 	scf_dfa_node_add_child(identity,   unary_post);
 
 	// recursive unary_op, like: !*p

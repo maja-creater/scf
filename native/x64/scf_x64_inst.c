@@ -775,6 +775,10 @@ static int _x64_inst_##name##_handler(scf_native_t* ctx, scf_3ac_code_t* c) \
 }
 X64_INST_SET(setz,  SETZ)
 X64_INST_SET(setnz, SETNZ)
+X64_INST_SET(setgt, SETG)
+X64_INST_SET(setge, SETGE)
+X64_INST_SET(setlt, SETL)
+X64_INST_SET(setle, SETLE)
 
 
 #define X64_INST_CMP_SET(name, op) \
@@ -1127,6 +1131,10 @@ static int _x64_inst_save_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 
 	if (dn->color < 0)
 		return 0;
+
+	scf_variable_t* v = dn->var;
+	scf_loge("dn->color: %ld\n", dn->color);
+	scf_3ac_code_print(c, NULL);
 	assert(dn->color > 0);
 
 	if (!c->instructions) {
@@ -1263,6 +1271,10 @@ static x64_inst_handler_t x64_inst_handlers[] = {
 
 	{SCF_OP_3AC_SETZ,       _x64_inst_setz_handler},
 	{SCF_OP_3AC_SETNZ,      _x64_inst_setnz_handler},
+	{SCF_OP_3AC_SETGT,      _x64_inst_setgt_handler},
+	{SCF_OP_3AC_SETGE,      _x64_inst_setge_handler},
+	{SCF_OP_3AC_SETLT,      _x64_inst_setlt_handler},
+	{SCF_OP_3AC_SETLE,      _x64_inst_setle_handler},
 
 	{SCF_OP_EQ, 			_x64_inst_eq_handler},
 	{SCF_OP_NE, 			_x64_inst_ne_handler},

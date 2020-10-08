@@ -57,12 +57,12 @@ int scf_dn_index_like(const scf_dn_index_t* di0, const scf_dn_index_t* di1)
 	return 0;
 }
 
-scf_active_var_t* scf_active_var_alloc(scf_dag_node_t* dn)
+scf_dn_status_t* scf_dn_status_alloc(scf_dag_node_t* dn)
 {
 	if (!dn)
 		return NULL;
 
-	scf_active_var_t* v = calloc(1, sizeof(scf_active_var_t));
+	scf_dn_status_t* v = calloc(1, sizeof(scf_dn_status_t));
 	if (!v)
 		return NULL;
 
@@ -75,7 +75,7 @@ scf_active_var_t* scf_active_var_alloc(scf_dag_node_t* dn)
 	return v;
 }
 
-int scf_active_var_copy_dn(scf_active_var_t* dst, scf_active_var_t* src)
+int scf_dn_status_copy_dn(scf_dn_status_t* dst, scf_dn_status_t* src)
 {
 	scf_dn_index_t*   di;
 	int i;
@@ -105,7 +105,7 @@ int scf_active_var_copy_dn(scf_active_var_t* dst, scf_active_var_t* src)
 	return 0;
 }
 
-int scf_active_var_copy_alias(scf_active_var_t* dst, scf_active_var_t* src)
+int scf_dn_status_copy_alias(scf_dn_status_t* dst, scf_dn_status_t* src)
 {
 	scf_dn_index_t*   di;
 	int i;
@@ -136,16 +136,16 @@ int scf_active_var_copy_alias(scf_active_var_t* dst, scf_active_var_t* src)
 	return 0;
 }
 
-scf_active_var_t* scf_active_var_clone(scf_active_var_t* v)
+scf_dn_status_t* scf_dn_status_clone(scf_dn_status_t* v)
 {
-	scf_active_var_t* v2;
+	scf_dn_status_t* v2;
 	scf_dn_index_t*   di;
 	int i;
 
 	if (!v)
 		return NULL;
 
-	v2 = calloc(1, sizeof(scf_active_var_t));
+	v2 = calloc(1, sizeof(scf_dn_status_t));
 	if (!v2)
 		return NULL;
 
@@ -153,7 +153,7 @@ scf_active_var_t* scf_active_var_clone(scf_active_var_t* v)
 		v2->dn_indexes = scf_vector_clone(v->dn_indexes);
 
 		if (!v2->dn_indexes) {
-			scf_active_var_free(v2);
+			scf_dn_status_free(v2);
 			return NULL;
 		}
 
@@ -167,7 +167,7 @@ scf_active_var_t* scf_active_var_clone(scf_active_var_t* v)
 		v2->alias_indexes = scf_vector_clone(v->alias_indexes);
 
 		if (!v2->alias_indexes) {
-			scf_active_var_free(v2);
+			scf_dn_status_free(v2);
 			return NULL;
 		}
 
@@ -189,7 +189,7 @@ scf_active_var_t* scf_active_var_clone(scf_active_var_t* v)
 	return v2;
 }
 
-void scf_active_var_free(scf_active_var_t* v)
+void scf_dn_status_free(scf_dn_status_t* v)
 {
 	scf_dn_index_t* di;
 	int i;
@@ -214,7 +214,7 @@ void scf_active_var_free(scf_active_var_t* v)
 	}
 }
 
-void scf_active_var_print(scf_active_var_t* ds)
+void scf_dn_status_print(scf_dn_status_t* ds)
 {
 	scf_dn_index_t* di;
 	scf_variable_t* v;
@@ -268,10 +268,10 @@ scf_dag_node_t* scf_dag_node_alloc(int type, scf_variable_t* var)
 		dag_node->var = NULL;
 
 #if 0
-	if (1 || scf_type_is_var(type)) {
+	if (SCF_OP_LOGIC_AND == type) {
 		scf_logw("dag_node: %#lx, dag_node->type: %d", 0xffff & (uintptr_t)dag_node, dag_node->type);
 		if (var) {
-			printf(", var->type: %d", var->type);
+			printf(", var: %p, var->type: %d", var, var->type);
 			if (var->w)
 				printf(", v_%d_%d/%s", var->w->line, var->w->pos, var->w->text->data);
 			else {
@@ -334,8 +334,8 @@ void scf_dag_node_free(scf_dag_node_t* dag_node)
 static int _dn_status_cmp_dn_indexes(const void* p0, const void* p1,
 		int (*cmp)(const scf_dn_index_t*, const scf_dn_index_t*))
 {
-	const scf_active_var_t* ds0 = p0;
-	const scf_active_var_t* ds1 = p1;
+	const scf_dn_status_t* ds0 = p0;
+	const scf_dn_status_t* ds1 = p1;
 
 	if (ds0->dag_node != ds1->dag_node)
 		return -1;
@@ -374,8 +374,8 @@ int scf_dn_status_cmp_like_dn_indexes(const void* p0, const void* p1)
 
 int scf_dn_status_cmp_alias(const void* p0, const void* p1)
 {
-	const scf_active_var_t* v0 = p0;
-	const scf_active_var_t* v1 = p1;
+	const scf_dn_status_t* v0 = p0;
+	const scf_dn_status_t* v1 = p1;
 
 	assert(SCF_DN_ALIAS_NULL != v0->alias_type);
 	assert(SCF_DN_ALIAS_NULL != v1->alias_type);
@@ -461,6 +461,12 @@ int scf_dag_node_same(scf_dag_node_t* dag_node, const scf_node_t* node)
 			return 1;
 		else
 			return 0;
+	}
+
+	if (SCF_OP_LOGIC_AND == node->type || SCF_OP_LOGIC_OR  == node->type) {
+		if (dag_node->var == _scf_operand_get((scf_node_t*)node))
+			return 1;
+		return 0;
 	}
 
 	if (!dag_node->childs)
@@ -737,19 +743,19 @@ static int _dn_status_index(scf_vector_t* indexes, scf_dag_node_t* dn_index, int
 	return 0;
 }
 
-int scf_dn_status_index(scf_active_var_t* ds, scf_dag_node_t* dn_index, int type)
+int scf_dn_status_index(scf_dn_status_t* ds, scf_dag_node_t* dn_index, int type)
 {
 	return _dn_status_index(ds->dn_indexes, dn_index, type);
 }
 
-int scf_dn_status_alias_index(scf_active_var_t* ds, scf_dag_node_t* dn_index, int type)
+int scf_dn_status_alias_index(scf_dn_status_t* ds, scf_dag_node_t* dn_index, int type)
 {
 	return _dn_status_index(ds->alias_indexes, dn_index, type);
 }
 
-void scf_dn_status_vector_clear_by_ds(scf_vector_t* vec, scf_active_var_t* ds)
+void scf_dn_status_vector_clear_by_ds(scf_vector_t* vec, scf_dn_status_t* ds)
 {
-	scf_active_var_t* ds2;
+	scf_dn_status_t* ds2;
 
 	while (1) {
 		ds2 = scf_vector_find_cmp(vec, ds, scf_dn_status_cmp_same_dn_indexes);
@@ -761,7 +767,7 @@ void scf_dn_status_vector_clear_by_ds(scf_vector_t* vec, scf_active_var_t* ds)
 
 void scf_dn_status_vector_clear_by_dn(scf_vector_t* vec, scf_dag_node_t* dn)
 {
-	scf_active_var_t* ds;
+	scf_dn_status_t* ds;
 
 	while (1) {
 		ds = scf_vector_find_cmp(vec, dn, scf_dn_status_cmp);
