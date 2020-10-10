@@ -264,5 +264,10 @@ static int scf_type_is_jcc(int type)
 	return type >= SCF_OP_3AC_JZ && type <= SCF_OP_3AC_JLE;
 }
 
+static int scf_type_is_setcc(int type)
+{
+	return type >= SCF_OP_3AC_SETZ && type <= SCF_OP_3AC_SETLE;
+}
+
 #endif
 

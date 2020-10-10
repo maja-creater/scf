@@ -606,7 +606,252 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 	return 0;
 }
 
-static void _3ac_find_basic_block_start(scf_list_t* h)
+static void _3ac_filter_jmp(scf_list_t* h, scf_3ac_code_t* c)
+{
+	scf_list_t*		l2 = NULL;
+	scf_3ac_code_t*	c2 = NULL;
+
+	for (l2 = &c->dst->code->list; l2 != scf_list_sentinel(h); ) {
+
+		c2 = scf_list_data(l2, scf_3ac_code_t, list);
+
+		if (SCF_OP_GOTO == c2->op->type) {
+			l2 = &c2->dst->code->list;
+			continue;
+		}
+
+		if (SCF_OP_3AC_NOP == c2->op->type) {
+			l2 = scf_list_next(l2);
+			continue;
+		}
+
+		if (!scf_type_is_jmp(c2->op->type)) {
+			c->dst->code          = c2;
+			c2->basic_block_start = 1;
+			c2->jmp_dst_flag      = 1;
+			break;
+		}
+
+		if (SCF_OP_GOTO == c->op->type) {
+			c->op        = c2->op;
+			c->dst->code = c2->dst->code;
+
+			l2 = &c2->dst->code->list;
+			continue;
+		}
+
+		scf_logw("c: %s, c2: %s\n", c->op->name, c2->op->name);
+		c->dst->code = c2;
+		c2->basic_block_start = 1;
+		c2->jmp_dst_flag      = 1;
+		break;
+	}
+
+	l2	= scf_list_next(&c->list);
+	if (l2 != scf_list_sentinel(h)) {
+		c2 = scf_list_data(l2, scf_3ac_code_t, list);
+		c2->basic_block_start = 1;
+	}
+	c->basic_block_start = 1;
+}
+
+static void _3ac_filter_dst_teq(scf_list_t* h, scf_3ac_code_t* c)
+{
+	scf_3ac_code_t*	setcc = NULL;
+	scf_3ac_code_t*	jcc   = NULL;
+	scf_3ac_code_t* teq   = c->dst->code;
+	scf_list_t*     l;
+
+	if (scf_list_prev(&c->list) == scf_list_sentinel(h))
+		return;
+
+	if (scf_list_next(&teq->list) == scf_list_sentinel(h))
+		return;
+
+	setcc = scf_list_data(scf_list_prev(&c->list),   scf_3ac_code_t, list);
+	jcc   = scf_list_data(scf_list_next(&teq->list), scf_3ac_code_t, list);
+
+	if ((SCF_OP_3AC_JNZ == c->op->type && SCF_OP_3AC_SETZ == setcc->op->type)
+			|| (SCF_OP_3AC_JZ  == c->op->type && SCF_OP_3AC_SETNZ == setcc->op->type)
+			|| (SCF_OP_3AC_JGT == c->op->type && SCF_OP_3AC_SETLE == setcc->op->type)
+			|| (SCF_OP_3AC_JGE == c->op->type && SCF_OP_3AC_SETLT == setcc->op->type)
+			|| (SCF_OP_3AC_JLT == c->op->type && SCF_OP_3AC_SETGE == setcc->op->type)
+			|| (SCF_OP_3AC_JLE == c->op->type && SCF_OP_3AC_SETGT == setcc->op->type)) {
+
+		assert(setcc->dst && setcc->dst->node);
+		assert(teq->srcs  && 1 == teq->srcs->size);
+
+		scf_3ac_operand_t* src   = teq->srcs->data[0];
+		scf_variable_t*    v_teq = _scf_operand_get(src->node);
+		scf_variable_t*    v_set = _scf_operand_get(setcc->dst->node);
+
+		if (v_teq != v_set)
+			return;
+
+		if (SCF_OP_3AC_JZ == jcc->op ->type) {
+			c->dst->code  =  jcc->dst->code;
+
+		} else if (SCF_OP_3AC_JNZ == jcc->op->type) {
+
+			l = scf_list_next(&jcc->list);
+			if (l == scf_list_sentinel(h))
+				return;
+			c->dst->code = scf_list_data(l, scf_3ac_code_t, list);
+		}
+	} else if ((SCF_OP_3AC_JNZ == c->op->type && SCF_OP_3AC_SETNZ == setcc->op->type)
+			|| (SCF_OP_3AC_JZ  == c->op->type && SCF_OP_3AC_SETZ  == setcc->op->type)
+			|| (SCF_OP_3AC_JGT == c->op->type && SCF_OP_3AC_SETGT == setcc->op->type)
+			|| (SCF_OP_3AC_JGE == c->op->type && SCF_OP_3AC_SETGE == setcc->op->type)
+			|| (SCF_OP_3AC_JLT == c->op->type && SCF_OP_3AC_SETLT == setcc->op->type)
+			|| (SCF_OP_3AC_JLE == c->op->type && SCF_OP_3AC_SETLE == setcc->op->type)) {
+
+		assert(setcc->dst && setcc->dst->node);
+		assert(teq->srcs  && 1 == teq->srcs->size);
+
+		scf_3ac_operand_t* src   = teq->srcs->data[0];
+		scf_variable_t*    v_teq = _scf_operand_get(src->node);
+		scf_variable_t*    v_set = _scf_operand_get(setcc->dst->node);
+
+		if (v_teq != v_set)
+			return;
+
+		if (SCF_OP_3AC_JNZ == jcc-> op->type) {
+			c->dst->code   =  jcc->dst->code;
+
+		} else if (SCF_OP_3AC_JZ == jcc->op->type) {
+
+			l = scf_list_next(&jcc->list);
+			if (l == scf_list_sentinel(h))
+				return;
+			c->dst->code = scf_list_data(l, scf_3ac_code_t, list);
+		}
+	}
+}
+
+static int _3ac_filter_prev_teq(scf_list_t* h, scf_3ac_code_t* c, scf_3ac_code_t* teq)
+{
+	scf_3ac_code_t*	setcc = NULL;
+	scf_3ac_code_t*	jcc   = NULL;
+	scf_3ac_code_t*	jmp   = NULL;
+	scf_list_t*     l;
+
+	int jcc_type;
+
+	if (scf_list_prev(&teq->list) == scf_list_sentinel(h))
+		return 0;
+
+	setcc    = scf_list_data(scf_list_prev(&teq->list), scf_3ac_code_t, list);
+	jcc_type = -1;
+
+	if (SCF_OP_3AC_JZ == c->op->type) {
+
+		switch (setcc->op->type) {
+			case SCF_OP_3AC_SETZ:
+				jcc_type = SCF_OP_3AC_JNZ;
+				break;
+
+			case SCF_OP_3AC_SETNZ:
+				jcc_type = SCF_OP_3AC_JZ;
+				break;
+
+			case SCF_OP_3AC_SETGT:
+				jcc_type = SCF_OP_3AC_JLE;
+				break;
+
+			case SCF_OP_3AC_SETGE:
+				jcc_type = SCF_OP_3AC_JLT;
+				break;
+
+			case SCF_OP_3AC_SETLT:
+				jcc_type = SCF_OP_3AC_JGE;
+				break;
+
+			case SCF_OP_3AC_SETLE:
+				jcc_type = SCF_OP_3AC_JGT;
+				break;
+			default:
+				return 0;
+				break;
+		};
+	} else if (SCF_OP_3AC_JNZ == c->op->type) {
+
+		switch (setcc->op->type) {
+			case SCF_OP_3AC_SETZ:
+				jcc_type = SCF_OP_3AC_JZ;
+				break;
+
+			case SCF_OP_3AC_SETNZ:
+				jcc_type = SCF_OP_3AC_JNZ;
+				break;
+
+			case SCF_OP_3AC_SETGT:
+				jcc_type = SCF_OP_3AC_JGT;
+				break;
+
+			case SCF_OP_3AC_SETGE:
+				jcc_type = SCF_OP_3AC_JGE;
+				break;
+
+			case SCF_OP_3AC_SETLT:
+				jcc_type = SCF_OP_3AC_JLT;
+				break;
+
+			case SCF_OP_3AC_SETLE:
+				jcc_type = SCF_OP_3AC_JLE;
+				break;
+			default:
+				return 0;
+				break;
+		};
+	} else
+		return 0;
+
+	assert(setcc->dst && setcc->dst->node);
+	assert(teq->srcs  && 1 == teq->srcs->size);
+
+	scf_3ac_operand_t* src   = teq->srcs->data[0];
+	scf_variable_t*    v_teq = _scf_operand_get(src->node);
+	scf_variable_t*    v_set = _scf_operand_get(setcc->dst->node);
+
+	if (v_teq != v_set)
+		return 0;
+
+#define SCF_3AC_JCC_ALLOC(j, cc) \
+	do { \
+		j = scf_3ac_code_alloc(); \
+		if (!j) \
+			return -ENOMEM; \
+		j->dst = scf_3ac_operand_alloc(); \
+		if (!j->dst) { \
+			scf_3ac_code_free(j); \
+			return -ENOMEM; \
+		} \
+		j->op = scf_3ac_find_operator(cc); \
+		assert(j->op); \
+	} while (0)
+
+	SCF_3AC_JCC_ALLOC(jcc, jcc_type);
+	jcc->dst->code = c->dst->code;
+	scf_list_add_front(&setcc->list, &jcc->list);
+
+	l = scf_list_next(&c->list);
+	if (l == scf_list_sentinel(h)) {
+		_3ac_filter_jmp(h, jcc);
+		return 0;
+	}
+#if 1
+	SCF_3AC_JCC_ALLOC(jmp, SCF_OP_GOTO);
+	jmp->dst->code = scf_list_data(l, scf_3ac_code_t, list);
+	scf_list_add_front(&jcc->list, &jmp->list);
+#endif
+
+	_3ac_filter_jmp(h, jcc);
+	_3ac_filter_jmp(h, jmp);
+
+	return 0;
+}
+
+static int _3ac_find_basic_block_start(scf_list_t* h)
 {
 	int			  start = 0;
 	scf_list_t*	  l;
@@ -670,13 +915,16 @@ static void _3ac_find_basic_block_start(scf_list_t* h)
 		if (SCF_OP_3AC_CMP == c->op->type
 				|| SCF_OP_3AC_TEQ == c->op->type) {
 
-			l2	= scf_list_next(&c->list);
-			if (l2 != scf_list_sentinel(h)) {
+			for (l2 = scf_list_next(&c->list); l2 != scf_list_sentinel(h); l2 = scf_list_next(l2)) {
 
-				c2 = scf_list_data(l2, scf_3ac_code_t, list);
+				c2  = scf_list_data(l2, scf_3ac_code_t, list);
+
+				if (scf_type_is_setcc(c2->op->type))
+					continue;
 
 				if (scf_type_is_jmp(c2->op->type))
 					c->basic_block_start = 1;
+				break;
 			}
 			continue;
 		}
@@ -684,49 +932,24 @@ static void _3ac_find_basic_block_start(scf_list_t* h)
 		if (scf_type_is_jmp(c->op->type)) {
 			assert(c->dst->code);
 
-			for (l2 = &c->dst->code->list; l2 != scf_list_sentinel(h); ) {
+			// filter 1st expr of logic op, such as '&&', '||'
+			if (SCF_OP_3AC_TEQ == c->dst->code->op->type)
+				_3ac_filter_dst_teq(h, c);
 
-				c2 = scf_list_data(l2, scf_3ac_code_t, list);
-
-				if (SCF_OP_GOTO == c2->op->type) {
-					l2 = &c2->dst->code->list;
-					continue;
-				}
-
-				if (SCF_OP_3AC_NOP == c2->op->type) {
-					l2 = scf_list_next(l2);
-					continue;
-				}
-
-				if (!scf_type_is_jmp(c2->op->type)) {
-					c->dst->code          = c2;
-					c2->basic_block_start = 1;
-					c2->jmp_dst_flag      = 1;
-					break;
-				}
-
-				if (SCF_OP_GOTO == c->op->type) {
-					c->op        = c2->op;
-					c->dst->code = c2->dst->code;
-
-					l2 = &c2->dst->code->list;
-					continue;
-				}
-
-				scf_logw("c: %s, c2: %s\n", c->op->name, c2->op->name);
-				c->dst->code = c2;
-				c2->basic_block_start = 1;
-				c2->jmp_dst_flag      = 1;
-				break;
-			}
-
-			l2	= scf_list_next(&c->list);
+			l2 = scf_list_prev(&c->list);
 			if (l2 != scf_list_sentinel(h)) {
-				c2 = scf_list_data(l2, scf_3ac_code_t, list);
-				c2->basic_block_start = 1;
+				c2  = scf_list_data(l2, scf_3ac_code_t, list);
+
+				// filter 2nd expr of logic op, such as '&&', '||'
+				if (SCF_OP_3AC_TEQ == c2->op->type) {
+
+					int ret = _3ac_filter_prev_teq(h, c, c2);
+					if (ret < 0)
+						return ret;
+				}
 			}
 
-			c->basic_block_start = 1;
+			_3ac_filter_jmp(h, c);
 		}
 	}
 #if 1
@@ -777,6 +1000,7 @@ static void _3ac_find_basic_block_start(scf_list_t* h)
 		}
 	}
 #endif
+	return 0;
 }
 
 static int _3ac_split_basic_blocks(scf_list_t* h, scf_function_t* f)
@@ -901,9 +1125,6 @@ static int _3ac_connect_basic_blocks(scf_function_t* f)
 			}
 		}
 
-		if (current_bb->jmp_flag && !current_bb->jcc_flag)
-			continue;
-
 		l2 = scf_list_next(l);
 		if (l2 == sentinel)
 			continue;
@@ -929,21 +1150,45 @@ static int _3ac_connect_basic_blocks(scf_function_t* f)
 		c->dst->bb   = dst_bb;
 		c->dst->code = NULL;
 
-		l = scf_list_prev(&current_bb->list);
-		if (l == sentinel)
+		for (l = scf_list_prev(&current_bb->list); l != sentinel; l = scf_list_prev(l)) {
+
+			prev_bb = scf_list_data(l, scf_basic_block_t, list);
+
+			if (!prev_bb->jmp_flag)
+				break;
+
+			if (!prev_bb->jcc_flag) {
+				prev_bb = NULL;
+				break;
+			}
+			prev_bb = NULL;
+		}
+
+		if (prev_bb) {
+			ret = scf_basic_block_connect(prev_bb, dst_bb);
+			if (ret < 0)
+				return ret;
+		} else
 			continue;
 
-		prev_bb = scf_list_data(l, scf_basic_block_t, list);
+		if (!current_bb->jcc_flag)
+			continue;
 
-		ret = scf_basic_block_connect(prev_bb, dst_bb);
-		if (ret < 0)
-			return ret;
-
-		l = scf_list_next(&current_bb->list);
-		if (l != sentinel && current_bb->jcc_flag) {
+		for (l = scf_list_next(&current_bb->list); l != sentinel; l = scf_list_next(l)) {
 
 			next_bb = scf_list_data(l, scf_basic_block_t, list);
 
+			if (!next_bb->jmp_flag)
+				break;
+
+			if (!next_bb->jcc_flag) {
+				next_bb = NULL;
+				break;
+			}
+			next_bb = NULL;
+		}
+
+		if (next_bb) {
 			ret = scf_basic_block_connect(prev_bb, next_bb);
 			if (ret < 0)
 				return ret;
@@ -955,9 +1200,11 @@ static int _3ac_connect_basic_blocks(scf_function_t* f)
 
 int scf_3ac_split_basic_blocks(scf_list_t* list_head_3ac, scf_function_t* f)
 {
-	_3ac_find_basic_block_start(list_head_3ac);
+	int ret = _3ac_find_basic_block_start(list_head_3ac);
+	if (ret < 0)
+		return ret;
 
-	int ret = _3ac_split_basic_blocks(list_head_3ac, f);
+	ret = _3ac_split_basic_blocks(list_head_3ac, f);
 	if (ret < 0)
 		return ret;
 

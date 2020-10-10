@@ -75,7 +75,19 @@ static int _while_action_lp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	assert(!d->expr);
 	d->expr_local_flag = 1;
 
-	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "while_rp"), SCF_DFA_HOOK_POST);
+	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "while_rp"),      SCF_DFA_HOOK_POST);
+	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "while_lp_stat"), SCF_DFA_HOOK_POST);
+
+	return SCF_DFA_NEXT_WORD;
+}
+
+static int _while_action_lp_stat(scf_dfa_t* dfa, scf_vector_t* words, void* data)
+{
+	dfa_parse_data_t* d     = data;
+	scf_stack_t*      s     = d->module_datas[dfa_module_while.index];
+	dfa_while_data_t* wd    = scf_stack_top(s);
+
+	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "while_lp_stat"), SCF_DFA_HOOK_POST);
 
 	wd->nb_lps++;
 
@@ -111,6 +123,9 @@ static int _while_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 		return SCF_DFA_SWITCH_TO;
 	}
 
+	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "while_rp"),      SCF_DFA_HOOK_POST);
+	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "while_lp_stat"), SCF_DFA_HOOK_POST);
+
 	return SCF_DFA_NEXT_WORD;
 }
 
@@ -143,6 +158,7 @@ static int _dfa_init_module_while(scf_dfa_t* dfa)
 
 	SCF_DFA_MODULE_NODE(dfa, while, lp,        scf_dfa_is_lp,    _while_action_lp);
 	SCF_DFA_MODULE_NODE(dfa, while, rp,        scf_dfa_is_rp,    _while_action_rp);
+	SCF_DFA_MODULE_NODE(dfa, while, lp_stat,   scf_dfa_is_lp,    _while_action_lp_stat);
 
 	SCF_DFA_MODULE_NODE(dfa, while, _while,    _while_is_while,  _while_action_while);
 
@@ -182,6 +198,7 @@ static int _dfa_init_syntax_while(scf_dfa_t* dfa)
 {
 	SCF_DFA_GET_MODULE_NODE(dfa, while,   lp,        lp);
 	SCF_DFA_GET_MODULE_NODE(dfa, while,   rp,        rp);
+	SCF_DFA_GET_MODULE_NODE(dfa, while,   lp_stat,   lp_stat);
 	SCF_DFA_GET_MODULE_NODE(dfa, while,   _while,    _while);
 	SCF_DFA_GET_MODULE_NODE(dfa, while,   end,       end);
 

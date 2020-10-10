@@ -314,7 +314,7 @@ static int _scf_dfa_node_parse_word(scf_dfa_t* dfa, scf_dfa_node_t* node, scf_ve
 	int             ret = SCF_DFA_NEXT_WORD;
 	scf_lex_word_t* w   = words->data[words->size - 1];
 
-	scf_logi("\033[33m%s->action(), w: %s\033[0m\n", node->name, w->text->data);
+	scf_logi("\033[33m%s->action(), w: %s, position: %d,%d\033[0m\n", node->name, w->text->data, w->line, w->pos);
 
 	if (node->action) {
 

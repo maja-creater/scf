@@ -44,8 +44,10 @@ int scf_optimize(scf_function_t* f, scf_list_t* bb_list_head)
 			continue;
 
 		int ret = optimizer->optimize(f, bb_list_head);
-		if (ret < 0)
+		if (ret < 0) {
+			scf_loge("optimizer: %s\n", optimizer->name);
 			return ret;
+		}
 	}
 
 	return 0;
