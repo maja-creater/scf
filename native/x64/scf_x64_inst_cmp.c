@@ -91,6 +91,8 @@ static int _inst_set(int setcc_type, scf_dag_node_t* dst, scf_3ac_code_t* c, scf
 			mov = x64_find_OpCode(SCF_X64_MOV, rd->bytes, rd->bytes, SCF_X64_I2G);
 			inst = x64_make_inst_I2G(mov, rd, (uint8_t*)&imm, rd->bytes);
 			X64_INST_ADD_CHECK(c->instructions, inst);
+
+			rd = x64_find_register_color_bytes(rd->color, 1);
 		}
 
 		inst = x64_make_inst_E(setcc, rd);

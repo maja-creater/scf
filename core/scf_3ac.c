@@ -469,6 +469,59 @@ void scf_3ac_code_print(scf_3ac_code_t* c, scf_list_t* sentinel)
 	printf("\n");
 }
 
+static int _3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag, int nb_operands0, int nb_operands1)
+{
+	scf_dag_node_t* dag_dst = NULL;
+
+	int ret;
+	int i;
+
+	if (c->dst && c->dst->node) {
+		ret = scf_dag_get_node(dag, c->dst->node, &c->dst->dag_node);
+		if (ret < 0)
+			return ret;
+
+		dag_dst = c->dst->dag_node;
+	}
+
+	if (!c->srcs)
+		return 0;
+
+	for (i = 0; i < c->srcs->size; i++) {
+
+		scf_3ac_operand_t* src = c->srcs->data[i];
+		if (!src || !src->node)
+			continue;
+
+		ret = scf_dag_get_node(dag, src->node, &src->dag_node);
+		if (ret < 0)
+			return ret;
+
+		if (!dag_dst)
+			continue;
+
+		if (!dag_dst->childs || dag_dst->childs->size < nb_operands0) {
+
+			ret = scf_dag_node_add_child(dag_dst, src->dag_node);
+			if (ret < 0)
+				return ret;
+		} else {
+			int j;
+			for (j = 0; j < dag_dst->childs->size && j < nb_operands1; j++) {
+				if (src->dag_node == dag_dst->childs->data[j])
+					break;
+			}
+			if (j == dag_dst->childs->size) {
+				scf_loge("i: %d, c->op: %s, dag_dst->childs->size: %d, c->srcs->size: %d\n",
+						i, c->op->name, dag_dst->childs->size, c->srcs->size);
+				scf_3ac_code_print(c, NULL);
+				return -1;
+			}
+		}
+	}
+	return 0;
+}
+
 int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 {
 	int ret = 0;
@@ -519,6 +572,10 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 		if (ret < 0)
 			return ret;
 
+		if (c->dst) {
+			assert(c->dst->node);
+			c->dst->dag_node = dn_parent;
+		}
 	} else if (SCF_OP_3AC_TEQ == c->op->type
 			|| SCF_OP_RETURN == c->op->type) {
 
@@ -534,73 +591,36 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 		scf_logd("c->op: %d, name: %s\n", c->op->type, c->op->name);
 
 	} else {
-		scf_dag_node_t* dag_dst = NULL;
-		scf_operator_t* op      = NULL;
+		int nb_operands0   = -1;
+		int nb_operands1   = -1;
 
 		if (c->dst && c->dst->node) {
-			ret = scf_dag_get_node(dag, c->dst->node, &c->dst->dag_node);
-			if (ret < 0)
-				return ret;
+			assert(c->dst->node->op);
 
-			dag_dst = c->dst->dag_node;
-			op      = c->dst->node->op;
-			assert(op);
-		}
+			nb_operands0 = c->dst->node->op->nb_operands;
+			nb_operands1 = nb_operands0;
 
-		if (!c->srcs)
-			return 0;
-
-		int i;
-		for (i = 0; i < c->srcs->size; i++) {
-
-			scf_3ac_operand_t* src = c->srcs->data[i];
-			if (!src || !src->node)
-				continue;
-
-			ret = scf_dag_get_node(dag, src->node, &src->dag_node);
-			if (ret < 0)
-				return ret;
-
-			if (!dag_dst)
-				continue;
-
-			int nb_operands = op->nb_operands;
 			switch (c->op->type) {
 				case SCF_OP_ARRAY_INDEX:
 				case SCF_OP_3AC_ADDRESS_OF_ARRAY_INDEX:
-					nb_operands = 3;
+				case SCF_OP_3AC_INC_POST_ARRAY_INDEX:
+				case SCF_OP_3AC_DEC_POST_ARRAY_INDEX:
+					nb_operands0 = 3;
 					break;
 
 				case SCF_OP_3AC_ADDRESS_OF_POINTER:
-					nb_operands = 2;
+					nb_operands0 = 2;
 					break;
 
 				case SCF_OP_CALL:
-					nb_operands = c->srcs->size;
+					nb_operands0 = c->srcs->size;
 					break;
 				default:
 					break;
 			};
-
-			if (!dag_dst->childs || dag_dst->childs->size < nb_operands) {
-
-				ret = scf_dag_node_add_child(dag_dst, src->dag_node);
-				if (ret < 0)
-					return ret;
-			} else {
-				int j;
-				for (j = 0; j < dag_dst->childs->size && j < op->nb_operands; j++) {
-					if (src->dag_node == dag_dst->childs->data[j])
-						break;
-				}
-				if (j == dag_dst->childs->size) {
-					scf_loge("i: %d, c->op: %s, op: %s, dag_dst->childs->size: %d, c->srcs->size: %d\n",
-							i, c->op->name, op->name, dag_dst->childs->size, c->srcs->size);
-					scf_3ac_code_print(c, NULL);
-					return -1;
-				}
-			}
 		}
+
+		return _3ac_code_to_dag(c, dag, nb_operands0, nb_operands1);
 	}
 
 	return 0;

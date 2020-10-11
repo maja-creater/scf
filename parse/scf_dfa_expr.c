@@ -511,7 +511,13 @@ static int _expr_action_ls(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 	scf_stack_push(md->ls_exprs, d->expr);
 
-	scf_logd("n: %p, expr: %p, parent: %p\n", n, d->expr, d->expr->parent);
+	scf_expr_t* index = scf_expr_alloc();
+	if (!index) {
+		scf_loge("index expr alloc error\n");
+		return SCF_DFA_ERROR;
+	}
+
+	d->expr = index;
 
 	return SCF_DFA_NEXT_WORD;
 }
@@ -536,10 +542,14 @@ static int _expr_action_rs(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 	scf_expr_t* ls_parent = scf_stack_pop(md->ls_exprs);
 
-	scf_logd("expr: %p, parent: %p, ls_parent: %p\n", d->expr, d->expr->parent, ls_parent);
+	assert (d->expr);
+	while (d->expr->parent)
+		d->expr = d->expr->parent;
 
-	if (ls_parent)
+	if (ls_parent) {
+		scf_expr_add_node(ls_parent, d->expr);
 		d->expr = ls_parent;
+	}
 
 	return SCF_DFA_NEXT_WORD;
 }

@@ -1133,8 +1133,6 @@ static int _x64_inst_save_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		return 0;
 
 	scf_variable_t* v = dn->var;
-	scf_loge("dn->color: %ld\n", dn->color);
-	scf_3ac_code_print(c, NULL);
 	assert(dn->color > 0);
 
 	if (!c->instructions) {
