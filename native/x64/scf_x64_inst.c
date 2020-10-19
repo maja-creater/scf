@@ -1315,6 +1315,9 @@ static x64_inst_handler_t x64_inst_handlers[] = {
 	{SCF_OP_3AC_RESAVE,     _x64_inst_save_handler},
 	{SCF_OP_3AC_RELOAD,     _x64_inst_reload_handler},
 
+	{SCF_OP_3AC_INC,        _x64_inst_inc_handler},
+	{SCF_OP_3AC_DEC,        _x64_inst_dec_handler},
+
 	{SCF_OP_3AC_ASSIGN_DEREFERENCE,     _x64_inst_assign_dereference_handler},
 	{SCF_OP_3AC_ASSIGN_ARRAY_INDEX,     _x64_inst_assign_array_index_handler},
 	{SCF_OP_3AC_ASSIGN_POINTER,         _x64_inst_assign_pointer_handler},

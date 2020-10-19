@@ -997,6 +997,9 @@ static x64_rcg_handler_t x64_rcg_handlers[] = {
 	{SCF_OP_3AC_NOP,        _x64_rcg_nop_handler},
 	{SCF_OP_3AC_END,        _x64_rcg_end_handler},
 
+	{SCF_OP_3AC_INC,        _x64_rcg_inc_handler},
+	{SCF_OP_3AC_DEC,        _x64_rcg_dec_handler},
+
 	{SCF_OP_3AC_ASSIGN_DEREFERENCE,     _x64_rcg_assign_dereference_handler},
 	{SCF_OP_3AC_ASSIGN_ARRAY_INDEX,     _x64_rcg_assign_array_index_handler},
 	{SCF_OP_3AC_ASSIGN_POINTER,         _x64_rcg_assign_pointer_handler},

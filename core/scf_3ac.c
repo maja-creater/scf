@@ -89,6 +89,9 @@ static scf_3ac_operator_t _3ac_operators[] = {
 	{SCF_OP_3AC_RELOAD,      "reload"},
 	{SCF_OP_3AC_RESAVE,      "resave"},
 
+	{SCF_OP_3AC_INC,         "inc3"},
+	{SCF_OP_3AC_DEC,         "dec3"},
+
 	{SCF_OP_3AC_ASSIGN_DEREFERENCE,	    "dereference="},
 	{SCF_OP_3AC_ASSIGN_ARRAY_INDEX,	    "array_index="},
 	{SCF_OP_3AC_ASSIGN_POINTER,	        "pointer="},
@@ -552,10 +555,54 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 		if (ret < 0)
 			return ret;
 
+	} else if (SCF_OP_3AC_CMP == c->op->type
+			|| SCF_OP_3AC_TEQ == c->op->type) {
+
+		scf_3ac_operand_t* src;
+		scf_dag_node_t*    dn_cmp = scf_dag_node_alloc(c->op->type, NULL);
+
+		scf_list_add_tail(dag, &dn_cmp->list);
+
+		if (c->srcs) {
+			int i;
+			for (i  = 0; i < c->srcs->size; i++) {
+				src = c->srcs->data[i];
+
+				ret = scf_dag_get_node(dag, src->node, &src->dag_node);
+				if (ret < 0)
+					return ret;
+
+				ret = scf_dag_node_add_child(dn_cmp, src->dag_node);
+				if (ret < 0)
+					return ret;
+			}
+		}
+	} else if (SCF_OP_3AC_SETZ  == c->op->type
+			|| SCF_OP_3AC_SETNZ == c->op->type
+			|| SCF_OP_3AC_SETLT == c->op->type
+			|| SCF_OP_3AC_SETLE == c->op->type
+			|| SCF_OP_3AC_SETGT == c->op->type
+			|| SCF_OP_3AC_SETGE == c->op->type) {
+
+		assert(c->dst->node);
+
+		scf_dag_node_t* dn_setcc = scf_dag_node_alloc(c->op->type, NULL);
+		scf_list_add_tail(dag, &dn_setcc->list);
+
+		ret = scf_dag_get_node(dag, c->dst->node, &c->dst->dag_node);
+		if (ret < 0)
+			return ret;
+
+		ret = scf_dag_node_add_child(dn_setcc, c->dst->dag_node);
+		if (ret < 0)
+			return ret;
+
 	} else if (SCF_OP_INC == c->op->type
-			|| SCF_OP_INC_POST == c->op->type
 			|| SCF_OP_DEC == c->op->type
-			|| SCF_OP_DEC_POST == c->op->type) {
+			|| SCF_OP_INC_POST == c->op->type
+			|| SCF_OP_DEC_POST == c->op->type
+			|| SCF_OP_3AC_INC  == c->op->type
+			|| SCF_OP_3AC_DEC  == c->op->type) {
 
 		scf_3ac_operand_t* src = c->srcs->data[0];
 
@@ -576,8 +623,7 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 			assert(c->dst->node);
 			c->dst->dag_node = dn_parent;
 		}
-	} else if (SCF_OP_3AC_TEQ == c->op->type
-			|| SCF_OP_RETURN == c->op->type) {
+	} else if (SCF_OP_RETURN == c->op->type) {
 
 		scf_3ac_operand_t* src = c->srcs->data[0];
 
@@ -1108,6 +1154,9 @@ static int _3ac_split_basic_blocks(scf_list_t* h, scf_function_t* f)
 
 			else if (SCF_OP_CALL == c->op->type || SCF_OP_3AC_CALL_EXTERN == c->op->type)
 				bb->call_flag = 1;
+
+			else if (SCF_OP_RETURN == c->op->type)
+				bb->ret_flag = 1;
 
 			scf_list_del(&c->list);
 			scf_list_add_tail(&bb->code_list_head, &c->list);

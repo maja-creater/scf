@@ -1736,7 +1736,7 @@ SCF_OP_BINARY_ASSIGN2(div, DIV)
 SCF_OP_BINARY_ASSIGN2(mod, MOD)
 
 #define SCF_OP_UNARY_ASSIGN(name, op) \
-static int _scf_op_##name(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data) \
+static int __scf_op_##name(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data) \
 { \
 	assert(1 == nb_nodes); \
 	scf_handler_data_t* d = data; \
@@ -1760,50 +1760,63 @@ static int _scf_op_##name(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 			break; \
 	}; \
 	\
-	return _scf_3ac_code_1(d->_3ac_list_head, SCF_OP_##op, node0); \
+	return _scf_3ac_code_1(d->_3ac_list_head, SCF_OP_3AC_##op, node0); \
 }
 SCF_OP_UNARY_ASSIGN(inc, INC)
 SCF_OP_UNARY_ASSIGN(dec, DEC)
 
-#define SCF_OP_UNARY_POST_ASSIGN(name, op) \
-static int _scf_op_##name(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data) \
+#define SCF_OP_UNARY_ASSIGN2(name0, name1, op_type, post_flag) \
+static int _scf_op_##name0(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data) \
 { \
 	assert(1 == nb_nodes); \
 	scf_handler_data_t* d  = data; \
 	\
 	scf_node_t*     node0  = nodes[0]; \
 	scf_node_t*     parent = nodes[0]->parent; \
+	scf_variable_t* v      = _scf_operand_get(parent); \
 	\
-	while (SCF_OP_EXPR == node0->type) \
-		node0 = node0->nodes[0]; \
-	\
-	int ret; \
-	switch (node0->type) { \
-		case SCF_OP_DEREFERENCE: \
-			ret = _scf_op_left_value(ast, SCF_OP_3AC_##op##_DEREFERENCE, node0, NULL, d); \
-			break; \
-		case SCF_OP_ARRAY_INDEX: \
-			ret = _scf_op_left_value_array_index(ast, SCF_OP_3AC_##op##_ARRAY_INDEX, node0, NULL, d); \
-			break; \
-		case SCF_OP_POINTER: \
-			ret = _scf_op_left_value(ast, SCF_OP_3AC_##op##_POINTER, node0, NULL, d); \
-			break; \
-		default: \
-		    ret = _scf_3ac_code_2(d->_3ac_list_head, SCF_OP_##op, NULL, node0); \
-			break; \
-	}; \
-	\
+	int ret = __scf_op_##name1(ast, nodes, nb_nodes, data); \
 	if (ret < 0) { \
 		scf_loge("\n"); \
 		return -1; \
 	} \
-	scf_list_t*     l = scf_list_tail(d->_3ac_list_head); \
-	scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list); \
-	c->dst->node = parent; \
+	scf_list_t*     l  = scf_list_tail(d->_3ac_list_head); \
+	scf_3ac_code_t* c  = scf_list_data(l, scf_3ac_code_t, list); \
+	scf_3ac_code_t* c2 = scf_3ac_code_clone(c); \
+	if (!c2) \
+		return -ENOMEM; \
+	\
+	assert(!c2->dst); \
+	c2->dst = scf_3ac_operand_alloc(); \
+	if (!c2->dst) { \
+		scf_3ac_code_free(c2); \
+		return -ENOMEM; \
+	} \
+	c2->dst->node = parent; \
+	v->local_flag = 1; \
+	\
+	switch (c2->op->type) { \
+		case SCF_OP_3AC_##op_type##_DEREFERENCE: \
+			c2->op = scf_3ac_find_operator(SCF_OP_3AC_ASSIGN_DEREFERENCE); \
+			break; \
+		case SCF_OP_3AC_##op_type##_ARRAY_INDEX: \
+			c2->op = scf_3ac_find_operator(SCF_OP_3AC_ASSIGN_ARRAY_INDEX); \
+		case SCF_OP_3AC_##op_type##_POINTER: \
+			c2->op = scf_3ac_find_operator(SCF_OP_3AC_ASSIGN_POINTER); \
+		default: \
+			c2->op = scf_3ac_find_operator(SCF_OP_ASSIGN); \
+			break; \
+	}; \
+	if (post_flag) \
+		scf_list_add_tail(&c->list, &c2->list); \
+	else \
+		scf_list_add_front(&c->list, &c2->list); \
 	return 0; \
 }
-SCF_OP_UNARY_POST_ASSIGN(inc_post, INC_POST)
-SCF_OP_UNARY_POST_ASSIGN(dec_post, DEC_POST)
+SCF_OP_UNARY_ASSIGN2(inc,      inc, INC, 0)
+SCF_OP_UNARY_ASSIGN2(dec,      dec, DEC, 0)
+SCF_OP_UNARY_ASSIGN2(inc_post, inc, INC, 1)
+SCF_OP_UNARY_ASSIGN2(dec_post, dec, DEC, 1)
 
 #define SCF_OP_CMP(name, op_type) \
 static int _scf_op_##name(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data) \

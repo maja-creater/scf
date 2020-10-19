@@ -463,7 +463,12 @@ int scf_dag_node_same(scf_dag_node_t* dag_node, const scf_node_t* node)
 			return 0;
 	}
 
-	if (SCF_OP_LOGIC_AND == node->type || SCF_OP_LOGIC_OR  == node->type) {
+	if (SCF_OP_LOGIC_AND == node->type
+			|| SCF_OP_LOGIC_OR == node->type
+			|| SCF_OP_INC      == node->type
+			|| SCF_OP_DEC      == node->type
+			|| SCF_OP_INC_POST == node->type
+			|| SCF_OP_DEC_POST == node->type) {
 		if (dag_node->var == _scf_operand_get((scf_node_t*)node))
 			return 1;
 		return 0;
@@ -535,6 +540,36 @@ cmp_childs:
 
 		if (0 == scf_dag_node_same(dag_child, child))
 			return 0;
+	}
+
+	for (i = 0; i < dag_node->childs->size; i++) {
+		scf_dag_node_t*	child  = dag_node->childs->data[i];
+		scf_dag_node_t* parent = NULL;
+
+		assert(child->parents);
+
+		int j;
+		for (j = 0; j < child->parents->size; j++) {
+			if (dag_node == child->parents->data[j])
+				break;
+		}
+		assert(j < child->parents->size);
+
+		for (++j; j < child->parents->size; j++) {
+			parent  = child->parents->data[j];
+
+			if (scf_type_is_assign(parent->type)
+					|| SCF_OP_INC       == parent->type
+					|| SCF_OP_DEC       == parent->type
+					|| SCF_OP_3AC_SETZ  == parent->type
+					|| SCF_OP_3AC_SETNZ == parent->type
+					|| SCF_OP_3AC_SETLT == parent->type
+					|| SCF_OP_3AC_SETLE == parent->type
+					|| SCF_OP_3AC_SETGT == parent->type
+					|| SCF_OP_3AC_SETGE == parent->type) {
+				return 0;
+			}
+		}
 	}
 
 	return 1;

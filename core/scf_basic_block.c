@@ -337,10 +337,9 @@ static int _bb_vars(scf_basic_block_t* bb)
 			for (j = 0; j < c->srcs->size; j++) {
 				scf_3ac_operand_t* src = c->srcs->data[j];
 
-				if (!src->node)
+				if (!src->dag_node)
 					continue;
 
-				assert(src->dag_node);
 				dn = src->dag_node;
 
 				if (scf_type_is_operator(dn->type)
@@ -357,19 +356,16 @@ static int _bb_vars(scf_basic_block_t* bb)
 	return 0;
 }
 
-static int _bb_dag(scf_basic_block_t* bb, scf_list_t* dag_list_head)
+int scf_basic_block_dag2(scf_basic_block_t* bb, scf_list_t* dag_list_head)
 {
-	int ret = 0;
-	int i;
-	int j;
-
 	scf_list_t* l;
+
 	for (l = scf_list_head(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head);
 			l = scf_list_next(l)) {
 
 		scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
 
-		ret = scf_3ac_code_to_dag(c, dag_list_head);
+		int ret = scf_3ac_code_to_dag(c, dag_list_head);
 		if (ret < 0)
 			return ret;
 	}
@@ -383,7 +379,7 @@ int scf_basic_block_dag(scf_basic_block_t* bb, scf_list_t* bb_list_head, scf_lis
 
 	int ret;
 
-	ret = _bb_dag(bb, dag_list_head);
+	ret = scf_basic_block_dag2(bb, dag_list_head);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -745,8 +741,10 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 
 				if (SCF_OP_INC == c->op->type
 						|| SCF_OP_INC_POST == c->op->type
+						|| SCF_OP_3AC_INC  == c->op->type
 						|| SCF_OP_DEC      == c->op->type
-						|| SCF_OP_DEC_POST == c->op->type)
+						|| SCF_OP_DEC_POST == c->op->type
+						|| SCF_OP_3AC_DEC  == c->op->type)
 					src->dag_node->updated = 1;
 			}
 		}
@@ -763,6 +761,9 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 		if (ret < 0)
 			return ret;
 	}
+
+	scf_vector_clear(bb->entry_dn_actives, NULL);
+	scf_vector_clear(bb->dn_updateds,      NULL);
 
 	if (!scf_list_empty(&bb->code_list_head)) {
 

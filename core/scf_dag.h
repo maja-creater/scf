@@ -29,10 +29,14 @@ struct scf_dag_node_s {
 	scf_vector_t*		parents;
 	scf_vector_t*		childs;
 
+	scf_dag_node_t*     current_updated;
+
 	void*               rabi;
 	void*               rabi2;
 
 	intptr_t            color;
+
+	uint32_t            done   :1;
 
 	uint32_t            active :1;
 	uint32_t            inited :1;
