@@ -603,7 +603,7 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 				if (c->dst->bb == bbg->exit)
 					c->dst->bb =  bbg->post;
 			}
-
+#if 1
 			for (k = 0; k < bb->dn_loads->size; k++) {
 				if (scf_vector_add_unique(pre->dn_loads, bb->dn_loads->data[k]) < 0)
 					return -1;
@@ -613,11 +613,13 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 				if (scf_vector_add_unique(post->dn_saves, bb->dn_saves->data[k]) < 0)
 					return -1;
 			}
-
-			bb->group_flag = 1;
-
+#endif
+			bb->group_flag    = 1;
 			scf_vector_clear(bb->dn_loads, NULL);
+#if 0
+			bb->generate_flag = 0;
 			scf_vector_clear(bb->dn_saves, NULL);
+#endif
 		}
 	}
 

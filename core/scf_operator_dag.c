@@ -182,6 +182,12 @@ static int _scf_dag_op_div(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t
 	return _scf_3ac_code_3(h, SCF_OP_DIV, parent, nodes[0], nodes[1]);
 }
 
+static int _scf_dag_op_mod(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
+{
+	assert(2 == nb_nodes);
+	return _scf_3ac_code_3(h, SCF_OP_MOD, parent, nodes[0], nodes[1]);
+}
+
 static int _scf_dag_op_assign(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
 {
 	assert(2 == nb_nodes);
@@ -192,8 +198,13 @@ static int _scf_dag_op_assign(scf_list_t* h, scf_dag_node_t* parent, scf_dag_nod
 static int _scf_dag_op_add_assign(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
 {
 	assert(2 == nb_nodes);
-
 	return _scf_3ac_code_2(h, SCF_OP_ADD_ASSIGN, nodes[0], nodes[1]);
+}
+
+static int _scf_dag_op_sub_assign(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
+{
+	assert(2 == nb_nodes);
+	return _scf_3ac_code_2(h, SCF_OP_SUB_ASSIGN, nodes[0], nodes[1]);
 }
 
 static int _scf_dag_op_cmp(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
@@ -241,6 +252,7 @@ scf_dag_operator_t	dag_operators[] = {
 
 	{SCF_OP_MUL,            SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_mul},
 	{SCF_OP_DIV,            SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_div},
+	{SCF_OP_MOD,            SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_mod},
 
 	{SCF_OP_ADD,            SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_add},
 	{SCF_OP_SUB,            SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_sub},
@@ -259,6 +271,7 @@ scf_dag_operator_t	dag_operators[] = {
 
 	{SCF_OP_ASSIGN,         SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_assign},
 	{SCF_OP_ADD_ASSIGN,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_add_assign},
+	{SCF_OP_SUB_ASSIGN,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_sub_assign},
 };
 
 scf_dag_operator_t* scf_dag_operator_find(int type)

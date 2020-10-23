@@ -188,10 +188,10 @@ static int _x64_kcolor_find_not_neighbor(scf_graph_t* graph, int k, scf_graph_no
 	for (i = 0; i < graph->nodes->size; i++) {
 
 		scf_graph_node_t* node0 = graph->nodes->data[i];
-		x64_rcg_node_t*   rn    = node0->data;
+		x64_rcg_node_t*   rn0   = node0->data;
 
-		if (!rn->dag_node) {
-			assert(rn->reg);
+		if (!rn0->dag_node) {
+			assert(rn0->reg);
 			assert(node0->color > 0);
 			continue;
 		}
@@ -199,10 +199,19 @@ static int _x64_kcolor_find_not_neighbor(scf_graph_t* graph, int k, scf_graph_no
 		if (node0->neighbors->size > k)
 			continue;
 
-		scf_graph_node_t* node1 = NULL; 
+		scf_graph_node_t* node1 = NULL;
+		x64_rcg_node_t*   rn1   = NULL;
 		int j;
 		for (j = i + 1; j < graph->nodes->size; j++) {
 			node1 = graph->nodes->data[j];
+			rn1   = node1->data;
+
+			if (!rn1->dag_node) {
+				assert(rn1->reg);
+				assert(node1->color > 0);
+				node1 = NULL;
+				continue;
+			}
 
 			if (!scf_vector_find(node0->neighbors, node1)) {
 				assert(!scf_vector_find(node1->neighbors, node0));

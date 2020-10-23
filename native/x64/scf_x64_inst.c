@@ -1071,9 +1071,14 @@ static int _x64_inst_load_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	if (!c->dst || !c->dst->dag_node)
 		return -EINVAL;
 
+	scf_register_x64_t* r   = NULL;
 	scf_x64_context_t*  x64 = ctx->priv;
 	scf_function_t*     f   = x64->f;
 	scf_dag_node_t*     dn  = c->dst->dag_node;
+	scf_dag_node_t*     dn2 = NULL;
+
+	int ret;
+	int i;
 
 	if (dn->color < 0)
 		return 0;
@@ -1085,9 +1090,33 @@ static int _x64_inst_load_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 			return -ENOMEM;
 	}
 
-	scf_register_x64_t* r    = x64_find_register_color(dn->color);
+	r = x64_find_register_color(dn->color);
 
-	return x64_load_reg(r, dn, c, f);
+	for (i  = 0; i < r->dag_nodes->size; i++) {
+		dn2 = r->dag_nodes->data[i];
+
+		if (dn2 != dn) {
+			scf_variable_t* v  = dn->var;
+			scf_variable_t* v2 = dn2->var;
+			scf_loge("ignore load: v_%d_%d/%s, v2_%d_%d/%s\n",
+					v->w->line,  v->w->pos,  v->w->text->data,
+					v2->w->line, v2->w->pos, v2->w->text->data);
+
+			dn->color = -1;
+			return 0;
+		}
+	}
+
+	ret = x64_load_reg(r, dn, c, f);
+	if (ret < 0)
+		return ret;
+
+	ret = scf_vector_add_unique(r->dag_nodes, dn);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+	return 0;
 }
 
 static int _x64_inst_reload_handler(scf_native_t* ctx, scf_3ac_code_t* c)
@@ -1095,9 +1124,14 @@ static int _x64_inst_reload_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	if (!c->dst || !c->dst->dag_node)
 		return -EINVAL;
 
+	scf_register_x64_t* r   = NULL;
 	scf_x64_context_t*  x64 = ctx->priv;
 	scf_function_t*     f   = x64->f;
 	scf_dag_node_t*     dn  = c->dst->dag_node;
+	scf_dag_node_t*     dn2 = NULL;
+
+	int ret;
+	int i;
 
 	if (dn->color < 0)
 		return 0;
@@ -1109,10 +1143,36 @@ static int _x64_inst_reload_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 			return -ENOMEM;
 	}
 
-	scf_register_x64_t* r = x64_find_register_color(dn->color);
+	r = x64_find_register_color(dn->color);
+
+	for (i  = 0; i < r->dag_nodes->size; ) {
+		dn2 = r->dag_nodes->data[i];
+
+		if (dn2 == dn) {
+			i++;
+			continue;
+		}
+
+		scf_loge("r: %s, dn2->var: %s\n", r->name, dn2->var->w->text->data);
+
+		ret = x64_save_var(dn2, c, f);
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
+	}
 
 	dn->loaded = 0;
-	return x64_load_reg(r, dn, c, f);
+	ret = x64_load_reg(r, dn, c, f);
+	if (ret < 0)
+		return ret;
+
+	ret = scf_vector_add_unique(r->dag_nodes, dn);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+	return 0;
 }
 
 static int _x64_inst_save_handler(scf_native_t* ctx, scf_3ac_code_t* c)

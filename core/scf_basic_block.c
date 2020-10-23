@@ -12,6 +12,7 @@ scf_basic_block_t* scf_basic_block_alloc()
 	scf_list_init(&bb->list);
 	scf_list_init(&bb->dag_list_head);
 	scf_list_init(&bb->code_list_head);
+	scf_list_init(&bb->save_list_head);
 
 	bb->prevs = scf_vector_alloc();
 	if (!bb->prevs)
@@ -69,6 +70,7 @@ scf_basic_block_t* scf_basic_block_alloc()
 	if (!bb->dn_resaves)
 		goto error_resaves;
 
+	bb->generate_flag = 1;
 	return bb;
 
 error_resaves:
@@ -109,6 +111,7 @@ void scf_basic_block_free(scf_basic_block_t* bb)
 		scf_list_clear(&bb->dag_list_head, scf_dag_node_t, list, scf_dag_node_free);
 
 		scf_list_clear(&bb->code_list_head, scf_3ac_code_t, list, scf_3ac_code_free);
+		scf_list_clear(&bb->save_list_head, scf_3ac_code_t, list, scf_3ac_code_free);
 
 		// DAG nodes were freed by 'scf_list_clear' above, so only free this vector
 		if (bb->var_dag_nodes)
@@ -155,6 +158,7 @@ void scf_basic_block_print(scf_basic_block_t* bb, scf_list_t* sentinel)
 		} while (0)
 
 		SCF_BB_PRINT(code_list_head);
+		SCF_BB_PRINT(save_list_head);
 	}
 }
 

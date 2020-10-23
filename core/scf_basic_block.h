@@ -38,6 +38,7 @@ struct scf_basic_block_s
 	scf_list_t      dag_list_head;
 
 	scf_list_t      code_list_head;
+	scf_list_t      save_list_head;
 
 	scf_vector_t*   var_dag_nodes;
 
@@ -76,6 +77,8 @@ struct scf_basic_block_s
 
 	uint32_t        dereference_flag:1;
 	uint32_t        array_index_flag:1;
+
+	uint32_t        generate_flag:1;
 
 	uint32_t        group_flag  :1;
 	uint32_t        visited_flag:1;

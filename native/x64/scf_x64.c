@@ -578,6 +578,255 @@ static void _x64_init_bb_colors(scf_basic_block_t* bb)
 	}
 }
 
+static int _x64_save_bb_colors(scf_basic_block_t* bb)
+{
+	scf_dag_node_t*   dn;
+	scf_dn_status_t*  ds;
+
+	int i;
+	int j;
+
+	for (i = 0; i < bb->dn_saves->size; i++) {
+		dn = bb->dn_saves->data[i];
+
+		for (j = 0; j < bb->dn_colors->size; j++) {
+			ds = bb->dn_colors->data[j];
+			if (ds->dag_node == dn)
+				break;
+		}
+
+		if (j == bb->dn_colors->size) {
+			ds = scf_dn_status_alloc(dn);
+			if (!ds)
+				return -ENOMEM;
+
+			int ret = scf_vector_add(bb->dn_colors, ds);
+			if (ret < 0) {
+				scf_dn_status_free(ds);
+				return ret;
+			}
+		}
+
+		scf_variable_t* v = dn->var;
+		scf_loge("bb: %p, v_%d_%d/%s, dn->color: %ld\n",
+				bb, v->w->line, v->w->pos, v->w->text->data,
+				dn->color);
+
+		ds->color = dn->color;
+	}
+	return 0;
+}
+
+static int _x64_bb_cmp(const void* p0, const void* p1)
+{
+	const scf_basic_block_t* bb0 = *(scf_basic_block_t**)p0;
+	const scf_basic_block_t* bb1 = *(scf_basic_block_t**)p1;
+
+	if (bb0->index < bb1->index)
+		return -1;
+
+	if (bb0->index > bb1->index)
+		return 1;
+	return 0;
+}
+
+static intptr_t _x64_bb_find_color(scf_basic_block_t* bb, scf_dag_node_t* dn)
+{
+	scf_dn_status_t* ds = NULL;
+
+	int j;
+	for (j = 0; j < bb->dn_colors->size; j++) {
+		ds =        bb->dn_colors->data[j];
+
+		if (ds->dag_node == dn)
+			break;
+	}
+	assert(j < bb->dn_colors->size);
+
+	return ds->color;
+}
+
+static int _x64_bb_save_dn(intptr_t color, scf_dag_node_t* dn, scf_3ac_code_t* c, scf_basic_block_t* bb, scf_function_t* f)
+{
+	scf_variable_t*     v = dn->var;
+	scf_register_x64_t* r;
+	scf_instruction_t*  inst;
+
+	int inst_bytes;
+	int ret;
+	int i;
+
+	scf_logd("add save: v_%d_%d/%s, color: %ld\n",
+			v->w->line, v->w->pos, v->w->text->data, color);
+
+	if (!c->instructions) {
+		c->instructions = scf_vector_alloc();
+		if (!c->instructions)
+			return -ENOMEM;
+	}
+
+	inst_bytes = c->inst_bytes;
+
+	r   = x64_find_register_color(color);
+
+	ret = x64_save_var2(dn, r, c, f);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	c->inst_bytes = 0;
+	for (i = 0; i < c->instructions->size; i++) {
+		inst      = c->instructions->data[i];
+		c->inst_bytes += inst->len;
+	}
+	bb->code_bytes += c->inst_bytes - inst_bytes;
+	return 0;
+}
+
+static int _x64_bbg_fix_saves(scf_bb_group_t* bbg, scf_function_t* f)
+{
+	scf_basic_block_t* pre;
+	scf_basic_block_t* post;
+	scf_basic_block_t* bb;
+	scf_3ac_operand_t* src;
+	scf_dag_node_t*    dn;
+	scf_3ac_code_t*    c;
+	scf_list_t*        l;
+	scf_list_t*        l2;
+
+	int i;
+	int j;
+
+	pre  = bbg->pre;
+	post = bbg->post;
+
+	for (l = scf_list_head(&post->save_list_head); l != scf_list_sentinel(&post->save_list_head); ) {
+		c  = scf_list_data(l, scf_3ac_code_t, list);
+		l  = scf_list_next(l);
+
+		assert(c->srcs && 1 == c->srcs->size);
+		src = c->srcs->data[0];
+		dn  = src->dag_node;
+
+
+		intptr_t color   = _x64_bb_find_color(pre, dn);
+		int      updated = 0;
+
+		for (i = 0; i < bbg->body->size; i++) {
+			bb =        bbg->body->data[i];
+
+			if (!scf_vector_find(bb->dn_saves, dn))
+				continue;
+
+			intptr_t color2 = _x64_bb_find_color(bb, dn);
+
+			if (color2 != color)
+				updated++;
+		}
+
+		if (0 == updated) {
+			if (color <= 0)
+				continue;
+
+			int ret = _x64_bb_save_dn(color, dn, c, post, f);
+			if (ret < 0)
+				return ret;
+
+			scf_list_del(&c->list);
+			scf_list_add_tail(&post->code_list_head, &c->list);
+		} else {
+			scf_list_del(&c->list);
+			scf_3ac_code_free(c);
+			c = NULL;
+#if 1
+			scf_variable_t* v = dn->var;
+			scf_loge("save: v_%d_%d/%s, dn->color: %ld\n",
+					v->w->line, v->w->pos, v->w->text->data, dn->color);
+#endif
+			for (i = 0; i < bbg->body->size; i++) {
+				bb =        bbg->body->data[i];
+
+				for (l2 = scf_list_head(&bb->save_list_head); l2 != scf_list_sentinel(&bb->save_list_head); l2 = scf_list_next(l2)) {
+					c   = scf_list_data(l2, scf_3ac_code_t, list);
+
+					assert(c->srcs && 1 == c->srcs->size);
+					src = c->srcs->data[0];
+
+					if (dn == src->dag_node)
+						break;
+				}
+				if (l2 == scf_list_sentinel(&bb->save_list_head))
+					continue;
+
+				intptr_t color = _x64_bb_find_color(bb, dn);
+				if (color <= 0)
+					continue;
+
+				int ret = _x64_bb_save_dn(color, dn, c, bb, f);
+				if (ret < 0)
+					return ret;
+
+				scf_list_del(&c->list);
+				scf_list_add_tail(&bb->code_list_head, &c->list);
+			}
+		}
+	}
+
+	return 0;
+}
+
+static void _x64_bbg_fix_loads(scf_bb_group_t* bbg)
+{
+	if (0 == bbg->body->size)
+		return;
+
+	scf_basic_block_t* pre;
+	scf_basic_block_t* bb;
+	scf_dn_status_t*   ds;
+	scf_dag_node_t*    dn;
+	scf_3ac_code_t*    c;
+	scf_list_t*        l;
+
+	int i;
+	int j;
+
+	pre = bbg->pre;
+	bb  = bbg->body->data[0];
+
+	scf_loge("pre: %p, bb: %p\n", pre, bb);
+
+	for (i = 0; i < pre->dn_colors->size; i++) {
+		ds = pre->dn_colors->data[i];
+		dn = ds->dag_node;
+
+		if (ds->color <= 0)
+			continue;
+
+		if (ds->color == dn->color)
+			continue;
+
+		scf_variable_t* v = dn->var;
+		scf_loge("v_%d_%d/%s, ds->color: %ld, dn->color: %ld\n",
+				v->w->line, v->w->pos, v->w->text->data,
+				ds->color, dn->color);
+
+		for (l = scf_list_head(&pre->code_list_head); l != scf_list_sentinel(&pre->code_list_head); ) {
+			c  = scf_list_data(l, scf_3ac_code_t, list);
+			l  = scf_list_next(l);
+
+			if (c->dst->dag_node == dn) {
+				scf_list_del(&c->list);
+				scf_list_add_front(&bb->code_list_head, &c->list);
+
+				pre->code_bytes -= c->inst_bytes;
+				bb ->code_bytes += c->inst_bytes;
+				break;
+			}
+		}
+	}
+}
+
 int	_scf_x64_select_inst(scf_native_t* ctx)
 {
 	scf_x64_context_t*	x64 = ctx->priv;
@@ -632,9 +881,13 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 			return ret;
 		bbg->pre->code_bytes  = ret;
 
+		qsort(bbg->body->data, bbg->body->size, sizeof(void*), _x64_bb_cmp);
+
 		int j;
 		for (j = 0; j < bbg->body->size; j++) {
 			bb  = bbg->body->data[j];
+
+			scf_loge("j: %d, bb->index: %d\n", j, bb->index);
 
 			if (bb->native_flag)
 				continue;
@@ -644,12 +897,17 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 				return ret;
 			bb->code_bytes  = ret;
 			bb->native_flag = 1;
+
+			ret = _x64_save_bb_colors(bb);
+			if (ret < 0)
+				return ret;
 		}
 
-		ret = _x64_make_insts_for_list(ctx, &bbg->post->code_list_head, 0);
+		_x64_bbg_fix_loads(bbg);
+
+		ret = _x64_bbg_fix_saves(bbg, f);
 		if (ret < 0)
 			return ret;
-		bbg->post->code_bytes  = ret;
 	}
 
 	_x64_set_offset_for_jmps( ctx, f);
