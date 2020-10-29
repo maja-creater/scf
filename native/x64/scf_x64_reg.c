@@ -245,7 +245,7 @@ scf_vector_t* x64_register_colors()
 			return NULL;
 		}
 	}
-#if 1
+#if 0
 	srand(time(NULL));
 	for (i = 0; i < colors->size; i++) {
 		int j = rand() % colors->size;
@@ -297,7 +297,7 @@ int x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf_3ac_code_t* c, 
 			printf("v_%#lx, bp_offset: %d\n", 0xffff & (uintptr_t)v, v->bp_offset);
 
 	} else {
-		scf_logw("save var: v_%s_%d_%d, r: %s\n", v->w->text->data, v->w->line, v->w->pos, r->name);
+		scf_logw("save var: v_%d_%d/%s, bp_offset: %d, r: %s\n", v->w->line, v->w->pos, v->w->text->data, v->bp_offset, r->name);
 	}
 
 	if (is_float) {
@@ -374,6 +374,129 @@ int x64_overflow_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f
 		}
 	}
 
+	return 0;
+}
+
+int x64_overflow_reg2(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f)
+{
+	scf_register_x64_t*	r2;
+	scf_dag_node_t*     dn2;
+
+	int i;
+	int j;
+
+	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
+
+		r2 = &(x64_registers[i]);
+
+		if (SCF_X64_REG_RSP == r2->id || SCF_X64_REG_RBP == r2->id)
+			continue;
+
+		if (!X64_COLOR_CONFLICT(r->color, r2->color))
+			continue;
+
+		for (j  = 0; j < r2->dag_nodes->size; ) {
+			dn2 = r2->dag_nodes->data[j];
+
+			if (dn2 == dn) {
+				j++;
+				continue;
+			}
+
+			int ret = x64_save_var(dn2, c, f);
+			if (ret < 0)
+				return ret;
+		}
+	}
+
+	return 0;
+}
+
+static int _x64_overflow_reg3(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f)
+{
+	scf_register_x64_t*	r2;
+	scf_dn_status_t*    ds2;
+	scf_dag_node_t*     dn2;
+
+	int i;
+	int j;
+	int ret;
+
+	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
+
+		r2 = &(x64_registers[i]);
+
+		if (SCF_X64_REG_RSP == r2->id || SCF_X64_REG_RBP == r2->id)
+			continue;
+
+		if (!X64_COLOR_CONFLICT(r->color, r2->color))
+			continue;
+
+		for (j  = 0; j < r2->dag_nodes->size; ) {
+			dn2 = r2->dag_nodes->data[j];
+
+			if (dn2 == dn) {
+				j++;
+				continue;
+			}
+
+			ds2 = scf_vector_find_cmp(c->active_vars, dn2, scf_dn_status_cmp);
+			if (!ds2) {
+				j++;
+				continue;
+			}
+
+			if (!ds2->active) {
+				j++;
+				continue;
+			}
+#if 1
+			scf_variable_t* v  = dn->var;
+			scf_variable_t* v2 = dn2->var;
+			if (v->w)
+				scf_loge("v_%d_%d/%s, bp_offset: %d\n", v->w->line, v->w->pos, v->w->text->data, v->bp_offset);
+			else
+				scf_loge("v_%#lx, bp_offset: %d\n", 0xffff & (uintptr_t)v, v->bp_offset);
+
+			if (v2->w)
+				scf_loge("v2_%d_%d/%s, bp_offset: %d\n", v2->w->line, v2->w->pos, v2->w->text->data, v2->bp_offset);
+			else
+				scf_loge("v2_%#lx, bp_offset: %d\n", 0xffff & (uintptr_t)v2, v2->bp_offset);
+#endif
+			int ret = x64_save_var(dn2, c, f);
+			if (ret < 0)
+				return ret;
+		}
+	}
+
+	return 0;
+}
+
+int x64_reg_used(scf_register_x64_t* r, scf_dag_node_t* dn)
+{
+	scf_register_x64_t*	r2;
+	scf_dag_node_t*     dn2;
+
+	int i;
+	int j;
+
+	for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
+
+		r2 = &(x64_registers[i]);
+
+		if (SCF_X64_REG_RSP == r2->id || SCF_X64_REG_RBP == r2->id)
+			continue;
+
+		if (!X64_COLOR_CONFLICT(r->color, r2->color))
+			continue;
+
+		for (j  = 0; j < r2->dag_nodes->size; j++) {
+			dn2 = r2->dag_nodes->data[j];
+
+			if (dn2 != dn)
+				return 1;
+		}
+	}
 	return 0;
 }
 
@@ -558,7 +681,14 @@ int x64_select_reg(scf_register_x64_t** preg, scf_dag_node_t* dn, scf_3ac_code_t
 	int var_size = x64_variable_size(dn->var);
 
 	if (dn->color > 0) {
-		r = x64_find_register_color(dn->color);
+		r   = x64_find_register_color(dn->color);
+#if 1
+		ret = _x64_overflow_reg3(r, dn, c, f);
+		if (ret < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+#endif
 	} else {
 		r   = x64_select_overflowed_reg(dn, c);
 		if (!r) {

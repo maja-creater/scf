@@ -75,18 +75,19 @@ static int _x64_function_finish(scf_function_t* f)
 
 	scf_register_x64_t* rsp  = x64_find_register("rsp");
 	scf_register_x64_t* rbp  = x64_find_register("rbp");
+	scf_instruction_t*  inst = NULL;
 
-	int ret = scf_vector_add(f->init_insts, x64_make_inst_G(push, rbp));
-	if (ret < 0)
-		return ret;
+	inst = x64_make_inst_G(push, rbp);
+	X64_INST_ADD_CHECK(f->init_insts, inst);
+	f->init_code_bytes  = inst->len;
 
-	ret = scf_vector_add(f->init_insts, x64_make_inst_G2E(mov, rbp, rsp));
-	if (ret < 0)
-		return ret;
+	inst = x64_make_inst_G2E(mov, rbp, rsp);
+	X64_INST_ADD_CHECK(f->init_insts, inst);
+	f->init_code_bytes += inst->len;
 
-	ret = scf_vector_add(f->init_insts, x64_make_inst_I2E(sub, rsp, (uint8_t*)&f->local_vars_size, 4));
-	if (ret < 0)
-		return ret;
+	inst = x64_make_inst_I2E(sub, rsp, (uint8_t*)&f->local_vars_size, 4);
+	X64_INST_ADD_CHECK(f->init_insts, inst);
+	f->init_code_bytes += inst->len;
 
 	x64_registers_clear();
 	return 0;
@@ -95,17 +96,19 @@ static int _x64_function_finish(scf_function_t* f)
 static void _x64_rcg_node_printf(x64_rcg_node_t* rn)
 {
 	if (rn->dag_node) {
-		if (rn->dag_node->var->w) {
-			scf_logw("v_%d_%d/%s, color: %ld, type: %ld, id: %ld, mask: %ld",
-					rn->dag_node->var->w->line, rn->dag_node->var->w->pos,
-					rn->dag_node->var->w->text->data,
+		scf_variable_t* v = rn->dag_node->var;
+
+		if (v->w) {
+			scf_logw("v_%d_%d/%s, bp_offset: -%#x, color: %ld, type: %ld, id: %ld, mask: %ld",
+					v->w->line, v->w->pos, v->w->text->data,
+					-v->bp_offset,
 					rn->dag_node->color,
 					X64_COLOR_TYPE(rn->dag_node->color),
 					X64_COLOR_ID(rn->dag_node->color),
 					X64_COLOR_MASK(rn->dag_node->color));
 		} else {
 			scf_logw("v_%#lx, color: %ld, type: %ld, id: %ld, mask: %ld",
-					(uintptr_t)rn->dag_node->var & 0xffff, rn->dag_node->color,
+					(uintptr_t)v & 0xffff, rn->dag_node->color,
 					X64_COLOR_TYPE(rn->dag_node->color),
 					X64_COLOR_ID(rn->dag_node->color),
 					X64_COLOR_MASK(rn->dag_node->color));
@@ -535,14 +538,15 @@ static void _x64_set_offset_for_relas(scf_native_t* ctx, scf_function_t* f, scf_
 		scf_instruction_t* inst   = c->instructions->data[rela->inst_index];
 		scf_basic_block_t* cur_bb = c->basic_block;
 
-		scf_3ac_code_print(c, NULL);
+		scf_instruction_t* inst2;
+		scf_basic_block_t* bb;
+		scf_list_t*        l;
 
 		int bytes = 0;
-		scf_list_t* l;
 		for (l = scf_list_head(&f->basic_block_list_head); l != &cur_bb->list;
 				l = scf_list_next(l)) {
 
-			scf_basic_block_t* bb = scf_list_data(l, scf_basic_block_t, list);
+			bb     = scf_list_data(l, scf_basic_block_t, list);
 			bytes += bb->code_bytes;
 		}
 
@@ -550,10 +554,12 @@ static void _x64_set_offset_for_relas(scf_native_t* ctx, scf_function_t* f, scf_
 
 		int j;
 		for (j = 0; j < rela->inst_index; j++) {
-			scf_instruction_t* inst2 = c->instructions->data[j];
+			inst2  = c->instructions->data[j];
 			bytes += inst2->len;
 		}
+
 		rela->inst_offset += bytes;
+		rela->inst_offset += f->init_code_bytes;
 	}
 }
 
@@ -578,55 +584,46 @@ static void _x64_init_bb_colors(scf_basic_block_t* bb)
 	}
 }
 
-static int _x64_save_bb_colors(scf_basic_block_t* bb)
+static int _x64_save_bb_colors(scf_basic_block_t* bb, scf_bb_group_t* bbg)
 {
 	scf_dag_node_t*   dn;
-	scf_dn_status_t*  ds;
+	scf_dn_status_t*  ds0;
+	scf_dn_status_t*  ds1;
 
 	int i;
 	int j;
 
-	for (i = 0; i < bb->dn_saves->size; i++) {
-		dn = bb->dn_saves->data[i];
+	for (i  = 0; i < bbg->pre->dn_colors->size; i++) {
 
-		for (j = 0; j < bb->dn_colors->size; j++) {
-			ds = bb->dn_colors->data[j];
-			if (ds->dag_node == dn)
+		ds0 = bbg->pre->dn_colors->data[i];
+		dn  = ds0->dag_node;
+
+		for (j  = 0; j < bb->dn_colors->size; j++) {
+			ds1 =        bb->dn_colors->data[j];
+
+			if (ds1->dag_node == dn)
 				break;
 		}
 
 		if (j == bb->dn_colors->size) {
-			ds = scf_dn_status_alloc(dn);
-			if (!ds)
+			ds1 = scf_dn_status_alloc(dn);
+			if (!ds1)
 				return -ENOMEM;
 
-			int ret = scf_vector_add(bb->dn_colors, ds);
+			int ret = scf_vector_add(bb->dn_colors, ds1);
 			if (ret < 0) {
-				scf_dn_status_free(ds);
+				scf_dn_status_free(ds1);
 				return ret;
 			}
 		}
 
+		ds1->color = dn->color;
+
 		scf_variable_t* v = dn->var;
-		scf_loge("bb: %p, v_%d_%d/%s, dn->color: %ld\n",
+		scf_logd("bb: %p, v_%d_%d/%s, dn->color: %ld\n",
 				bb, v->w->line, v->w->pos, v->w->text->data,
 				dn->color);
-
-		ds->color = dn->color;
 	}
-	return 0;
-}
-
-static int _x64_bb_cmp(const void* p0, const void* p1)
-{
-	const scf_basic_block_t* bb0 = *(scf_basic_block_t**)p0;
-	const scf_basic_block_t* bb1 = *(scf_basic_block_t**)p1;
-
-	if (bb0->index < bb1->index)
-		return -1;
-
-	if (bb0->index > bb1->index)
-		return 1;
 	return 0;
 }
 
@@ -709,15 +706,13 @@ static int _x64_bbg_fix_saves(scf_bb_group_t* bbg, scf_function_t* f)
 		src = c->srcs->data[0];
 		dn  = src->dag_node;
 
+		scf_variable_t* v = dn->var;
 
 		intptr_t color   = _x64_bb_find_color(pre, dn);
 		int      updated = 0;
 
 		for (i = 0; i < bbg->body->size; i++) {
 			bb =        bbg->body->data[i];
-
-			if (!scf_vector_find(bb->dn_saves, dn))
-				continue;
 
 			intptr_t color2 = _x64_bb_find_color(bb, dn);
 
@@ -739,7 +734,7 @@ static int _x64_bbg_fix_saves(scf_bb_group_t* bbg, scf_function_t* f)
 			scf_list_del(&c->list);
 			scf_3ac_code_free(c);
 			c = NULL;
-#if 1
+#if 0
 			scf_variable_t* v = dn->var;
 			scf_loge("save: v_%d_%d/%s, dn->color: %ld\n",
 					v->w->line, v->w->pos, v->w->text->data, dn->color);
@@ -794,8 +789,6 @@ static void _x64_bbg_fix_loads(scf_bb_group_t* bbg)
 	pre = bbg->pre;
 	bb  = bbg->body->data[0];
 
-	scf_loge("pre: %p, bb: %p\n", pre, bb);
-
 	for (i = 0; i < pre->dn_colors->size; i++) {
 		ds = pre->dn_colors->data[i];
 		dn = ds->dag_node;
@@ -807,7 +800,7 @@ static void _x64_bbg_fix_loads(scf_bb_group_t* bbg)
 			continue;
 
 		scf_variable_t* v = dn->var;
-		scf_loge("v_%d_%d/%s, ds->color: %ld, dn->color: %ld\n",
+		scf_logw("v_%d_%d/%s, ds->color: %ld, dn->color: %ld\n",
 				v->w->line, v->w->pos, v->w->text->data,
 				ds->color, dn->color);
 
@@ -881,13 +874,11 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 			return ret;
 		bbg->pre->code_bytes  = ret;
 
-		qsort(bbg->body->data, bbg->body->size, sizeof(void*), _x64_bb_cmp);
-
 		int j;
 		for (j = 0; j < bbg->body->size; j++) {
 			bb  = bbg->body->data[j];
 
-			scf_loge("j: %d, bb->index: %d\n", j, bb->index);
+			scf_logd("j: %d, bb: %p, bb->index: %d\n", j, bb, bb->index);
 
 			if (bb->native_flag)
 				continue;
@@ -898,7 +889,7 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 			bb->code_bytes  = ret;
 			bb->native_flag = 1;
 
-			ret = _x64_save_bb_colors(bb);
+			ret = _x64_save_bb_colors(bb, bbg);
 			if (ret < 0)
 				return ret;
 		}
@@ -911,8 +902,6 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 	}
 
 	_x64_set_offset_for_jmps( ctx, f);
-	_x64_set_offset_for_relas(ctx, f, f->text_relas);
-	_x64_set_offset_for_relas(ctx, f, f->data_relas);
 
 	return 0;
 }
@@ -1003,7 +992,12 @@ int scf_x64_select_inst(scf_native_t* ctx, scf_function_t* f)
 		return ret;
 
 	ret = _x64_function_finish(f);
-	return ret;
+	if (ret < 0)
+		return ret;
+
+	_x64_set_offset_for_relas(ctx, f, f->text_relas);
+	_x64_set_offset_for_relas(ctx, f, f->data_relas);
+	return 0;
 }
 
 int scf_x64_write_elf(scf_native_t* ctx, const char* path)

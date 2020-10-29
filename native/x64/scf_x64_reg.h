@@ -100,8 +100,10 @@ int                 x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf
 int                 x64_save_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f);
 
 int                 x64_load_reg(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f);
+int                 x64_reg_used(scf_register_x64_t* r, scf_dag_node_t* dn);
 
-int                 x64_overflow_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f);
+int                 x64_overflow_reg (scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f);
+int                 x64_overflow_reg2(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f);
 
 int                 x64_select_reg(scf_register_x64_t** preg, scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f, int load_flag);
 

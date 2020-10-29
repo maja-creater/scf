@@ -166,6 +166,8 @@ scf_string_t* scf_function_signature(scf_function_t* f)
 	ret = scf_string_cat(s, f->node.w->text);
 	if (ret < 0)
 		goto error;
+	scf_logw("f signature: %s\n", s->data);
+	return s;
 
 	if (f->argv) {
 		for (i = 0; i < f->argv->size; i++) {
@@ -183,7 +185,6 @@ scf_string_t* scf_function_signature(scf_function_t* f)
 	}
 
 	scf_logw("f signature: %s\n", s->data);
-
 	return s;
 
 error:

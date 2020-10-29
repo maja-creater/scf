@@ -628,9 +628,9 @@ int scf_dag_dn_same(scf_dag_node_t* dn0, scf_dag_node_t* dn1)
 		if (dn1->childs)
 			return 0;
 
-		scf_logd("dn0: %p, %p, dn1: %p, %p, var: %p, %p\n", dn0, dn0->childs, dn1, dn1->childs, dn0->var, dn1->var);
 		if (dn0->var == dn1->var)
 			return 1;
+		scf_logd("dn0: %p, %p, dn1: %p, %p, var: %p, %p\n", dn0, dn0->childs, dn1, dn1->childs, dn0->var, dn1->var);
 		return 0;
 	} else if (!dn1->childs)
 		return 0;
@@ -643,6 +643,11 @@ int scf_dag_dn_same(scf_dag_node_t* dn0, scf_dag_node_t* dn1)
 	for (i = 0; i < dn0->childs->size; i++) {
 		scf_dag_node_t*	child0 = dn0->childs->data[i];
 		scf_dag_node_t*	child1 = dn1->childs->data[i];
+
+		if (2 == i && scf_type_is_assign_array_index(dn0->type))
+			continue;
+		if (2 == i && SCF_OP_ARRAY_INDEX == dn0->type)
+			continue;
 
 		if (0 == scf_dag_dn_same(child0, child1))
 			return 0;
@@ -657,10 +662,12 @@ scf_dag_node_t* scf_dag_find_dn(scf_list_t* h, const scf_dag_node_t* dn0)
 
 		scf_dag_node_t* dn1 = scf_list_data(l, scf_dag_node_t, list);
 
-		if (SCF_OP_ADDRESS_OF == dn0->type && SCF_OP_ADDRESS_OF == dn1->type) {
-			scf_logd("origin dn0: %p, %s, dn1: %p, %s\n",
-					dn0, dn0->var->w->text->data,
-					dn1, dn1->var->w->text->data);
+		if (SCF_OP_ARRAY_INDEX == dn0->type && SCF_OP_ARRAY_INDEX == dn1->type) {
+			scf_variable_t* v0 = dn0->var;
+			scf_variable_t* v1 = dn1->var;
+			scf_logd("origin dn0: %p, v0_%d_%d/%s, dn1: %p, v1_%d_%d/%s\n",
+					dn0, v0->w->line, v0->w->pos, v0->w->text->data,
+					dn1, v1->w->line, v1->w->pos, v1->w->text->data);
 		}
 
 		if (scf_dag_dn_same(dn1, (scf_dag_node_t*)dn0))

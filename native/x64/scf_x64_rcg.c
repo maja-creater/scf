@@ -777,8 +777,13 @@ static int _x64_rcg_jle_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_
 
 static int _x64_rcg_save_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	return 0;
+	int ret = _x64_rcg_make2(c, NULL, NULL, NULL);
+	if (ret < 0)
+		return ret;
+
+	return _x64_rcg_make(c, g, NULL, NULL, NULL);
 }
+
 static int _x64_rcg_load_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
 	return 0;

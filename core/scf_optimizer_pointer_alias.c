@@ -242,14 +242,21 @@ static int _optimize_alias_bb(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 
 		if (start != scf_list_head(&bb->code_list_head)) {
 
+			int flag = 0;
+
 			for (l = scf_list_prev(start); l != scf_list_sentinel(&bb->code_list_head);
 					l = scf_list_prev(l)) {
 
 				c = scf_list_data(l, scf_3ac_code_t, list);
 
-				if (scf_type_is_assign(c->op->type)
-						|| scf_type_is_assign_dereference(c->op->type))
+				if (SCF_OP_DEREFERENCE == c->op->type)
+					flag = 1;
+				else if (scf_type_is_assign(c->op->type))
 					break;
+				else if (scf_type_is_assign_dereference(c->op->type)) {
+					flag = 1;
+					break;
+				}
 			}
 			l = scf_list_next(l);
 
@@ -259,7 +266,10 @@ static int _optimize_alias_bb(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 				if (ret < 0)
 					return ret;
 
+				bb      ->dereference_flag = flag;
 				bb_child->dereference_flag = 1;
+				bb_child->array_index_flag = bb->array_index_flag;
+
 				scf_list_add_front(&bb->list, &bb_child->list);
 
 				SCF_XCHG(bb->entry_dn_aliases,   bb_child->entry_dn_aliases);
@@ -272,6 +282,7 @@ static int _optimize_alias_bb(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 
 					scf_list_del(&c->list);
 					scf_list_add_tail(&bb_child->code_list_head, &c->list);
+					c->basic_block = bb_child;
 				}
 
 				bb    = bb_child;

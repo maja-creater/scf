@@ -249,6 +249,7 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		inst = x64_make_inst_I2E(add, rsp, (uint8_t*)&stack_size, 4);
 		X64_INST_ADD_CHECK(c->instructions, inst);
 	}
+	scf_loge("c->instructions->size: %d\n", c->instructions->size);
 	return 0;
 }
 
@@ -1075,13 +1076,16 @@ static int _x64_inst_load_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	scf_x64_context_t*  x64 = ctx->priv;
 	scf_function_t*     f   = x64->f;
 	scf_dag_node_t*     dn  = c->dst->dag_node;
-	scf_dag_node_t*     dn2 = NULL;
 
 	int ret;
 	int i;
 
 	if (dn->color < 0)
 		return 0;
+
+	scf_variable_t* v = dn->var;
+	scf_loge("v_%d_%d/%s, dn->color: %ld\n", v->w->line, v->w->pos, v->w->text->data, dn->color);
+
 	assert(dn->color > 0);
 
 	if (!c->instructions) {
@@ -1092,19 +1096,9 @@ static int _x64_inst_load_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 
 	r = x64_find_register_color(dn->color);
 
-	for (i  = 0; i < r->dag_nodes->size; i++) {
-		dn2 = r->dag_nodes->data[i];
-
-		if (dn2 != dn) {
-			scf_variable_t* v  = dn->var;
-			scf_variable_t* v2 = dn2->var;
-			scf_loge("ignore load: v_%d_%d/%s, v2_%d_%d/%s\n",
-					v->w->line,  v->w->pos,  v->w->text->data,
-					v2->w->line, v2->w->pos, v2->w->text->data);
-
-			dn->color = -1;
-			return 0;
-		}
+	if (x64_reg_used(r, dn)) {
+		dn->color = -1;
+		return 0;
 	}
 
 	ret = x64_load_reg(r, dn, c, f);
@@ -1143,23 +1137,12 @@ static int _x64_inst_reload_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 			return -ENOMEM;
 	}
 
-	r = x64_find_register_color(dn->color);
+	r   = x64_find_register_color(dn->color);
 
-	for (i  = 0; i < r->dag_nodes->size; ) {
-		dn2 = r->dag_nodes->data[i];
-
-		if (dn2 == dn) {
-			i++;
-			continue;
-		}
-
-		scf_loge("r: %s, dn2->var: %s\n", r->name, dn2->var->w->text->data);
-
-		ret = x64_save_var(dn2, c, f);
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
-		}
+	ret = x64_overflow_reg2(r, dn, c, f);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
 	}
 
 	dn->loaded = 0;

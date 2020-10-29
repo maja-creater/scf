@@ -555,6 +555,31 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 		if (ret < 0)
 			return ret;
 
+	} else if (scf_type_is_assign_array_index(c->op->type)) {
+
+		scf_3ac_operand_t* src;
+		scf_dag_node_t*    assign;
+
+		assert(c->srcs);
+
+		assign = scf_dag_node_alloc(c->op->type, NULL);
+		if (!assign)
+			return -ENOMEM;
+		scf_list_add_tail(dag, &assign->list);
+
+		int i;
+		for (i  = 0; i < c->srcs->size; i++) {
+			src = c->srcs->data[i];
+			assert(src && src->node);
+
+			ret = scf_dag_get_node(dag, src->node, &src->dag_node);
+			if (ret < 0)
+				return ret;
+
+			ret = scf_dag_node_add_child(assign, src->dag_node);
+			if (ret < 0)
+				return ret;
+		}
 	} else if (SCF_OP_3AC_CMP == c->op->type
 			|| SCF_OP_3AC_TEQ == c->op->type) {
 
@@ -1135,6 +1160,11 @@ static int _3ac_split_basic_blocks(scf_list_t* h, scf_function_t* f)
 				continue;
 			}
 
+			if (scf_type_is_assign_array_index(c->op->type)) {
+				bb->array_index_flag = 1;
+				continue;
+			}
+
 			if (scf_type_is_jmp(c->op->type)) {
 				bb->jmp_flag = 1;
 
@@ -1151,6 +1181,9 @@ static int _3ac_split_basic_blocks(scf_list_t* h, scf_function_t* f)
 
 			if (scf_type_is_assign_dereference(c->op->type) || SCF_OP_DEREFERENCE == c->op->type)
 				bb->dereference_flag = 1;
+
+			else if (scf_type_is_assign_array_index(c->op->type))
+				bb->array_index_flag = 1;
 
 			else if (SCF_OP_CALL == c->op->type || SCF_OP_3AC_CALL_EXTERN == c->op->type)
 				bb->call_flag = 1;

@@ -523,6 +523,7 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 	scf_basic_block_t* jcc_last;
 	scf_basic_block_t* pre;
 	scf_basic_block_t* post;
+	scf_basic_block_t* first;
 
 	scf_list_t*        sentinel = scf_list_sentinel(&f->basic_block_list_head);
 
@@ -575,6 +576,46 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 
 		pre-> group_flag = 1;
 		post->group_flag = 1;
+
+		scf_logd("bbg: %p, entry: %p, exit: %p\n", bbg, bbg->entry, bbg->exit);
+
+		if (bbg->body->size > 0) {
+			scf_basic_block_t* jcc;
+			scf_3ac_code_t*    c;
+			scf_list_t*        l;
+
+			l     = scf_list_next(&pre->list);
+			first = scf_list_data(l, scf_basic_block_t, list);
+
+			assert(scf_vector_find(bbg->body, first));
+
+			for (j = 0; j < first->prevs->size; j++) {
+				bb = first->prevs->data[j];
+
+				if (scf_vector_find(bbg->body, bb))
+					continue;
+
+				for (k = 0; k <  bb->nexts->size; k++) {
+					if (first != bb->nexts->data[k])
+						continue;
+
+					bb->nexts->data[k] = pre;
+					assert(0 == scf_vector_del(first->prevs, bb));
+
+					for (l  = scf_list_next(&bb->list); l != sentinel; l = scf_list_next(l)) {
+						jcc = scf_list_data(l, scf_basic_block_t, list);
+
+						if (!jcc->jmp_flag)
+							break;
+
+						l = scf_list_head(&jcc->code_list_head);
+						c = scf_list_data(l, scf_3ac_code_t, list);
+						if (c->dst->bb == first)
+							c->dst->bb =  pre;
+					}
+				}
+			}
+		}
 
 		for (j = 0; j < bbg->body->size; j++) {
 			bb = bbg->body->data[j];

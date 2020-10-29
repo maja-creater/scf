@@ -412,6 +412,7 @@ static int _scf_op_array_index(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 	scf_handler_data_t* d   = data;
 
 	scf_node_t*     parent  = nodes[0]->parent;
+	scf_node_t*     n_index = NULL;
 	scf_node_t*     n_scale = NULL;
 	scf_node_t*     srcs[3];
 	scf_variable_t* v;
@@ -428,8 +429,12 @@ static int _scf_op_array_index(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 		return ret;
 	}
 
+	n_index = nodes[1];
+	while (SCF_OP_EXPR == n_index->type)
+		n_index = n_index->nodes[0];
+
 	srcs[0] = nodes[0];
-	srcs[1] = nodes[1];
+	srcs[1] = n_index;
 	srcs[2] = n_scale;
 
 	v = _scf_operand_get(parent);
@@ -1502,6 +1507,7 @@ static int _scf_op_left_value_array_index(scf_ast_t* ast, int type, scf_node_t* 
 {
 	assert(2 == left->nb_nodes);
 
+	scf_node_t* n_index = NULL;
 	scf_node_t* n_scale = NULL;
 	scf_node_t* srcs[4];
 
@@ -1511,9 +1517,11 @@ static int _scf_op_left_value_array_index(scf_ast_t* ast, int type, scf_node_t* 
 			scf_loge("\n");
 			return -1;
 		}
-
-		srcs[i] = left->nodes[i];
 	}
+
+	n_index = left->nodes[1];
+	while (SCF_OP_EXPR == n_index->type)
+		n_index = n_index->nodes[0];
 
 	int ret = _scf_op_array_scale(ast, left, &n_scale);
 	if (ret < 0) {
@@ -1521,6 +1529,8 @@ static int _scf_op_left_value_array_index(scf_ast_t* ast, int type, scf_node_t* 
 		return ret;
 	}
 
+	srcs[0]   = left->nodes[0];
+	srcs[1]   = n_index;
 	srcs[i++] = n_scale;
 	if (right)
 		srcs[i++] = right;

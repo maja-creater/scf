@@ -79,7 +79,7 @@ enum scf_core_types {
 	SCF_OP_POINTER,     // -> struct member
 	SCF_OP_DOT,			// . dot
 
-	// 43
+	// 45
 	SCF_OP_BLOCK,		// statement block, first in fisr run
 	SCF_OP_IF,			// if statement
 	SCF_OP_FOR,			// for statement
@@ -89,6 +89,7 @@ enum scf_core_types {
 	SCF_OP_CONTINUE,	// continue statement
 	SCF_OP_ERROR,       // error statement
 
+	// 53
 	SCF_OP_3AC_TEQ,		// test if = 0
 	SCF_OP_3AC_CMP,		// cmp > 0, < 0, = 0, etc
 
@@ -210,6 +211,11 @@ static int scf_type_is_binary_assign(int type)
 static int scf_type_is_assign_dereference(int type)
 {
 	return type >= SCF_OP_3AC_ASSIGN_DEREFERENCE && type <= SCF_OP_3AC_DEC_POST_DEREFERENCE;
+}
+
+static int scf_type_is_assign_array_index(int type)
+{
+	return type >= SCF_OP_3AC_ASSIGN_ARRAY_INDEX && type <= SCF_OP_3AC_DEC_POST_ARRAY_INDEX;
 }
 
 static int scf_type_is_signed(int type)

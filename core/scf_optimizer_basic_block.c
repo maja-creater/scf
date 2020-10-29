@@ -11,8 +11,28 @@ static scf_dag_node_t* _func_dag_find_dn(scf_list_t* func_dag, scf_dag_node_t* d
 
 		if (dn_func->type == dn_bb->type && dn_func->var == dn_bb->var)
 			break;
+
 		dn_func = NULL;
 	}
+
+	if (!dn_func) {
+		if (1 || !scf_dn_through_bb(dn_bb)) {
+
+			dn_func = scf_dag_find_dn(func_dag, dn_bb);
+			if (!dn_func) {
+
+				scf_variable_t* v = dn_bb->var;
+
+				if (v->w)
+					scf_loge("v_%d_%d/%s, dn_bb->type: %d\n", v->w->line, v->w->pos, v->w->text->data, dn_bb->type);
+				else
+					scf_loge("v_%#lx\n", 0xffff & (uintptr_t)v);
+			}
+		} else {
+			scf_loge("\n");
+		}
+	}
+
 	return dn_func;
 }
 
@@ -46,6 +66,9 @@ static int _bb_dag_update(scf_basic_block_t* bb, scf_function_t* f)
 				continue;
 
 			if (scf_type_is_var(dn->type))
+				continue;
+
+			if (scf_type_is_assign_array_index(dn->type))
 				continue;
 
 			if (scf_type_is_assign(dn->type)
@@ -243,9 +266,15 @@ static int __optimize_basic_block(scf_basic_block_t* bb, scf_function_t* f)
 			for (i  = 0; i < c->srcs->size; i++) {
 				src = c->srcs->data[i];
 
+				scf_variable_t* v = src->dag_node->var;
+
 				dn_func = _func_dag_find_dn(&f->dag_list_head, src->dag_node);
 				if (!dn_func) {
-					scf_loge("\n");
+					if (v->w)
+						scf_loge("v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+					else
+						scf_loge("v_%#lx\n", 0xffff & (uintptr_t)v);
+					scf_3ac_code_print(c, NULL);
 					return -1;
 				}
 
@@ -291,7 +320,8 @@ static int _optimize_basic_block(scf_function_t* f, scf_list_t* bb_list_head)
 
 		bb  = scf_list_data(l, scf_basic_block_t, list);
 
-		if (bb->jmp_flag || bb->ret_flag || bb->end_flag || bb->call_flag || bb->dereference_flag) {
+		if (bb->jmp_flag || bb->ret_flag || bb->end_flag || bb->call_flag
+				|| bb->dereference_flag) {
 			scf_logd("jmp bb: %p\n\n", bb);
 			continue;
 		}
