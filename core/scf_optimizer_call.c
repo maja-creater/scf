@@ -25,6 +25,10 @@ static int _alias_call(scf_vector_t* aliases, scf_3ac_code_t* c, scf_basic_block
 
 		if (0 == v->nb_pointers)
 			continue;
+
+		if (scf_variable_const_string(v))
+			continue;
+
 		scf_logd("pointer: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
 
 		dn_pointers = scf_vector_alloc();

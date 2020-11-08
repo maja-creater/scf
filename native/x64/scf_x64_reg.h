@@ -49,6 +49,16 @@ static uint32_t x64_abi_float_regs[] =
 };
 #define X64_ABI_NB (sizeof(x64_abi_regs) / sizeof(x64_abi_regs[0]))
 
+static uint32_t x64_abi_caller_saves[] =
+{
+	SCF_X64_REG_RBX,
+	SCF_X64_REG_RCX,
+	SCF_X64_REG_RDX,
+	SCF_X64_REG_RSI,
+	SCF_X64_REG_RDI,
+};
+#define X64_ABI_CALLER_SAVES_NB (sizeof(x64_abi_caller_saves) / sizeof(x64_abi_caller_saves[0]))
+
 typedef struct {
 	uint32_t		id;
 	int				bytes;
@@ -96,6 +106,9 @@ scf_register_x64_t* x64_select_overflowed_reg(scf_dag_node_t* dn, scf_3ac_code_t
 int                 x64_save_var(scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f);
 
 int                 x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f);
+
+int                 x64_push_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs);
+int                 x64_pop_regs (scf_vector_t* instructions, uint32_t* regs, int nb_regs);
 
 int                 x64_save_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f);
 

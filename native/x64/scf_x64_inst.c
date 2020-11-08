@@ -152,7 +152,7 @@ static int _x64_inst_call_argv(scf_3ac_code_t* c, scf_function_t* f)
 			if (SCF_VAR_FLOAT == v->type)
 				mov = x64_find_OpCode(SCF_X64_MOVSS, size, size, SCF_X64_G2E);
 			else
-				mov = x64_find_OpCode(SCF_X64_MOVSS, size, size, SCF_X64_G2E);
+				mov = x64_find_OpCode(SCF_X64_MOVSD, size, size, SCF_X64_G2E);
 		}
 
 		X64_SELECT_REG_CHECK(&rs, src->dag_node, c, f, 1);
@@ -199,17 +199,22 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		return -EINVAL;
 	}
 
-	if (!c->instructions) {
-		c->instructions = scf_vector_alloc();
-		if (!c->instructions)
-			return -ENOMEM;
-	}
+	assert (!c->instructions);
+	c->instructions = scf_vector_alloc();
+	if (!c->instructions)
+		return -ENOMEM;
 
 	scf_register_x64_t* rsp  = x64_find_register("rsp");
+	scf_register_x64_t* rax  = x64_find_register("rax");
+	scf_x64_OpCode_t*   xor;
 	scf_x64_OpCode_t*   sub;
 	scf_x64_OpCode_t*   add;
 	scf_x64_OpCode_t*   call;
 	scf_instruction_t*  inst;
+
+	int data_rela_size = f->data_relas->size;
+	int text_rela_size = f->text_relas->size;
+	scf_loge("f->data_relas->size: %d, f->text_relas->size: %d\n", f->data_relas->size, f->text_relas->size);
 
 	int stack_size = _x64_inst_call_stack_size(c);
 	if (stack_size > 0) {
@@ -219,6 +224,22 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	}
 
 	int ret = _x64_inst_call_argv(c, f);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	ret = x64_overflow_reg(rax, c, f);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	xor  = x64_find_OpCode(SCF_X64_XOR, 8,8, SCF_X64_G2E);
+	inst = x64_make_inst_G2E(xor, rax, rax);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	ret = x64_push_regs(c->instructions, x64_abi_caller_saves, X64_ABI_CALLER_SAVES_NB);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -244,12 +265,18 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		return -EINVAL;
 	}
 
+	ret = x64_pop_regs(c->instructions, x64_abi_caller_saves, X64_ABI_CALLER_SAVES_NB);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
 	if (stack_size > 0) {
 		add  = x64_find_OpCode(SCF_X64_ADD, 4, 4, SCF_X64_I2E);
 		inst = x64_make_inst_I2E(add, rsp, (uint8_t*)&stack_size, 4);
 		X64_INST_ADD_CHECK(c->instructions, inst);
 	}
-	scf_loge("c->instructions->size: %d\n", c->instructions->size);
+
 	return 0;
 }
 

@@ -561,12 +561,16 @@ static int _scf_parse_add_ds(scf_parse_t* parse, scf_elf_context_t* elf, scf_vec
 		int      size;
 		uint8_t* v_data;
 
-		if (v->global_flag)
+		if (v->global_flag) {
 			name = v->w->text->data;
-		else
+		} else
 			name = v->signature->data;
 
-		if (v->nb_dimentions > 0) {
+		if (scf_variable_const_string(v)) {
+			size   = v->data.s->len + 1;
+			v_data = v->data.s->data;
+
+		} else if (v->nb_dimentions > 0) {
 			size   = scf_variable_size(v);
 			v_data = v->data.p;
 
@@ -699,8 +703,11 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 	for (i = 0; i < functions->size; i++) {
 		scf_function_t* f = functions->data[i];
 
-		scf_logi("i: %d, f: %p, fname: %s, f->argv->size: %d\n",
-				i, f, f->node.w->text->data, f->argv->size);
+		scf_logi("i: %d, f: %p, fname: %s, f->argv->size: %d, f->node.define_flag: %d\n",
+				i, f, f->node.w->text->data, f->argv->size, f->node.define_flag);
+
+		if (!f->node.define_flag)
+			continue;
 
 		ret = scf_parse_compile_function(parse, native, f);
 		if (ret < 0) {
@@ -782,13 +789,22 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 	for (i = 0; i < functions->size; i++) {
 		scf_function_t* f = functions->data[i];
 
+		scf_logi("i: %d, f: %p, fname: %s, f->argv->size: %d, f->node.define_flag: %d\n",
+				i, f, f->node.w->text->data, f->argv->size, f->node.define_flag);
+
+		if (!f->node.define_flag)
+			continue;
+
 		int j;
 		for (j = 0; j < f->text_relas->size; j++) {
 			scf_rela_t*   r = f->text_relas->data[j];
 
 			scf_string_t* s = scf_function_signature(r->func);
 
-			ret = _scf_parse_add_rela(parse, elf, r, s->data, 1);
+			if (r->func->node.define_flag)
+				ret = _scf_parse_add_rela(parse, elf, r, s->data, 1);
+			else
+				ret = _scf_parse_add_rela(parse, elf, r, s->data, 0);
 			scf_string_free(s);
 			s = NULL;
 			if (ret < 0) {

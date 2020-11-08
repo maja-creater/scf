@@ -128,6 +128,74 @@ void x64_registers_clear()
 	}
 }
 
+int x64_push_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs)
+{
+	int i;
+	int j;
+	scf_register_x64_t* r;
+	scf_register_x64_t* r2;
+	scf_instruction_t*  inst;
+	scf_x64_OpCode_t*   push = x64_find_OpCode(SCF_X64_PUSH, 8,8, SCF_X64_G);
+
+	for (j = 0; j < nb_regs; j++) {
+		r2 = x64_find_register_type_id_bytes(0, regs[j], 8);
+
+		for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
+			r  = &(x64_registers[i]);
+
+			if (SCF_X64_REG_RSP == r->id || SCF_X64_REG_RBP == r->id)
+				continue;
+
+			if (0 == r->dag_nodes->size)
+				continue;
+
+			if (X64_COLOR_CONFLICT(r2->color, r->color))
+				break;
+		}
+
+		if (i == sizeof(x64_registers) / sizeof(x64_registers[0]))
+			continue;
+
+		inst = x64_make_inst_G(push, r2);
+		X64_INST_ADD_CHECK(instructions, inst);
+	}
+	return 0;
+}
+
+int x64_pop_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs)
+{
+	int i;
+	int j;
+	scf_register_x64_t* r;
+	scf_register_x64_t* r2;
+	scf_instruction_t*  inst;
+	scf_x64_OpCode_t*   pop = x64_find_OpCode(SCF_X64_POP, 8,8, SCF_X64_G);
+
+	for (j = nb_regs - 1; j >= 0; j--) {
+		r2 = x64_find_register_type_id_bytes(0, regs[j], 8);
+
+		for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
+			r  = &(x64_registers[i]);
+
+			if (SCF_X64_REG_RSP == r->id || SCF_X64_REG_RBP == r->id)
+				continue;
+
+			if (0 == r->dag_nodes->size)
+				continue;
+
+			if (X64_COLOR_CONFLICT(r2->color, r->color))
+				break;
+		}
+
+		if (i == sizeof(x64_registers) / sizeof(x64_registers[0]))
+			continue;
+
+		inst = x64_make_inst_G(pop, r2);
+		X64_INST_ADD_CHECK(instructions, inst);
+	}
+	return 0;
+}
+
 int x64_registers_reset()
 {
 	int i;
@@ -644,10 +712,21 @@ int x64_load_reg(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, s
 		if (!dn->var->global_flag && !dn->var->local_flag)
 			return 0;
 
-		if (dn->var->nb_dimentions > 0 && dn->var->const_literal_flag)
-			mov  = x64_find_OpCode(SCF_X64_LEA, var_size, var_size, SCF_X64_E2G);
-		else
-			mov  = x64_find_OpCode(SCF_X64_MOV, var_size, var_size, SCF_X64_E2G);
+		if (scf_variable_const_string(dn->var)) {
+
+			dn->var->global_flag = 1;
+			dn->var->local_flag  = 0;
+
+			mov = x64_find_OpCode(SCF_X64_LEA, var_size, var_size, SCF_X64_E2G);
+
+			scf_variable_t* v = dn->var;
+			scf_loge("v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+		} else {
+			if (dn->var->nb_dimentions > 0 && dn->var->const_literal_flag)
+				mov  = x64_find_OpCode(SCF_X64_LEA, var_size, var_size, SCF_X64_E2G);
+			else
+				mov  = x64_find_OpCode(SCF_X64_MOV, var_size, var_size, SCF_X64_E2G);
+		}
 	} else {
 		if (!dn->var->global_flag && !dn->var->local_flag)
 			return 0;

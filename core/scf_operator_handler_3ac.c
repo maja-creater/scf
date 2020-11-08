@@ -822,7 +822,7 @@ static int _scf_op_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* da
 		return -1;
 	}
 
-	scf_3ac_code_t* jmp_else  = _scf_branch_ops_code(jmp_op,      NULL, NULL);
+	scf_3ac_code_t* jmp_else  = _scf_branch_ops_code(jmp_op, NULL, NULL);
 	scf_3ac_code_t* jmp_endif = NULL;
 	scf_list_t*     l;
 
@@ -861,7 +861,6 @@ static int _scf_op_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* da
 			return ret;
 	}
 
-	scf_logi("ok: \n");
 	return 0;
 }
 
