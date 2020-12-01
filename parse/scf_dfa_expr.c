@@ -10,8 +10,11 @@ typedef struct {
 	scf_stack_t*      lp_exprs;
 	scf_block_t*      parent_block;
 	scf_variable_t*   current_var;
+	scf_type_t*       current_struct;
 
 } expr_module_data_t;
+
+int _type_find_type(scf_dfa_t* dfa, dfa_identity_t* id);
 
 static int _expr_is_expr(scf_dfa_t* dfa, void* word)
 {
@@ -79,11 +82,15 @@ static int _expr_is_binary_op(scf_dfa_t* dfa, void* word)
 int _expr_add_var(scf_parse_t* parse, dfa_parse_data_t* d)
 {
 	expr_module_data_t* md   = d->module_datas[dfa_module_expr.index];
-	scf_lex_word_t*     w    = d->current_identity;
 	scf_variable_t*     var  = NULL;
 	scf_node_t*         node = NULL;
 	scf_type_t*         pt   = NULL;
 	scf_function_t*     f    = NULL;
+	dfa_identity_t*     id   = scf_stack_pop(d->current_identities);
+	scf_lex_word_t*     w;
+
+	assert(id && id->identity);
+	w = id->identity;
 
 	var = scf_ast_find_variable(parse->ast, w->text->data);
 	if (!var) {
@@ -98,7 +105,7 @@ int _expr_add_var(scf_parse_t* parse, dfa_parse_data_t* d)
 			return SCF_DFA_ERROR;
 		}
 
-		var = SCF_VAR_ALLOC_BY_TYPE(d->current_identity, pt, 1, 1, f);
+		var = SCF_VAR_ALLOC_BY_TYPE(id->identity, pt, 1, 1, f);
 		if (!var) {
 			scf_loge("var '%s' alloc failed\n", w->text->data);
 			return SCF_DFA_ERROR;
@@ -127,8 +134,14 @@ int _expr_add_var(scf_parse_t* parse, dfa_parse_data_t* d)
 		return SCF_DFA_ERROR;
 	}
 
-	md->current_var     = var;
-	d->current_identity = NULL;
+	if (var->type >= SCF_STRUCT) {
+		md->current_struct = scf_ast_find_type_type(parse->ast, var->type);
+		assert(md->current_struct);
+	}
+	md->current_var = var;
+
+	free(id);
+	id = NULL;
 	return SCF_DFA_OK;
 }
 
@@ -272,43 +285,39 @@ static int _expr_action_binary_op(scf_dfa_t* dfa, scf_vector_t* words, void* dat
 	scf_lex_word_t*     w     = words->data[words->size - 1];
 	expr_module_data_t* md    = d->module_datas[dfa_module_expr.index];
 
-	if (!d->current_identity)
-		return _expr_action_op(dfa, words, data, 2);
+	dfa_identity_t*     id    = scf_stack_top(d->current_identities);
 
 	if (SCF_LEX_WORD_STAR == w->type) {
 
-		scf_variable_t* var = scf_block_find_variable(parse->ast->current_block,
-				d->current_identity->text->data);
+		if (id && id->identity) {
 
-		if (!var) {
-			scf_logw("'%s' not var\n", d->current_identity->text->data);
+			scf_variable_t* var = scf_block_find_variable(parse->ast->current_block,
+					id->identity->text->data);
 
-			if (d->expr) {
-				scf_expr_free(d->expr);
-				d->expr = NULL;
+			if (!var) {
+				scf_logw("'%s' not var\n", id->identity->text->data);
+
+				if (d->expr) {
+					scf_expr_free(d->expr);
+					d->expr = NULL;
+				}
+				return SCF_DFA_NEXT_SYNTAX;
 			}
-			return SCF_DFA_NEXT_SYNTAX;
 		}
 	}
 
-	if (_expr_add_var(parse, d) < 0)
-		return SCF_DFA_ERROR;
+	if (id && id->identity) {
+		if (_expr_add_var(parse, d) < 0)
+			return SCF_DFA_ERROR;
+	}
 
 	if (SCF_LEX_WORD_ARROW == w->type) {
-		assert(md->current_var);
-
-		if (md->current_var->type < SCF_STRUCT) {
-			scf_loge("var '%s' not a struct or class\n", md->current_var->w->text->data);
-			return SCF_DFA_ERROR;
-		}
-
-		scf_type_t* t = scf_block_find_type_type(parse->ast->current_block, md->current_var->type);
-		assert(t);
+		assert(md->current_struct);
 
 		if (!md->parent_block)
 			md->parent_block = parse->ast->current_block;
 
-		parse->ast->current_block = (scf_block_t*)t;
+		parse->ast->current_block = (scf_block_t*)md->current_struct;
 
 	} else if (md->parent_block) {
 		parse->ast->current_block = md->parent_block;
@@ -344,31 +353,41 @@ static int _expr_action_rp_cast(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	dfa_parse_data_t*   d     = data;
 	expr_module_data_t* md    = d->module_datas[dfa_module_expr.index];
 
+	dfa_identity_t*     id    = scf_stack_top(d->current_identities);
+
+	if (!id) {
+		scf_loge("\n");
+		return SCF_DFA_ERROR;
+	}
+
+	if (!id->type) {
+		if (_type_find_type(dfa, id) < 0) {
+			scf_loge("\n");
+			return SCF_DFA_ERROR;
+		}
+	}
+
+	if (!id->type || !id->type_w) {
+		scf_loge("\n");
+		return SCF_DFA_ERROR;
+	}
+
 	if (d->nb_sizeofs > 0) {
 		scf_logw("SCF_DFA_NEXT_SYNTAX\n");
+
+		if (d->expr) {
+			scf_expr_free(d->expr);
+			d->expr = NULL;
+		}
+
 		return SCF_DFA_NEXT_SYNTAX;
-	}
-
-	if (d->current_identity) {
-		scf_loge("\n");
-		return SCF_DFA_ERROR;
-	}
-
-	if (!d->current_type) {
-		scf_loge("\n");
-		return SCF_DFA_ERROR;
-	}
-
-	if (!d->current_type_w) {
-		scf_loge("\n");
-		return SCF_DFA_ERROR;
 	}
 
 	scf_variable_t* var       = NULL;
 	scf_node_t*     node_var  = NULL;
 	scf_node_t*     node_cast = NULL;
 
-	var = SCF_VAR_ALLOC_BY_TYPE(d->current_type_w, d->current_type, d->const_flag, d->nb_pointers, d->func_ptr);
+	var = SCF_VAR_ALLOC_BY_TYPE(id->type_w, id->type, id->const_flag, id->nb_pointers, id->func_ptr);
 	if (!var) {
 		scf_loge("var alloc failed\n");
 		return SCF_DFA_ERROR;
@@ -380,7 +399,7 @@ static int _expr_action_rp_cast(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 		return SCF_DFA_ERROR;
 	}
 
-	node_cast = scf_node_alloc(d->current_type_w, SCF_OP_TYPE_CAST, NULL);
+	node_cast = scf_node_alloc(id->type_w, SCF_OP_TYPE_CAST, NULL);
 	if (!node_cast) {
 		scf_loge("cast node alloc failed\n");
 		return SCF_DFA_ERROR;
@@ -408,12 +427,8 @@ static int _expr_action_rp_cast(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 		d->expr = parent0;
 	}
 
-	d->current_type   = NULL;
-	d->current_type_w = NULL;
-	d->const_flag     = 0;
-	d->nb_pointers    = 0;
-	d->func_ptr       = NULL;
-
+	scf_stack_pop(d->current_identities);
+	free(id);
 	return SCF_DFA_NEXT_WORD;
 }
 
@@ -423,7 +438,16 @@ static int _expr_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	dfa_parse_data_t*   d     = data;
 	expr_module_data_t* md    = d->module_datas[dfa_module_expr.index];
 
-	if (d->current_identity) {
+	dfa_identity_t*     id    = scf_stack_top(d->current_identities);
+
+	if (id && id->identity) {
+
+		scf_variable_t* var = scf_ast_find_variable(parse->ast, id->identity->text->data);
+		if (!var) {
+			scf_logw("'%s' not var\n", id->identity->text->data);
+			return SCF_DFA_NEXT_SYNTAX;
+		}
+
 		if (_expr_add_var(parse, d) < 0) {
 			scf_loge("expr add var error\n");
 			return SCF_DFA_ERROR;
@@ -454,7 +478,9 @@ static int _expr_action_unary_post(scf_dfa_t* dfa, scf_vector_t* words, void* da
 	dfa_parse_data_t* d     = data;
 	scf_node_t*       n     = NULL;
 
-	if (d->current_identity) {
+	dfa_identity_t*   id    = scf_stack_top(d->current_identities);
+
+	if (id && id->identity) {
 		if (_expr_add_var(parse, d) < 0) {
 			scf_loge("expr add var error\n");
 			return SCF_DFA_ERROR;
@@ -490,7 +516,9 @@ static int _expr_action_ls(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	dfa_parse_data_t*   d     = data;
 	expr_module_data_t* md    = d->module_datas[dfa_module_expr.index];
 
-	if (d->current_identity) {
+	dfa_identity_t*     id    = scf_stack_top(d->current_identities);
+
+	if (id && id->identity) {
 		if (_expr_add_var(parse, d) < 0) {
 			scf_loge("expr add var error\n");
 			return SCF_DFA_ERROR;
@@ -528,7 +556,9 @@ static int _expr_action_rs(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	dfa_parse_data_t*   d     = data;
 	expr_module_data_t* md    = d->module_datas[dfa_module_expr.index];
 
-	if (d->current_identity) {
+	dfa_identity_t*     id    = scf_stack_top(d->current_identities);
+
+	if (id && id->identity) {
 		if (_expr_add_var(parse, d) < 0) {
 			scf_loge("expr add var error\n");
 			return SCF_DFA_ERROR;
@@ -558,7 +588,9 @@ static int _expr_fini_expr(scf_parse_t* parse, dfa_parse_data_t* d)
 {
 	expr_module_data_t* md = d->module_datas[dfa_module_expr.index];
 
-	if (d->current_identity) {
+	dfa_identity_t*     id = scf_stack_top(d->current_identities);
+
+	if (id && id->identity) {
 		if (_expr_add_var(parse, d) < 0)
 			return SCF_DFA_ERROR;
 	}
@@ -754,6 +786,7 @@ static int _dfa_init_syntax_expr(scf_dfa_t* dfa)
 	scf_dfa_node_add_child(lp,         type_entry);
 	scf_dfa_node_add_child(base_type,  rp_cast);
 	scf_dfa_node_add_child(star,       rp_cast);
+	scf_dfa_node_add_child(identity,   rp_cast);
 
 	scf_dfa_node_add_child(rp_cast,    identity);
 	scf_dfa_node_add_child(rp_cast,    number);

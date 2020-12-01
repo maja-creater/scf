@@ -329,8 +329,12 @@ static int _scf_op_pointer(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, voi
 	assert(2 == nb_nodes);
 
 	scf_handler_data_t* d = data;
+	scf_variable_t*     v;
 
 	scf_node_t* parent = nodes[0]->parent;
+
+	v = _scf_operand_get(parent);
+	v->local_flag = 1;
 
 	return _scf_3ac_code_3(d->_3ac_list_head, SCF_OP_POINTER, parent, nodes[0], nodes[1]);
 }

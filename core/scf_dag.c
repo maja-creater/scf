@@ -255,7 +255,7 @@ void scf_dn_status_print(scf_dn_status_t* ds)
 	printf(" alias_type: %d\n", ds->alias_type);
 }
 
-scf_dag_node_t* scf_dag_node_alloc(int type, scf_variable_t* var)
+scf_dag_node_t* scf_dag_node_alloc(int type, scf_variable_t* var, const scf_node_t* node)
 {
 	scf_dag_node_t* dag_node = calloc(1, sizeof(scf_dag_node_t));
 	if (!dag_node)
@@ -266,6 +266,8 @@ scf_dag_node_t* scf_dag_node_alloc(int type, scf_variable_t* var)
 		dag_node->var = scf_variable_clone(var);
 	else
 		dag_node->var = NULL;
+
+	dag_node->node = (scf_node_t*)node;
 
 #if 0
 	if (SCF_OP_LOGIC_AND == type) {
@@ -599,7 +601,7 @@ int scf_dag_get_node(scf_list_t* h, const scf_node_t* node, scf_dag_node_t** pp)
 	scf_dag_node_t* dag_node = scf_dag_find_node(h, node);
 
 	if (!dag_node) {
-		dag_node = scf_dag_node_alloc(node->type, _scf_operand_get((scf_node_t*)node));
+		dag_node = scf_dag_node_alloc(node->type, _scf_operand_get((scf_node_t*)node), node);
 		if (!dag_node)
 			return -ENOMEM;
 
@@ -653,43 +655,6 @@ int scf_dag_dn_same(scf_dag_node_t* dn0, scf_dag_node_t* dn1)
 			return 0;
 	}
 	return 1;
-}
-
-scf_dag_node_t* scf_dag_find_dn(scf_list_t* h, const scf_dag_node_t* dn0)
-{
-	scf_list_t* l;
-	for (l = scf_list_tail(h); l != scf_list_sentinel(h); l = scf_list_prev(l)) {
-
-		scf_dag_node_t* dn1 = scf_list_data(l, scf_dag_node_t, list);
-
-		if (SCF_OP_ARRAY_INDEX == dn0->type && SCF_OP_ARRAY_INDEX == dn1->type) {
-			scf_variable_t* v0 = dn0->var;
-			scf_variable_t* v1 = dn1->var;
-			scf_logd("origin dn0: %p, v0_%d_%d/%s, dn1: %p, v1_%d_%d/%s\n",
-					dn0, v0->w->line, v0->w->pos, v0->w->text->data,
-					dn1, v1->w->line, v1->w->pos, v1->w->text->data);
-		}
-
-		if (scf_dag_dn_same(dn1, (scf_dag_node_t*)dn0))
-			return dn1;
-	}
-	return NULL;
-}
-
-int scf_dag_get_dn(scf_list_t* h, const scf_dag_node_t* dn0, scf_dag_node_t** pp)
-{
-	scf_dag_node_t* dn1 = scf_dag_find_dn(h, dn0);
-
-	if (!dn1) {
-		dn1 = scf_dag_node_alloc(dn0->type, dn0->var);
-		if (!dn1)
-			return -ENOMEM;
-
-		scf_list_add_tail(h, &dn1->list);
-	}
-
-	*pp = dn1;
-	return 0;
 }
 
 int scf_dag_find_roots(scf_list_t* h, scf_vector_t* roots)

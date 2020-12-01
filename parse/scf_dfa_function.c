@@ -14,14 +14,26 @@ typedef struct {
 
 int _function_add_function(scf_dfa_t* dfa, dfa_parse_data_t* d)
 {
-	scf_parse_t* parse = dfa->priv;
+	if (d->current_identities->size != 2) {
+		scf_loge("\n");
+		return SCF_DFA_ERROR;
+	}
 
-	if (!d->current_identity) {
+	scf_parse_t*    parse = dfa->priv;
+	dfa_identity_t* id1   = scf_stack_pop(d->current_identities);
+	dfa_identity_t* id0   = scf_stack_pop(d->current_identities);
+
+	if (!id0 || !id0->type) {
+		scf_loge("function ret type not found\n");
+		return SCF_DFA_ERROR;
+	}
+
+	if (!id1 || !id1->identity) {
 		scf_loge("function identity not found\n");
 		return SCF_DFA_ERROR;
 	}
 
-	scf_function_t* f = scf_function_alloc(d->current_identity);
+	scf_function_t* f = scf_function_alloc(id1->identity);
 	if (!f) {
 		scf_loge("function alloc failed\n");
 		return SCF_DFA_ERROR;
@@ -32,7 +44,7 @@ int _function_add_function(scf_dfa_t* dfa, dfa_parse_data_t* d)
 
 	d->current_function = f;
 
-	f->ret = SCF_VAR_ALLOC_BY_TYPE(d->current_identity, d->current_type, d->const_flag, d->nb_pointers, NULL);
+	f->ret = SCF_VAR_ALLOC_BY_TYPE(id1->identity, id0->type, id0->const_flag, id0->nb_pointers, NULL);
 	if (!f->ret) {
 		scf_loge("function return value alloc failed\n");
 
@@ -41,18 +53,43 @@ int _function_add_function(scf_dfa_t* dfa, dfa_parse_data_t* d)
 		return SCF_DFA_ERROR;
 	}
 
-	d->const_flag       = 0;
-	d->nb_pointers      = 0;
-	d->current_identity = NULL;
-	d->current_type     = NULL;
-
+	free(id0);
+	free(id1);
 	return SCF_DFA_NEXT_WORD;
 }
 
 int _function_add_arg(scf_dfa_t* dfa, dfa_parse_data_t* d)
 {
-	if (d->current_type) {
-		scf_variable_t* arg = SCF_VAR_ALLOC_BY_TYPE(d->current_identity, d->current_type, d->const_flag, d->nb_pointers, d->func_ptr);
+	dfa_identity_t* t = NULL;
+	dfa_identity_t* v = NULL;
+
+	switch (d->current_identities->size) {
+		case 0:
+			break;
+		case 1:
+			t = scf_stack_pop(d->current_identities);
+			assert(t && t->type);
+			break;
+		case 2:
+			v = scf_stack_pop(d->current_identities);
+			t = scf_stack_pop(d->current_identities);
+			assert(t && t->type);
+			assert(v && v->identity);
+			break;
+		default:
+			scf_loge("\n");
+			return SCF_DFA_ERROR;
+			break;
+	};
+
+	if (t && t->type) {
+		scf_variable_t* arg = NULL;
+		scf_lex_word_t* w   = NULL;
+
+		if (v && v->identity)
+			w = v->identity;
+
+		arg = SCF_VAR_ALLOC_BY_TYPE(w, t->type, t->const_flag, t->nb_pointers, t->func_ptr);
 		if (!arg)
 			return SCF_DFA_ERROR;
 
@@ -62,10 +99,9 @@ int _function_add_arg(scf_dfa_t* dfa, dfa_parse_data_t* d)
 		arg->arg_flag   = 1;
 		arg->local_flag = 1;
 
-		d->current_identity = NULL;
-		d->current_type     = NULL;
-		d->const_flag       = 0;
-		d->nb_pointers      = 0;
+		if (v)
+			free(v);
+		free(t);
 
 		d->argc++;
 	}

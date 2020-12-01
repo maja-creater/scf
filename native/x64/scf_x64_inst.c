@@ -245,13 +245,13 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		return ret;
 	}
 
-	int32_t offset = 0;
-	call = x64_find_OpCode(SCF_X64_CALL, 4,4, SCF_X64_I);
-	inst = x64_make_inst_I(call, (uint8_t*)&offset, 4);
-	X64_INST_ADD_CHECK(c->instructions, inst);
-
 	if (var_pf->const_literal_flag) {
 		assert(0 == src0->dag_node->color);
+
+		int32_t offset = 0;
+		call = x64_find_OpCode(SCF_X64_CALL, 4,4, SCF_X64_I);
+		inst = x64_make_inst_I(call, (uint8_t*)&offset, 4);
+		X64_INST_ADD_CHECK(c->instructions, inst);
 
 		scf_rela_t* rela = calloc(1, sizeof(scf_rela_t));
 		if (!rela)
@@ -261,8 +261,28 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		X64_RELA_ADD_CHECK(f->text_relas, rela, c, NULL, pf);
 	} else {
 		assert(0 != src0->dag_node->color);
-		scf_loge("\n");
-		return -EINVAL;
+
+		call = x64_find_OpCode(SCF_X64_CALL, 8,8, SCF_X64_E);
+
+		if (src0->dag_node->color > 0) {
+
+			scf_register_x64_t* r_pf = NULL;
+
+			ret = x64_select_reg(&r_pf, src0->dag_node, c, f, 1);
+			if (ret < 0) {
+				scf_loge("\n");
+				return ret;
+			}
+
+			inst = x64_make_inst_E(call, r_pf);
+			X64_INST_ADD_CHECK(c->instructions, inst);
+		} else {
+			scf_rela_t* rela = NULL;
+
+			inst = x64_make_inst_M(&rela, call, var_pf, NULL);
+			X64_INST_ADD_CHECK(c->instructions, inst);
+			X64_RELA_ADD_CHECK(f->text_relas, rela, c, NULL, pf);
+		}
 	}
 
 	ret = x64_pop_regs(c->instructions, x64_abi_caller_saves, X64_ABI_CALLER_SAVES_NB);
@@ -275,6 +295,47 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		add  = x64_find_OpCode(SCF_X64_ADD, 4, 4, SCF_X64_I2E);
 		inst = x64_make_inst_I2E(add, rsp, (uint8_t*)&stack_size, 4);
 		X64_INST_ADD_CHECK(c->instructions, inst);
+	}
+
+	if (pf->ret) {
+		if (!c->dst || !c->dst->dag_node) {
+			scf_loge("\n");
+			return -EINVAL;
+		}
+
+		scf_register_x64_t* rd   = NULL;
+		scf_register_x64_t* rs   = NULL;
+		scf_x64_OpCode_t*   mov  = NULL;
+		scf_dag_node_t*     dst  = c->dst->dag_node;
+
+		assert(0 != dst->color);
+
+		int is_float = scf_variable_float(dst->var);
+		int dst_size = x64_variable_size(dst->var);
+
+		rs = x64_find_register_type_id_bytes(is_float, SCF_X64_REG_RAX, dst_size);
+
+		if (is_float) {
+			if (SCF_VAR_FLOAT == dst->var->type)
+				mov = x64_find_OpCode(SCF_X64_MOVSS, dst_size, dst_size, SCF_X64_G2E);
+			else
+				mov = x64_find_OpCode(SCF_X64_MOVSD, dst_size, dst_size, SCF_X64_G2E);
+		} else
+			mov = x64_find_OpCode(SCF_X64_MOV, dst_size, dst_size, SCF_X64_G2E);
+
+		if (dst->color > 0) {
+			if (dst->color != rs->color) {
+				X64_SELECT_REG_CHECK(&rd, dst, c, f, 0);
+				inst = x64_make_inst_G2E(mov, rd, rs);
+				X64_INST_ADD_CHECK(c->instructions, inst);
+			}
+		} else {
+			scf_rela_t* rela = NULL;
+
+			inst = x64_make_inst_G2M(&rela, mov, dst->var, NULL, rs);
+			X64_INST_ADD_CHECK(c->instructions, inst);
+			X64_RELA_ADD_CHECK(f->data_relas, rela, c, dst->var, NULL);
+		}
 	}
 
 	return 0;
@@ -865,6 +926,10 @@ static int _x64_inst_cast_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		return x64_inst_movx(dst->dag_node, src->dag_node, c, f);
 
 	scf_logw("src_size: %d, dst_size: %d\n", src_size, dst_size);
+
+	if (src->dag_node->var->nb_dimentions > 0)
+		return x64_inst_op2(SCF_X64_LEA, dst->dag_node, src->dag_node, c, f);
+
 	return x64_inst_op2(SCF_X64_MOV, dst->dag_node, src->dag_node, c, f);
 }
 

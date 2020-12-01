@@ -55,13 +55,14 @@ static int _call_action_lp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	assert(pt);
 	assert(op);
 
-	if (d->current_identity) {
+	dfa_identity_t* id = scf_stack_top(d->current_identities);
+	if (id && id->identity) {
 
-		f = scf_ast_find_function(parse->ast, d->current_identity->text->data);
+		f = scf_ast_find_function(parse->ast, id->identity->text->data);
 		if (f) {
 			scf_logd("f: %p, %s\n", f, f->node.w->text->data);
 
-			var_pf = SCF_VAR_ALLOC_BY_TYPE(d->current_identity, pt, d->const_flag, 1, f);
+			var_pf = SCF_VAR_ALLOC_BY_TYPE(id->identity, pt, 1, 1, f);
 			if (!var_pf) {
 				scf_loge("var alloc error\n");
 				return SCF_DFA_ERROR;
@@ -71,9 +72,9 @@ static int _call_action_lp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 			var_pf->const_literal_flag = 1;
 
 		} else {
-			var_pf = scf_ast_find_variable(parse->ast, d->current_identity->text->data);
+			var_pf = scf_ast_find_variable(parse->ast, id->identity->text->data);
 			if (!var_pf) {
-				scf_loge("var '%s' not found\n", d->current_identity->text->data);
+				scf_loge("var '%s' not found\n", id->identity->text->data);
 				return SCF_DFA_ERROR;
 			}
 
@@ -89,9 +90,13 @@ static int _call_action_lp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 			return SCF_DFA_ERROR;
 		}
 
-		d->current_identity = NULL;
+		scf_stack_pop(d->current_identities);
+		free(id);
+		id = NULL;
 	} else {
 		// f()(), function f should return a function pointer
+		scf_loge("\n");
+		return SCF_DFA_ERROR;
 	}
 
 	node_call = scf_node_alloc(w1, SCF_OP_CALL, NULL);

@@ -141,7 +141,9 @@ static int _data_action_rb(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	data_module_data_t* md    = d->module_datas[dfa_module_init_data.index]; 
 
 	if (d->expr) {
-		if (d->current_identity) {
+		dfa_identity_t* id = scf_stack_top(d->current_identities);
+
+		if (id && id->identity) {
 			if (_expr_add_var(parse, d) < 0)
 				return SCF_DFA_ERROR;
 		}

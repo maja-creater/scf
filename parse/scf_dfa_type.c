@@ -17,15 +17,26 @@ static int _type_action_base_type(scf_dfa_t* dfa, scf_vector_t* words, void* dat
 	scf_parse_t*      parse = dfa->priv;
 	scf_lex_word_t*   w     = words->data[words->size - 1];
 	dfa_parse_data_t* d     = data;
+	scf_stack_t*      s     = d->current_identities;
 
-	d->current_type = scf_block_find_type(parse->ast->current_block, w->text->data);
-	if (!d->current_type) {
+	dfa_identity_t*   id    = calloc(1, sizeof(dfa_identity_t));
+	if (!id)
+		return SCF_DFA_ERROR;
+
+	id->type = scf_block_find_type(parse->ast->current_block, w->text->data);
+	if (!id->type) {
 		scf_loge("can't find type '%s'\n", w->text->data);
+
+		free(id);
 		return SCF_DFA_ERROR;
 	}
 
-	d->current_type_w   = w;
-	d->current_identity = NULL;
+	if (scf_stack_push(s, id) < 0) {
+		free(id);
+		return SCF_DFA_ERROR;
+	}
+
+	id->type_w = w;
 
 	return SCF_DFA_NEXT_WORD;
 }
@@ -50,49 +61,86 @@ static scf_function_t* _type_find_function(scf_block_t* b, const char* name)
 	return NULL;
 }
 
-static int _type_action_identity(scf_dfa_t* dfa, scf_vector_t* words, void* data)
+int _type_find_type(scf_dfa_t* dfa, dfa_identity_t* id)
 {
-	scf_parse_t*      parse = dfa->priv;
-	scf_lex_word_t*   w     = words->data[words->size - 1];
-	dfa_parse_data_t* d     = data;
+	scf_parse_t* parse = dfa->priv;
 
-	if (d->current_identity) {
+	if (id->identity) {
+		id->type = scf_block_find_type(parse->ast->current_block, id->identity->text->data);
 
-		d->current_type = scf_block_find_type(parse->ast->current_block, d->current_identity->text->data);
+		if (!id->type) {
 
-		if (!d->current_type) {
+			id->type = scf_block_find_type_type(parse->ast->current_block, SCF_FUNCTION_PTR);
 
-			d->current_type = scf_block_find_type_type(parse->ast->current_block, SCF_FUNCTION_PTR);
-
-			if (!d->current_type) {
+			if (!id->type) {
 				scf_loge("function ptr not support\n");
 				return SCF_DFA_ERROR;
 			}
 		}
 
-		if (SCF_FUNCTION_PTR == d->current_type->type) {
+		if (SCF_FUNCTION_PTR == id->type->type) {
 
-			d->func_ptr = _type_find_function(parse->ast->current_block, d->current_identity->text->data);
+			id->func_ptr = _type_find_function(parse->ast->current_block, id->identity->text->data);
 
-			if (!d->func_ptr) {
-				scf_loge("can't find funcptr type '%s'\n", d->current_identity->text->data);
+			if (!id->func_ptr) {
+				scf_loge("can't find funcptr type '%s'\n", id->identity->text->data);
 				return SCF_DFA_ERROR;
 			}
 		}
 
-		d->current_type_w = w;
+		id->type_w   = id->identity;
+		id->identity = NULL;
+	}
+	return 0;
+}
+
+static int _type_action_identity(scf_dfa_t* dfa, scf_vector_t* words, void* data)
+{
+	scf_parse_t*      parse = dfa->priv;
+	scf_lex_word_t*   w     = words->data[words->size - 1];
+	dfa_parse_data_t* d     = data;
+	scf_stack_t*      s     = d->current_identities;
+	dfa_identity_t*   id    = NULL;
+
+	if (s->size > 0) {
+		id = scf_stack_top(s);
+
+		int ret = _type_find_type(dfa, id);
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
 	}
 
-	d->current_identity = w;
+	id  = calloc(1, sizeof(dfa_identity_t));
+	if (!id)
+		return SCF_DFA_ERROR;
+
+	if (scf_stack_push(s, id) < 0) {
+		free(id);
+		return SCF_DFA_ERROR;
+	}
+	id->identity = w;
 
 	return SCF_DFA_NEXT_WORD;
 }
 
 static int _type_action_star(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 {
-	dfa_parse_data_t* d = data;
+	dfa_parse_data_t* d  = data;
+	dfa_identity_t*   id = scf_stack_top(d->current_identities);
 
-	d->nb_pointers++;
+	assert(id);
+
+	if (!id->type) {
+		int ret = _type_find_type(dfa, id);
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
+	}
+
+	id->nb_pointers++;
 
 	return SCF_DFA_NEXT_WORD;
 }

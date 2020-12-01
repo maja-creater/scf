@@ -14,16 +14,19 @@ static int _label_action_colon(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 {
 	scf_parse_t*      parse  = dfa->priv;
 	dfa_parse_data_t* d      = data;
+	dfa_identity_t*   id     = scf_stack_top(d->current_identities);
 
-	if (!d->current_identity) {
+	if (!id || !id->identity) {
 		scf_loge("\n");
 		return SCF_DFA_ERROR;
 	}
 
-	scf_label_t* l = scf_label_alloc(d->current_identity);
+	scf_label_t* l = scf_label_alloc(id->identity);
 	scf_node_t*  n = scf_node_alloc_label(l);
 
-	d->current_identity = NULL;
+	scf_stack_pop(d->current_identities);
+	free(id);
+	id = NULL;
 
 	scf_node_add_child((scf_node_t*)parse->ast->current_block, n);
 
@@ -41,7 +44,7 @@ static int _dfa_init_module_label(scf_dfa_t* dfa)
 
 static int _dfa_init_syntax_label(scf_dfa_t* dfa)
 {
-	SCF_DFA_GET_MODULE_NODE(dfa, label,   label,    label);
+	SCF_DFA_GET_MODULE_NODE(dfa, label,    label,    label);
 	SCF_DFA_GET_MODULE_NODE(dfa, identity, identity, identity);
 
 	scf_dfa_node_add_child(identity, label);

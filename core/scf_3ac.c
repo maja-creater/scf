@@ -544,7 +544,7 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 		assert(c->dst->node->parent);
 		scf_variable_t* var_assign = _scf_operand_get(c->dst->node->parent);
 
-		scf_dag_node_t* dag_assign = scf_dag_node_alloc(c->op->type, var_assign);
+		scf_dag_node_t* dag_assign = scf_dag_node_alloc(c->op->type, var_assign, NULL);
 		scf_list_add_tail(dag, &dag_assign->list);
 
 		ret = scf_dag_node_add_child(dag_assign, c->dst->dag_node);
@@ -555,14 +555,15 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 		if (ret < 0)
 			return ret;
 
-	} else if (scf_type_is_assign_array_index(c->op->type)) {
+	} else if (scf_type_is_assign_array_index(c->op->type)
+			|| scf_type_is_assign_pointer(c->op->type)) {
 
 		scf_3ac_operand_t* src;
 		scf_dag_node_t*    assign;
 
 		assert(c->srcs);
 
-		assign = scf_dag_node_alloc(c->op->type, NULL);
+		assign = scf_dag_node_alloc(c->op->type, NULL, NULL);
 		if (!assign)
 			return -ENOMEM;
 		scf_list_add_tail(dag, &assign->list);
@@ -584,7 +585,7 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 			|| SCF_OP_3AC_TEQ == c->op->type) {
 
 		scf_3ac_operand_t* src;
-		scf_dag_node_t*    dn_cmp = scf_dag_node_alloc(c->op->type, NULL);
+		scf_dag_node_t*    dn_cmp = scf_dag_node_alloc(c->op->type, NULL, NULL);
 
 		scf_list_add_tail(dag, &dn_cmp->list);
 
@@ -611,7 +612,7 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 
 		assert(c->dst->node);
 
-		scf_dag_node_t* dn_setcc = scf_dag_node_alloc(c->op->type, NULL);
+		scf_dag_node_t* dn_setcc = scf_dag_node_alloc(c->op->type, NULL, NULL);
 		scf_list_add_tail(dag, &dn_setcc->list);
 
 		ret = scf_dag_get_node(dag, c->dst->node, &c->dst->dag_node);
@@ -633,7 +634,7 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 
 		assert(src->node->parent);
 		scf_variable_t*    var_parent = _scf_operand_get(src->node->parent);
-		scf_dag_node_t*    dn_parent  = scf_dag_node_alloc(c->op->type, var_parent);
+		scf_dag_node_t*    dn_parent  = scf_dag_node_alloc(c->op->type, var_parent, NULL);
 		scf_list_add_tail(dag, &dn_parent->list);
 
 		ret = scf_dag_get_node(dag, src->node, &src->dag_node);

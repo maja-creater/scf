@@ -145,6 +145,12 @@ static int _scf_dag_op_array_index(scf_list_t* h, scf_dag_node_t* parent, scf_da
 	return _scf_3ac_code_N(h, SCF_OP_ARRAY_INDEX, parent, nodes, nb_nodes);
 }
 
+static int _scf_dag_op_pointer(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
+{
+	assert(2 == nb_nodes);
+	return _scf_3ac_code_N(h, SCF_OP_POINTER, parent, nodes, nb_nodes);
+}
+
 static int _scf_dag_op_neg(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
 {
 	assert(1 == nb_nodes);
@@ -169,6 +175,12 @@ static int _scf_dag_op_dereference(scf_list_t* h, scf_dag_node_t* parent, scf_da
 	assert(1 == nb_nodes);
 
 	return _scf_3ac_code_2(h, SCF_OP_DEREFERENCE, parent, nodes[0]);
+}
+
+static int _scf_dag_op_type_cast(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
+{
+	assert(1 == nb_nodes);
+	return _scf_3ac_code_2(h, SCF_OP_TYPE_CAST, parent, nodes[0]);
 }
 
 static int _scf_dag_op_logic_not(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
@@ -224,6 +236,12 @@ static int _scf_dag_op_assign_array_index(scf_list_t* h, scf_dag_node_t* parent,
 	return _scf_3ac_code_N(h, SCF_OP_3AC_ASSIGN_ARRAY_INDEX, NULL, nodes, nb_nodes);
 }
 
+static int _scf_dag_op_assign_pointer(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
+{
+	assert(3 == nb_nodes);
+	return _scf_3ac_code_N(h, SCF_OP_3AC_ASSIGN_POINTER, NULL, nodes, nb_nodes);
+}
+
 static int _scf_dag_op_cmp(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
 {
 	assert(2 == nb_nodes);
@@ -260,9 +278,10 @@ SCF_OP_CMP(eq, ==, SCF_OP_EQ)
 SCF_OP_CMP(gt, >, SCF_OP_GT)
 SCF_OP_CMP(lt, <, SCF_OP_LT)
 
-scf_dag_operator_t	dag_operators[] = {
-
+scf_dag_operator_t	dag_operators[] =
+{
 	{SCF_OP_ARRAY_INDEX,    SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_array_index},
+	{SCF_OP_POINTER,        SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_pointer},
 
 	{SCF_OP_BIT_NOT,        SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_bit_not},
 	{SCF_OP_LOGIC_NOT, 	    SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_logic_not},
@@ -273,6 +292,7 @@ scf_dag_operator_t	dag_operators[] = {
 
 	{SCF_OP_ADDRESS_OF,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_address_of},
 	{SCF_OP_DEREFERENCE,    SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_dereference},
+	{SCF_OP_TYPE_CAST,      SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_type_cast},
 
 	{SCF_OP_MUL,            SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_mul},
 	{SCF_OP_DIV,            SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_div},
@@ -305,6 +325,7 @@ scf_dag_operator_t	dag_operators[] = {
 	{SCF_OP_OR_ASSIGN,      SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_or_assign},
 
 	{SCF_OP_3AC_ASSIGN_ARRAY_INDEX, SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_assign_array_index},
+	{SCF_OP_3AC_ASSIGN_POINTER,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_assign_pointer},
 };
 
 scf_dag_operator_t* scf_dag_operator_find(int type)
@@ -348,7 +369,7 @@ int	scf_dag_expr_calculate(scf_list_t* h, scf_dag_node_t* node)
 #endif
 	scf_dag_operator_t* op = scf_dag_operator_find(node->type);
 	if (!op) {
-		scf_loge("node->type: %d, SCF_OP_3AC_TEQ: %d\n", node->type, SCF_OP_3AC_TEQ);
+		scf_loge("node->type: %d, SCF_OP_3AC_ASSIGN_POINTER: %d\n", node->type, SCF_OP_3AC_ASSIGN_POINTER);
 		if (node->var && node->var->w)
 			scf_loge("node->var: %s\n", node->var->w->text->data);
 		return -1;

@@ -49,15 +49,22 @@ static int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
 {
 	scf_parse_t* parse = dfa->priv;
 
-	if (d->current_identity) {
+	dfa_identity_t* id = scf_stack_top(d->current_identities);
 
-		scf_logi("d->current_identity: %p\n", d->current_identity);
+	if (id && id->identity) {
 
-		scf_variable_t* var = scf_scope_find_variable(parse->ast->current_block->scope, d->current_identity->text->data);
+		scf_logi("d->current_identity: %p\n", id->identity);
+
+		scf_variable_t* var = scf_scope_find_variable(parse->ast->current_block->scope, id->identity->text->data);
 		if (var) {
-			scf_loge("repeated declare var '%s', line: %d\n", d->current_identity->text->data, d->current_identity->line);
+			scf_loge("repeated declare var '%s', line: %d\n", id->identity->text->data, id->identity->line);
 			return SCF_DFA_ERROR;
 		}
+
+		assert(d->current_identities->size >= 2);
+
+		dfa_identity_t* id0 = d->current_identities->data[0];
+		assert(id0 && id0->type);
 
 		scf_block_t* b = parse->ast->current_block;
 		while (b) {
@@ -85,25 +92,25 @@ static int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
 			global_flag = 0;
 			member_flag = 1;
 
-			if (0 == d->nb_pointers && d->current_type->type >= SCF_STRUCT) {
+			if (0 == id0->nb_pointers && id0->type->type >= SCF_STRUCT) {
 				// if not pointer var, check if define recursive struct/union/class var
 
-				if (_check_recursive((scf_type_t*)b, d->current_type, d->current_identity) < 0) {
+				if (_check_recursive((scf_type_t*)b, id0->type, id->identity) < 0) {
 
 					scf_loge("recursive define when define var '%s', line: %d\n",
-							d->current_identity->text->data, d->current_identity->line);
+							id->identity->text->data, id->identity->line);
 					return SCF_DFA_ERROR;
 				}
 			}
 		}
 
-		if (SCF_FUNCTION_PTR == d->current_type->type
-				&& (!d->func_ptr || 0 == d->nb_pointers)) {
+		if (SCF_FUNCTION_PTR == id0->type->type
+				&& (!id0->func_ptr || 0 == id0->nb_pointers)) {
 			scf_loge("invalid func ptr\n");
 			return SCF_DFA_ERROR;
 		}
 
-		var = SCF_VAR_ALLOC_BY_TYPE(d->current_identity, d->current_type, d->const_flag, d->nb_pointers, d->func_ptr);
+		var = SCF_VAR_ALLOC_BY_TYPE(id->identity, id0->type, id0->const_flag, id0->nb_pointers, id0->func_ptr);
 		if (!var) {
 			scf_loge("alloc var failed\n");
 			return SCF_DFA_ERROR;
@@ -119,11 +126,13 @@ static int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
 
 		scf_scope_push_var(parse->ast->current_block->scope, var);
 
-		d->current_var      = var;
-		d->current_identity = NULL;
+		d->current_var   = var;
+		id0->nb_pointers = 0;
+		id0->const_flag  = 0;
 
-		d->nb_pointers = 0;
-		d->const_flag  = 0;
+		scf_stack_pop(d->current_identities);
+		free(id);
+		id = NULL;
 	}
 
 	return 0;
@@ -162,6 +171,7 @@ static int _var_action_semicolon(scf_dfa_t* dfa, scf_vector_t* words, void* data
 {
 	scf_parse_t*      parse = dfa->priv;
 	dfa_parse_data_t* d     = data;
+	dfa_identity_t*   id    = NULL;
 
 	if (_var_add_var(dfa, d) < 0) {
 		scf_loge("add var error\n");
@@ -170,7 +180,11 @@ static int _var_action_semicolon(scf_dfa_t* dfa, scf_vector_t* words, void* data
 
 	d->nb_lss   = 0;
 	d->nb_rss   = 0;
-	d->func_ptr = NULL;
+
+	id = scf_stack_pop(d->current_identities);
+	assert(id && id->type);
+	free(id);
+	id = NULL;
 
 	if (d->expr) {
 		while(d->expr->parent)

@@ -104,8 +104,14 @@ static int _sizeof_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 		scf_node_add_child(sd->_sizeof, d->expr);
 		d->expr = NULL;
 
-	} else if (d->current_type) {
-		scf_type_t* t = scf_block_find_type_type(parse->ast->current_block, SCF_VAR_INT);
+	} else if (d->current_identities->size > 0) {
+
+		dfa_identity_t* id = scf_stack_pop(d->current_identities);
+		assert(id && id->type);
+
+		scf_loge("\n");
+
+		scf_type_t* t = scf_block_find_type_type(parse->ast->current_block, SCF_VAR_INTPTR);
 		assert(t);
 
 		scf_variable_t* v = SCF_VAR_ALLOC_BY_TYPE(sd->_sizeof->w, t, 1, 0, NULL);
@@ -114,19 +120,22 @@ static int _sizeof_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 			return SCF_DFA_ERROR;
 		}
 
-		scf_node_t* n = scf_node_alloc(NULL, SCF_VAR_INT, v);
+		scf_node_t* n = scf_node_alloc(NULL, SCF_VAR_INTPTR, v);
 		if (!n) {
 			scf_loge("\n");
 			return SCF_DFA_ERROR;
 		}
 
-		if (d->nb_pointers > 0)
+		if (id->nb_pointers > 0)
 			v->data.i = t->size;
 		else
-			v->data.i = d->current_type->size;
+			v->data.i = id->type->size;
 
 		scf_node_free(sd->_sizeof);
 		sd->_sizeof = n;
+
+		free(id);
+		id = NULL;
 	} else {
 		scf_loge("\n");
 		return SCF_DFA_ERROR;

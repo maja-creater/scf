@@ -218,6 +218,11 @@ static int scf_type_is_assign_array_index(int type)
 	return type >= SCF_OP_3AC_ASSIGN_ARRAY_INDEX && type <= SCF_OP_3AC_DEC_POST_ARRAY_INDEX;
 }
 
+static int scf_type_is_assign_pointer(int type)
+{
+	return type >= SCF_OP_3AC_ASSIGN_POINTER && type <= SCF_OP_3AC_DEC_POST_POINTER;
+}
+
 static int scf_type_is_signed(int type)
 {
 	return type >= SCF_VAR_CHAR && type <= SCF_VAR_INTPTR;

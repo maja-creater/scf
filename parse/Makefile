@@ -96,7 +96,7 @@ CFILES += scf_dfa_type.c
 CFILES += scf_dfa_identity.c
 
 CFILES += scf_dfa_function.c
-CFILES += scf_dfa_operator.c
+#CFILES += scf_dfa_operator.c
 CFILES += scf_dfa_var.c
 
 CFILES += scf_dfa_init_data.c

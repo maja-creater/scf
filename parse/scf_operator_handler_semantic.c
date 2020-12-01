@@ -526,8 +526,12 @@ static int _scf_op_semantic_return(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 		}
 
 		if (!scf_variable_same_type(r, f->ret)) {
-			scf_loge("\n");
-			return -1;
+
+			int ret = _semantic_add_type_cast(ast, &(e->nodes[0]), f->ret, e->nodes[0]);
+			if (ret < 0) {
+				scf_loge("\n");
+				return ret;
+			}
 		}
 	}
 

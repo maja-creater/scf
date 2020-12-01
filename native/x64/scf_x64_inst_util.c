@@ -16,6 +16,7 @@ static scf_instruction_t* _x64_make_OpCode(scf_x64_OpCode_t* OpCode, int bytes, 
 			case SCF_X64_PUSH:
 			case SCF_X64_POP:
 			case SCF_X64_RET:
+			case SCF_X64_CALL:
 				break;
 			default:
 				inst->code[inst->len++] = SCF_X64_REX_INIT + SCF_X64_REX_W;

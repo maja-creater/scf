@@ -205,6 +205,16 @@ void scf_basic_block_print_list(scf_list_t* h)
 				}
 			}
 #endif
+			if (bb->exit_dn_actives) {
+				for (i = 0; i < bb->exit_dn_actives->size; i++) {
+
+					scf_dag_node_t* dn = bb->exit_dn_actives->data[i];
+					scf_variable_t* v  = dn->var;
+
+					if (v && v->w)
+						printf("exit active: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+				}
+			}
 			printf("\n");
 		}
 	}
@@ -469,6 +479,9 @@ static int _bb_init_pointer_aliases(scf_dn_status_t* ds_pointer, scf_dag_node_t*
 			scf_dn_status_free(ds2);
 			break;
 		}
+
+		scf_logw("\n");
+		scf_dn_status_print(ds2);
 
 		ds3 = scf_dn_status_clone(ds2);
 		if (!ds3) {

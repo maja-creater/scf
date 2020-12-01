@@ -55,7 +55,7 @@ extern scf_dfa_module_t  dfa_module_type;
 extern scf_dfa_module_t  dfa_module_var;
 
 extern scf_dfa_module_t  dfa_module_function;
-extern scf_dfa_module_t  dfa_module_operator;
+//extern scf_dfa_module_t  dfa_module_operator;
 
 extern scf_dfa_module_t  dfa_module_if;
 extern scf_dfa_module_t  dfa_module_while;
@@ -89,7 +89,7 @@ scf_dfa_module_t* dfa_modules[] =
 	&dfa_module_var,
 
 	&dfa_module_function,
-	&dfa_module_operator,
+//	&dfa_module_operator,
 
 	&dfa_module_if,
 	&dfa_module_while,
@@ -133,6 +133,12 @@ int scf_parse_dfa_init(scf_parse_t* parse)
 
 	parse->dfa_data->module_datas = calloc(nb_modules, sizeof(void*));
 	if (!parse->dfa_data->module_datas) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	parse->dfa_data->current_identities = scf_stack_alloc();
+	if (!parse->dfa_data->current_identities) {
 		scf_loge("\n");
 		return -1;
 	}

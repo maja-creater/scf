@@ -180,6 +180,12 @@ static int _x64_rcg_call(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 	scf_function_t*     f   = x64->f;
 	scf_dag_node_t*     dn  = NULL;
 	scf_register_x64_t* r   = NULL;
+	scf_3ac_operand_t*  src = NULL;
+
+	if (c->srcs->size < 1) {
+		scf_loge("\n");
+		return -EINVAL;
+	}
 
 	if (c->dst) {
 		if (!c->dst->dag_node) {
@@ -257,6 +263,40 @@ static int _x64_rcg_call(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 				continue;
 
 			ret = _x64_rcg_make_edge(gn0, gn1);
+			if (ret < 0)
+				return ret;
+		}
+	}
+
+	scf_3ac_operand_t*  src_pf = c->srcs->data[0];
+	scf_dag_node_t*     dn_pf  = src_pf->dag_node;
+
+	if (!dn_pf->var->const_literal_flag) {
+
+		scf_graph_node_t* gn_pf = NULL;
+
+		ret = _x64_rcg_make_node(&gn_pf, g, dn_pf, NULL, NULL);
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
+
+		for (i = 0; i < nb_ints; i++) {
+
+			scf_register_x64_t* rabi    = NULL;
+			scf_graph_node_t*   gn_rabi = NULL;
+
+			rabi = x64_find_register_type_id_bytes(0, x64_abi_regs[i], dn_pf->var->size);
+
+			ret  = _x64_rcg_make_node(&gn_rabi, g, NULL, rabi, NULL);
+			if (ret < 0) {
+				scf_loge("\n");
+				return ret;
+			}
+
+			assert(gn_pf != gn_rabi);
+
+			ret = _x64_rcg_make_edge(gn_pf, gn_rabi);
 			if (ret < 0)
 				return ret;
 		}

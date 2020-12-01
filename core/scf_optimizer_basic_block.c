@@ -9,28 +9,26 @@ static scf_dag_node_t* _func_dag_find_dn(scf_list_t* func_dag, scf_dag_node_t* d
 
 		dn_func = scf_list_data(l, scf_dag_node_t, list);
 
-		if (dn_func->type == dn_bb->type && dn_func->var == dn_bb->var)
-			break;
+		if (dn_func->type == dn_bb->type) {
 
+			if (dn_func->var == dn_bb->var)
+				break;
+
+			if (scf_dag_dn_same(dn_func, dn_bb))
+				break;
+
+			if (dn_bb->node && scf_dag_node_same(dn_func, dn_bb->node))
+				break;
+		}
 		dn_func = NULL;
 	}
 
 	if (!dn_func) {
-		if (1 || !scf_dn_through_bb(dn_bb)) {
-
-			dn_func = scf_dag_find_dn(func_dag, dn_bb);
-			if (!dn_func) {
-
-				scf_variable_t* v = dn_bb->var;
-
-				if (v->w)
-					scf_loge("v_%d_%d/%s, dn_bb->type: %d\n", v->w->line, v->w->pos, v->w->text->data, dn_bb->type);
-				else
-					scf_loge("v_%#lx\n", 0xffff & (uintptr_t)v);
-			}
-		} else {
-			scf_loge("\n");
-		}
+		scf_variable_t* v = dn_bb->var;
+		if (v->w)
+			scf_loge("v_%d_%d/%s, v: %p, dn: %p, node: %p, dn_bb->type: %d\n", v->w->line, v->w->pos, v->w->text->data, v, dn_bb, dn_bb->node, dn_bb->type);
+		else
+			scf_loge("v_%#lx\n", 0xffff & (uintptr_t)v);
 	}
 
 	return dn_func;
@@ -69,6 +67,8 @@ static int _bb_dag_update(scf_basic_block_t* bb, scf_function_t* f)
 				continue;
 
 			if (scf_type_is_assign_array_index(dn->type))
+				continue;
+			if (scf_type_is_assign_pointer(dn->type))
 				continue;
 
 			if (scf_type_is_assign(dn->type)

@@ -4,6 +4,7 @@
 #include"scf_lex.h"
 #include"scf_ast.h"
 #include"scf_dfa.h"
+#include"scf_stack.h"
 
 typedef struct scf_parse_s		scf_parse_t;
 typedef struct dfa_parse_data_s dfa_parse_data_t;
@@ -30,15 +31,24 @@ typedef struct {
 
 } dfa_init_expr_t;
 
+typedef struct {
+	scf_lex_word_t*      identity;
+	scf_lex_word_t*      type_w;
+	scf_type_t*          type;
+
+	int                  nb_pointers;
+	int                  const_flag;
+	scf_function_t*      func_ptr;
+
+} dfa_identity_t;
+
 struct dfa_parse_data_s {
 	void**               module_datas;
 
 	scf_expr_t*          expr;
 	int                  expr_local_flag;
 
-	scf_type_t*          current_type;
-	scf_lex_word_t*      current_type_w;
-	scf_lex_word_t*      current_identity;
+	scf_stack_t*         current_identities;
 	scf_variable_t*      current_var;
 
 	int                  nb_sizeofs;
@@ -65,10 +75,6 @@ struct dfa_parse_data_s {
 	scf_node_t*          current_return;
 	scf_node_t*          current_goto;
 
-	int                  nb_pointers;
-	int                  const_flag;
-	scf_function_t*      func_ptr;
-
 	int              nb_lbs;
 	int              nb_rbs;
 
@@ -77,7 +83,6 @@ struct dfa_parse_data_s {
 
 	int              nb_lps;
 	int              nb_rps;
-
 };
 
 int	scf_parse_open(scf_parse_t** pparse, const char* path);

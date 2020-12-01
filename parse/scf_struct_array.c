@@ -155,9 +155,6 @@ int scf_struct_member_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variable_t* _s
 
 int scf_array_member_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variable_t* array, intptr_t* indexes, int nb_indexes, scf_node_t** pnode)
 {
-	scf_type_t*     t = scf_block_find_type_type(ast->current_block, array->type);
-	scf_variable_t* v = NULL;
-
 	scf_operator_t* op_index  = scf_find_base_operator_by_type(SCF_OP_ARRAY_INDEX);
 	scf_type_t*     t_int     = scf_block_find_type_type(ast->current_block, SCF_VAR_INT);
 
@@ -169,7 +166,7 @@ int scf_array_member_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variable_t* arr
 		return -1;
 	}
 
-	if (t->type < SCF_STRUCT || t->nb_pointers > 0) {
+	if (array->type < SCF_STRUCT || array->nb_pointers > 0) {
 		if (ret < nb_indexes - 1) {
 			scf_loge("\n");
 			return -1;
