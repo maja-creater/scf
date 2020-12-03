@@ -76,6 +76,8 @@ void              scf_dn_index_free (scf_dn_index_t* di);
 int               scf_dn_index_same(const scf_dn_index_t* di0, const scf_dn_index_t* di1);
 int               scf_dn_index_like(const scf_dn_index_t* di0, const scf_dn_index_t* di1);
 
+int               scf_dn_status_is_like(const scf_dn_status_t* ds);
+
 scf_dn_status_t*  scf_dn_status_alloc(scf_dag_node_t*   dag_node);
 scf_dn_status_t*  scf_dn_status_clone(scf_dn_status_t* v);
 void              scf_dn_status_free (scf_dn_status_t* v);

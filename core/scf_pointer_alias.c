@@ -14,6 +14,8 @@ static int __bb_dfs_initeds(scf_basic_block_t* root, scf_dn_status_t* ds, scf_ve
 
 	root->visited_flag = 1;
 
+	int like = scf_dn_status_is_like(ds);
+
 	for (i = 0; i < root->prevs->size; ++i) {
 
 		bb = root->prevs->data[i];
@@ -25,8 +27,13 @@ static int __bb_dfs_initeds(scf_basic_block_t* root, scf_dn_status_t* ds, scf_ve
 
 			status = bb->dn_status_initeds->data[j];
 
-			if (0 == scf_dn_status_cmp_same_dn_indexes(ds, status))
-				break;
+			if (like) {
+				if (0 == scf_dn_status_cmp_like_dn_indexes(ds, status))
+					break;
+			} else {
+				if (0 == scf_dn_status_cmp_same_dn_indexes(ds, status))
+					break;
+			}
 		}
 
 		if (j < bb->dn_status_initeds->size) {
@@ -145,8 +152,13 @@ static int _bb_pointer_initeds(scf_vector_t* initeds, scf_list_t* bb_list_head, 
 	ret = _bb_dfs_check_initeds(bb_list_head, bb, initeds);
 	if (ret < 0) {
 		v = ds->dag_node->var;
-		scf_loge("in bb: %p, pointer v_%d_%d/%s may not be inited\n",
-				bb, v->w->line, v->w->pos, v->w->text->data);
+
+		if (!v->arg_flag) {
+			scf_loge("in bb: %p, pointer v_%d_%d/%s may not be inited\n",
+					bb, v->w->line, v->w->pos, v->w->text->data);
+			return -1;
+		}
+		return 0;
 	}
 	return ret;
 }
@@ -784,12 +796,27 @@ static int _pointer_alias_array_index(scf_vector_t* aliases, scf_dag_node_t* dn,
 	ds2->alias         = NULL;
 	ds2->alias_indexes = NULL;
 
-	scf_dn_status_print(ds2);
-
 	ret = _pointer_alias_ds(aliases, ds2, c, bb, bb_list_head);
-	scf_dn_status_free(ds2);
 	if (ret < 0) {
 		scf_loge("\n");
+		scf_dn_status_free(ds2);
+		return ret;
+	}
+
+	if (0 == aliases->size) {
+		ds2->alias         = ds2->dag_node;
+		ds2->alias_indexes = ds2->dn_indexes;
+		ds2->dag_node      = NULL;
+		ds2->dn_indexes    = NULL;
+
+		ret = scf_vector_add(aliases, ds2);
+		if (ret < 0) {
+			scf_loge("\n");
+			scf_dn_status_free(ds2);
+			return ret;
+		}
+	} else {
+		scf_dn_status_free(ds2);
 	}
 	return ret;
 }

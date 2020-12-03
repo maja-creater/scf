@@ -119,19 +119,14 @@ static int _optimize_generate_loads_saves(scf_function_t* f, scf_list_t* bb_list
 				for (k  = 0; k < bbg->post->dn_saves->size; k++) {
 					dn  = bbg->post->dn_saves->data[k];
 
-					ds = scf_vector_find_cmp(c->active_vars, dn, scf_dn_status_cmp);
-					if (!ds) {
-						ds = scf_dn_status_alloc(dn);
-						if (!ds)
-							return -ENOMEM;
+					SCF_DN_STATUS_GET(ds, c->active_vars, dn);
+					ds->active = 1;
+				}
 
-						ret = scf_vector_add(c->active_vars, ds);
-						if (ret < 0) {
-							scf_loge("\n");
-							scf_dn_status_free(ds);
-							return ret;
-						}
-					}
+				for (k  = 0; k < bbg->pre->dn_loads->size; k++) {
+					dn  = bbg->pre->dn_loads->data[k];
+
+					SCF_DN_STATUS_GET(ds, c->active_vars, dn);
 					ds->active = 1;
 				}
 			}

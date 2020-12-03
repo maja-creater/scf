@@ -100,6 +100,7 @@ static int _x64_inst_call_argv(scf_3ac_code_t* c, scf_function_t* f)
 {
 	scf_register_x64_t* rsp  = x64_find_register("rsp");
 
+	scf_x64_OpCode_t*   lea;
 	scf_x64_OpCode_t*   mov;
 	scf_instruction_t*  inst;
 
@@ -129,9 +130,26 @@ static int _x64_inst_call_argv(scf_3ac_code_t* c, scf_function_t* f)
 
 		if (!is_float) {
 			if (0 == src->dag_node->color) {
-				mov  = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_I2G);
-				inst = x64_make_inst_I2G(mov, rabi, (uint8_t*)&v->data, size);
-				X64_INST_ADD_CHECK(c->instructions, inst);
+
+				if (SCF_FUNCTION_PTR == v->type) {
+
+					assert(v->func_ptr);
+					assert(v->const_literal_flag);
+
+					v->global_flag = 1;
+					v->local_flag  = 0;
+
+					scf_rela_t* rela = NULL;
+
+					lea  = x64_find_OpCode(SCF_X64_LEA,  size, size, SCF_X64_E2G);
+					inst = x64_make_inst_M2G(&rela, lea, rabi, NULL, v);
+					X64_INST_ADD_CHECK(c->instructions, inst);
+					X64_RELA_ADD_CHECK(f->text_relas, rela, c, NULL, v->func_ptr);
+				} else {
+					mov  = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_I2G);
+					inst = x64_make_inst_I2G(mov, rabi, (uint8_t*)&v->data, size);
+					X64_INST_ADD_CHECK(c->instructions, inst);
+				}
 
 				if (!src->dag_node->rabi2) {
 					mov  = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_G2E);

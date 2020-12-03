@@ -884,7 +884,7 @@ static int _scf_op_semantic_call(scf_ast_t* ast, scf_node_t** nodes, int nb_node
 		scf_variable_t* v1 = _scf_operand_get(nodes[i + 1]);
 
 		if (!scf_variable_type_like(v0, v1)) {
-			scf_loge("arg var not same type, i: %d\n", i);
+			scf_loge("f: %s, arg var not same type, i: %d\n", f->node.w->text->data, i);
 			return -1;
 		}
 	}

@@ -57,6 +57,26 @@ int scf_dn_index_like(const scf_dn_index_t* di0, const scf_dn_index_t* di1)
 	return 0;
 }
 
+int scf_dn_status_is_like(const scf_dn_status_t* ds)
+{
+	if (!ds->dn_indexes)
+		return 0;
+
+	scf_dn_index_t* di;
+	int i;
+	for (i = 0; i < ds->dn_indexes->size; i++) {
+
+		di = ds->dn_indexes->data[i];
+
+		if (di->member)
+			continue;
+
+		if (-1 == di->index)
+			return 1;
+	}
+	return 0;
+}
+
 scf_dn_status_t* scf_dn_status_alloc(scf_dag_node_t* dn)
 {
 	if (!dn)
@@ -598,17 +618,21 @@ scf_dag_node_t* scf_dag_find_node(scf_list_t* h, const scf_node_t* node)
 
 int scf_dag_get_node(scf_list_t* h, const scf_node_t* node, scf_dag_node_t** pp)
 {
-	scf_dag_node_t* dag_node = scf_dag_find_node(h, node);
+	scf_variable_t* v  = _scf_operand_get((scf_node_t*)node);
 
-	if (!dag_node) {
-		dag_node = scf_dag_node_alloc(node->type, _scf_operand_get((scf_node_t*)node), node);
-		if (!dag_node)
+	scf_dag_node_t* dn = scf_dag_find_node(h, node);
+
+	if (!dn) {
+		dn = scf_dag_node_alloc(node->type, v, node);
+		if (!dn)
 			return -ENOMEM;
 
-		scf_list_add_tail(h, &dag_node->list);
+		scf_list_add_tail(h, &dn->list);
+	} else {
+		dn->var->local_flag |= v->local_flag;
 	}
 
-	*pp = dag_node;
+	*pp = dn;
 	return 0;
 }
 
