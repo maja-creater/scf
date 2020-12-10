@@ -32,13 +32,21 @@ int _operator_add_operator(scf_dfa_t* dfa, dfa_parse_data_t* d)
 {
 	scf_parse_t*     parse = dfa->priv;
 	dfa_op_data_t*   opd   = d->module_datas[dfa_module_operator.index];
+	dfa_identity_t*  id;
+	scf_function_t*  f;
 
 	if (!opd->word_op) {
 		scf_loge("\n");
 		return SCF_DFA_ERROR;
 	}
 
-	scf_function_t* f = scf_function_alloc(opd->word_op);
+	id = scf_stack_pop(d->current_identities);
+	if (!id || !id->type) {
+		scf_loge("\n");
+		return SCF_DFA_ERROR;
+	}
+
+	f = scf_function_alloc(opd->word_op);
 	if (!f) {
 		scf_loge("operator overloading function alloc failed\n");
 		return SCF_DFA_ERROR;
@@ -49,7 +57,7 @@ int _operator_add_operator(scf_dfa_t* dfa, dfa_parse_data_t* d)
 
 	d->current_function = f;
 
-	f->ret = SCF_VAR_ALLOC_BY_TYPE(opd->word_op, d->current_type, d->const_flag, d->nb_pointers, NULL);
+	f->ret = SCF_VAR_ALLOC_BY_TYPE(opd->word_op, id->type, id->const_flag, id->nb_pointers, id->func_ptr);
 
 	if (!f->ret) {
 		scf_loge("return value alloc failed\n");
@@ -59,11 +67,8 @@ int _operator_add_operator(scf_dfa_t* dfa, dfa_parse_data_t* d)
 		return SCF_DFA_ERROR;
 	}
 
-	d->const_flag       = 0;
-	d->nb_pointers      = 0;
-	d->current_type     = NULL;
-
-	opd->word_op        = NULL;
+	free(id);
+	opd->word_op = NULL;
 
 	return SCF_DFA_NEXT_WORD;
 }
@@ -72,9 +77,27 @@ int _operator_add_arg(scf_dfa_t* dfa, dfa_parse_data_t* d)
 {
 	scf_variable_t* arg = NULL;
 
-	if (d->current_type) {
+	if (d->current_identities->size > 2) {
+		scf_loge("operator parse args error\n");
+		return SCF_DFA_ERROR;
+	}
 
-		arg = SCF_VAR_ALLOC_BY_TYPE(d->current_identity, d->current_type, d->const_flag, d->nb_pointers, NULL);
+	if (2 == d->current_identities->size) {
+
+		dfa_identity_t* id1 = scf_stack_pop(d->current_identities);
+		dfa_identity_t* id0 = scf_stack_pop(d->current_identities);
+
+		if (!id0 || !id0->type) {
+			scf_loge("operator parse arg type error\n");
+			return SCF_DFA_ERROR;
+		}
+
+		if (!id1 || !id1->identity) {
+			scf_loge("operator parse arg name error\n");
+			return SCF_DFA_ERROR;
+		}
+
+		arg = SCF_VAR_ALLOC_BY_TYPE(id1->identity, id0->type, id0->const_flag, id0->nb_pointers, id0->func_ptr);
 		if (!arg) {
 			scf_loge("arg var alloc failed\n");
 			return SCF_DFA_ERROR;
@@ -83,14 +106,14 @@ int _operator_add_arg(scf_dfa_t* dfa, dfa_parse_data_t* d)
 		scf_vector_add(d->current_function->argv, arg);
 		scf_scope_push_var(d->current_function->scope, arg);
 		arg->refs++;
+		arg->arg_flag   = 1;
+		arg->local_flag = 1;
 
 		scf_logi("d->current_function->argv->size: %d, %p\n",
 				d->current_function->argv->size, d->current_function);
 
-		d->current_identity = NULL;
-		d->current_type     = NULL;
-		d->const_flag       = 0;
-		d->nb_pointers      = 0;
+		free(id0);
+		free(id1);
 
 		d->argc++;
 	}
@@ -214,7 +237,7 @@ static int _operator_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 			dfa->ops->push_word(dfa, w);
 		}
 	} else {
-		scf_operator_t* op = scf_find_base_operator(d->current_function->node.w->text->data, d->current_function->argv->size + 1);
+		scf_operator_t* op = scf_find_base_operator(d->current_function->node.w->text->data, d->current_function->argv->size);
 		if (!op) {
 			scf_loge("operator: '%s', nb_operands: %d\n",
 					d->current_function->node.w->text->data, d->current_function->argv->size);

@@ -109,6 +109,7 @@ int                 x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf
 
 int                 x64_push_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs);
 int                 x64_pop_regs (scf_vector_t* instructions, uint32_t* regs, int nb_regs);
+int                 x64_caller_save_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs, int stack_size);
 
 int                 x64_save_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f);
 

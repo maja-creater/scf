@@ -124,6 +124,11 @@ static inline int scf_variable_is_struct(scf_variable_t* v)
 	return v->type >= SCF_STRUCT && 0 == v->nb_pointers && 0 == v->nb_dimentions;
 }
 
+static inline int scf_variable_is_struct_pointer(scf_variable_t* v)
+{
+	return v->type >= SCF_STRUCT && 1 == v->nb_pointers && 0 == v->nb_dimentions;
+}
+
 static inline int scf_variable_is_array(scf_variable_t* v)
 {
 	return v->nb_dimentions > 0;

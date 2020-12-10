@@ -128,6 +128,48 @@ void x64_registers_clear()
 	}
 }
 
+int x64_caller_save_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs, int stack_size)
+{
+	int i;
+	int j;
+	scf_register_x64_t* r;
+	scf_register_x64_t* r2;
+	scf_instruction_t*  inst;
+	scf_register_x64_t* rsp  = x64_find_register("rsp");
+	scf_x64_OpCode_t*   mov  = x64_find_OpCode(SCF_X64_MOV,  8,8, SCF_X64_G2E);
+	scf_x64_OpCode_t*   push = x64_find_OpCode(SCF_X64_PUSH, 8,8, SCF_X64_G);
+
+	int size = 0;
+
+	for (j = 0; j < nb_regs; j++) {
+		r2 = x64_find_register_type_id_bytes(0, regs[j], 8);
+
+		for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
+			r  = &(x64_registers[i]);
+
+			if (SCF_X64_REG_RSP == r->id || SCF_X64_REG_RBP == r->id)
+				continue;
+
+			if (0 == r->dag_nodes->size)
+				continue;
+
+			if (X64_COLOR_CONFLICT(r2->color, r->color))
+				break;
+		}
+
+		if (i == sizeof(x64_registers) / sizeof(x64_registers[0]))
+			continue;
+
+		if (stack_size > 0)
+			inst = x64_make_inst_G2P(mov, rsp, size + stack_size, r2);
+		else
+			inst = x64_make_inst_G(push, r2);
+		X64_INST_ADD_CHECK(instructions, inst);
+		size += 8;
+	}
+	return size;
+}
+
 int x64_push_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs)
 {
 	int i;
