@@ -39,7 +39,10 @@ scf_variable_t* scf_scope_find_variable(scf_scope_t* scope, const char* name);
 scf_function_t* scf_scope_find_function(scf_scope_t* scope, const char* name);
 
 scf_function_t*	scf_scope_find_same_function(scf_scope_t* scope, scf_function_t* f0);
+
 scf_function_t*	scf_scope_find_proper_function(scf_scope_t* scope, const char* name, scf_vector_t* argv);
+
+int             scf_scope_find_overloaded_functions(scf_vector_t** pfunctions, scf_scope_t* scope, const int op_type, scf_vector_t* argv);
 
 scf_type_t*     scf_scope_list_find_type(scf_list_t* h, const char* name);
 

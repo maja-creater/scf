@@ -267,6 +267,12 @@ static int _x64_argv_save(scf_basic_block_t* bb, scf_function_t* f)
 			int ret = x64_save_var2(dn, rabi, c, f);
 			if (ret < 0)
 				return ret;
+		} else {
+			assert(0 == rabi->dag_nodes->size);
+
+			int ret = scf_vector_add(rabi->dag_nodes, dn);
+			if (ret < 0)
+				return ret;
 		}
 	}
 

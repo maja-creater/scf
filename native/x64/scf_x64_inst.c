@@ -227,10 +227,11 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		return -EINVAL;
 	}
 
-	assert (!c->instructions);
-	c->instructions = scf_vector_alloc();
-	if (!c->instructions)
-		return -ENOMEM;
+	if (!c->instructions) {
+		c->instructions = scf_vector_alloc();
+		if (!c->instructions)
+			return -ENOMEM;
+	}
 
 	scf_register_x64_t* rsp  = x64_find_register("rsp");
 	scf_register_x64_t* rax  = x64_find_register("rax");

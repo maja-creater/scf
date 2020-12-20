@@ -190,6 +190,42 @@ scf_function_t*	scf_scope_find_proper_function(scf_scope_t* scope, const char* n
 	return NULL;
 }
 
+int scf_scope_find_overloaded_functions(scf_vector_t** pfunctions, scf_scope_t* scope, const int op_type, scf_vector_t* argv)
+{
+	scf_vector_t*   vec;
+	scf_list_t*     l;
+
+	vec = scf_vector_alloc();
+	if (!vec)
+		return -ENOMEM;
+
+	for (l = scf_list_head(&scope->operator_list_head);
+			l != scf_list_sentinel(&scope->operator_list_head); l = scf_list_next(l)) {
+
+		scf_function_t* f = scf_list_data(l, scf_function_t, list);
+
+		if (op_type != f->op_type)
+			continue;
+
+		if (!scf_function_like_argv(f->argv, argv))
+			continue;
+
+		int ret = scf_vector_add(vec, f);
+		if (ret < 0) {
+			scf_vector_free(vec);
+			return ret;
+		}
+	}
+
+	if (0 == vec->size) {
+		scf_vector_free(vec);
+		return -1;
+	}
+
+	*pfunctions = vec;
+	return 0;
+}
+
 scf_type_t*	scf_scope_list_find_type(scf_list_t* h, const char* name)
 {
 	scf_list_t* l;

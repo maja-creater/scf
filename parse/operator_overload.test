@@ -1,0 +1,36 @@
+int printf(char* fmt, int a);
+
+class Point;
+
+Point* malloc(int size);
+
+class Point
+{
+	int x;
+	int y;
+
+	Point* operator+(Point* p0, Point* p1)
+	{
+		Point* p = malloc(sizeof(Point));
+		if (p) {
+			p->x = p0->x + p1->x;
+			p->y = p0->y + p1->y;
+		}
+		return p;
+	}
+};
+
+int main()
+{
+	Point p0 = {1, 2};
+	Point p1 = {3, 4};
+
+	Point* pp0 = &p0;
+	Point* pp1 = &p1;
+
+	Point* pp2 = pp0 + pp1;
+
+	printf("pp2->x: %d\n", pp2->x);
+	printf("pp2->y: %d\n", pp2->y);
+	return 0;
+}

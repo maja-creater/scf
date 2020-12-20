@@ -6,6 +6,8 @@ static scf_instruction_t* _x64_make_OpCode(scf_x64_OpCode_t* OpCode, int bytes, 
 	if (!inst)
 		return NULL;
 
+	uint8_t prefix = 0;
+
 	if (8 == bytes) {
 		switch (OpCode->type) {
 			case SCF_X64_MOVSD:
@@ -19,42 +21,37 @@ static scf_instruction_t* _x64_make_OpCode(scf_x64_OpCode_t* OpCode, int bytes, 
 			case SCF_X64_CALL:
 				break;
 			default:
-				inst->code[inst->len++] = SCF_X64_REX_INIT + SCF_X64_REX_W;
+				prefix |= SCF_X64_REX_INIT + SCF_X64_REX_W;
 				break;
 		};
 	} else if (2 == bytes) {
 		inst->code[inst->len++] = 0x66;
-
-	} else if (1 == bytes) {
-		if (r0 || r1) {
-			uint8_t prefix = 0;
-
-			if (r0) {
-				switch (X64_COLOR_ID(r0->color)) {
-					case SCF_X64_REG_ESI:
-					case SCF_X64_REG_EDI:
-						prefix = SCF_X64_REX_INIT;
-						break;
-					default:
-						break;
-				};
-			}
-
-			if (r1) {
-				switch (X64_COLOR_ID(r1->color)) {
-					case SCF_X64_REG_ESI:
-					case SCF_X64_REG_EDI:
-						prefix = SCF_X64_REX_INIT;
-						break;
-					default:
-						break;
-				};
-			}
-
-			if (prefix)
-				inst->code[inst->len++] = prefix;
-		}
 	}
+
+	if (r0 && 1 == r0->bytes) {
+		switch (X64_COLOR_ID(r0->color)) {
+			case SCF_X64_REG_ESI:
+			case SCF_X64_REG_EDI:
+				prefix |= SCF_X64_REX_INIT;
+				break;
+			default:
+				break;
+		};
+	}
+
+	if (r1 && 1 == r1->bytes) {
+		switch (X64_COLOR_ID(r1->color)) {
+			case SCF_X64_REG_ESI:
+			case SCF_X64_REG_EDI:
+				prefix |= SCF_X64_REX_INIT;
+				break;
+			default:
+				break;
+		};
+	}
+
+	if (prefix)
+		inst->code[inst->len++] = prefix;
 
 	int i;
 	for (i = 0; i < OpCode->nb_OpCodes; i++)

@@ -92,6 +92,155 @@ end:
 	return ret;
 }
 
+static void _semantic_check_var_size(scf_ast_t* ast, scf_node_t* node)
+{
+	scf_type_t* t = scf_ast_find_type_type(ast, node->type);
+	assert(t);
+
+	if (0 == node->var->size) {
+		node->var->size = t->size;
+		scf_logd("node: %p var: %p, var->size: %d\n", node, node->var, node->var->size);
+	}
+
+	if (0 == node->var->data_size)
+		node->var->data_size = t->size;
+}
+
+static int _semantic_add_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, scf_handler_data_t* d, scf_function_t* f)
+{
+	assert(nb_nodes >= 1);
+
+	scf_variable_t* var_pf  = NULL;
+	scf_node_t*     node_pf = NULL;
+	scf_node_t*     parent  = nodes[0]->parent;
+	scf_type_t*     pt      = scf_ast_find_type_type(ast, SCF_FUNCTION_PTR);
+
+	scf_variable_t* r;
+	scf_type_t*	    t;
+
+	var_pf = SCF_VAR_ALLOC_BY_TYPE(f->node.w, pt, 1, 1, f);
+	if (!var_pf) {
+		scf_loge("var alloc error\n");
+		return -ENOMEM;
+	}
+	var_pf->const_flag = 1;
+	var_pf->const_literal_flag = 1;
+
+	node_pf = scf_node_alloc(NULL, var_pf->type, var_pf);
+	if (!node_pf) {
+		scf_loge("node alloc failed\n");
+		return -ENOMEM;
+	}
+
+	parent->type = SCF_OP_CALL;
+	parent->op   = scf_find_base_operator_by_type(SCF_OP_CALL);
+
+	scf_node_add_child(parent, node_pf);
+
+	int i;
+	for (i = nb_nodes - 1; i >= 0; i--)
+		nodes[i + 1] = nodes[i];
+	nodes[0] = node_pf;
+
+	if (f->ret) {
+		t = scf_ast_find_type_type(ast, f->ret->type);
+
+		r = SCF_VAR_ALLOC_BY_TYPE(parent->w, t, f->ret->const_flag, f->ret->nb_pointers, f->ret->func_ptr);
+	} else {
+		t = scf_ast_find_type_type(ast, SCF_VAR_INT);
+
+		r = SCF_VAR_ALLOC_BY_TYPE(parent->w, t, 0, 0, NULL);
+	}
+	if (!r) {
+		scf_loge("var alloc failed\n");
+		return -ENOMEM;
+	}
+
+	*d->pret = r;
+	return 0;
+}
+
+static int _semantic_do_overloaded(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, scf_handler_data_t* d)
+{
+	scf_function_t* f;
+	scf_variable_t* v;
+	scf_vector_t*   argv;
+	scf_vector_t*   fvec   = NULL;
+	scf_node_t*     parent = nodes[0]->parent;
+	scf_type_t*	    t      = NULL;
+
+	argv = scf_vector_alloc();
+	if (!argv)
+		return -ENOMEM;
+
+	int ret;
+	int i;
+	for (i = 0; i < nb_nodes; i++) {
+
+		v  = _scf_operand_get(nodes[i]);
+
+		if (!t && scf_variable_is_struct_pointer(v)) {
+
+			t = scf_ast_find_type_type(ast, v->type);
+			assert(t->scope);
+		}
+
+		ret = scf_vector_add(argv, v);
+		if (ret < 0) {
+			scf_vector_free(argv);
+			return ret;
+		}
+	}
+
+	ret  = scf_scope_find_overloaded_functions(&fvec, t->scope, parent->type, argv);
+	if (ret < 0) {
+		scf_vector_free(argv);
+		return ret;
+	}
+
+	ret = 0;
+
+	for (i = 0; i < fvec->size; i++) {
+		f  = fvec->data[i];
+
+		if (scf_function_same_argv(f->argv, argv))
+			goto end;
+	}
+
+	for (i = 0; i < fvec->size; i++) {
+		f  = fvec->data[i];
+
+		int j;
+		for (j = 0; j < argv->size; j++) {
+
+			scf_variable_t* v0 = f->argv->data[j];
+			scf_variable_t* v1 =    argv->data[j];
+
+			if (scf_variable_is_struct_pointer(v0))
+				continue;
+
+			if (scf_type_cast_check(ast, v0, v1) < 0)
+				continue;
+
+			ret = _semantic_add_type_cast(ast, &nodes[j], v0, nodes[j]);
+			if (ret < 0)
+				scf_loge("\n");
+			else
+				ret = 0;
+			goto end;
+		}
+	}
+
+	ret = -404;
+end:
+	scf_vector_free(argv);
+	scf_vector_free(fvec);
+
+	if (0 == ret)
+		return _semantic_add_call(ast, nodes, nb_nodes, d, f);
+	return ret;
+}
+
 static int _scf_expr_calculate_internal(scf_ast_t* ast, scf_node_t* node, void* data)
 {
 	if (!node) {
@@ -100,8 +249,11 @@ static int _scf_expr_calculate_internal(scf_ast_t* ast, scf_node_t* node, void* 
 
 	if (0 == node->nb_nodes) {
 		scf_logd("node->type: %d\n", node->type);
+
 		if (scf_type_is_var(node->type)) {
 			scf_logd("node->var->w->text->data: %s\n", node->var->w->text->data);
+
+			_semantic_check_var_size(ast, node);
 		}
 		assert(scf_type_is_var(node->type) || SCF_LABEL == node->type);
 		return 0;
@@ -211,6 +363,8 @@ static int _scf_expr_calculate(scf_ast_t* ast, scf_expr_t* e, scf_variable_t** p
 	if (scf_type_is_var(root->type)) {
 
 		printf("%s(),%d, root: %p var: %p\n", __func__, __LINE__, root, root->var);
+
+		_semantic_check_var_size(ast, root);
 
 		root->result = scf_variable_clone(root->var);
 
@@ -326,6 +480,18 @@ static int _scf_op_semantic_array_index(scf_ast_t* ast, scf_node_t** nodes, int 
 	}
 
 	scf_variable_t* v1 = _scf_operand_get(nodes[1]);
+
+	if (scf_variable_is_struct_pointer(v0)) {
+
+		int ret = _semantic_do_overloaded(ast, nodes, nb_nodes, d);
+		if (0 == ret)
+			return 0;
+
+		if (-404 != ret) {
+			scf_loge("semantic do overloaded error\n");
+			return -1;
+		}
+	}
 
 	if (!scf_variable_interger(v1)) {
 		scf_loge("array index should be an interger\n");
@@ -658,7 +824,7 @@ static int _scf_op_semantic_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 		return -1;
 	}
 
-	if (!r || r->type != SCF_VAR_INT) {
+	if (!r || !scf_variable_interger(r)) {
 		printf("%s(),%d, error: \n", __func__, __LINE__);
 		return -1;
 	}
@@ -951,6 +1117,18 @@ static int _scf_op_semantic_neg(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 
 	assert(v0);
 
+	if (scf_variable_is_struct_pointer(v0)) {
+
+		int ret = _semantic_do_overloaded(ast, nodes, nb_nodes, d);
+		if (0 == ret)
+			return 0;
+
+		if (-404 != ret) {
+			scf_loge("semantic do overloaded error\n");
+			return -1;
+		}
+	}
+
 	if (scf_variable_interger(v0) || scf_variable_float(v0)) {
 
 		scf_type_t*	t = scf_ast_find_type_type(ast, v0->type);
@@ -981,6 +1159,18 @@ static int _scf_op_semantic_inc(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 	if (v0->const_flag || v0->nb_dimentions > 0) {
 		scf_loge("\n");
 		return -1;
+	}
+
+	if (scf_variable_is_struct_pointer(v0)) {
+
+		int ret = _semantic_do_overloaded(ast, nodes, nb_nodes, d);
+		if (0 == ret)
+			return 0;
+
+		if (-404 != ret) {
+			scf_loge("semantic do overloaded error\n");
+			return -1;
+		}
 	}
 
 	if (scf_variable_interger(v0)) {
@@ -1150,6 +1340,18 @@ static int _scf_op_semantic_logic_not(scf_ast_t* ast, scf_node_t** nodes, int nb
 
 	assert(v0);
 
+	if (scf_variable_is_struct_pointer(v0)) {
+
+		int ret = _semantic_do_overloaded(ast, nodes, nb_nodes, d);
+		if (0 == ret)
+			return 0;
+
+		if (-404 != ret) {
+			scf_loge("semantic do overloaded error\n");
+			return -1;
+		}
+	}
+
 	if (scf_variable_interger(v0)) {
 
 		scf_type_t*	    t = scf_ast_find_type_type(ast, SCF_VAR_INT);
@@ -1175,6 +1377,18 @@ static int _scf_op_semantic_bit_not(scf_ast_t* ast, scf_node_t** nodes, int nb_n
 
 	scf_variable_t* v0 = _scf_operand_get(nodes[0]);
 	assert(v0);
+
+	if (scf_variable_is_struct_pointer(v0)) {
+
+		int ret = _semantic_do_overloaded(ast, nodes, nb_nodes, d);
+		if (0 == ret)
+			return 0;
+
+		if (-404 != ret) {
+			scf_loge("semantic do overloaded error\n");
+			return -1;
+		}
+	}
 
 	scf_type_t* t;
 
@@ -1210,6 +1424,18 @@ static int _scf_op_semantic_binary(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 	assert(v0);
 	assert(v1);
+
+	if (scf_variable_is_struct_pointer(v0) || scf_variable_is_struct_pointer(v1)) {
+
+		int ret = _semantic_do_overloaded(ast, nodes, nb_nodes, d);
+		if (0 == ret)
+			return 0;
+
+		if (-404 != ret) {
+			scf_loge("semantic do overloaded error\n");
+			return -1;
+		}
+	}
 
 	if (scf_variable_interger(v0) || scf_variable_float(v0)) {
 
@@ -1337,6 +1563,18 @@ static int _scf_op_semantic_binary_interger(scf_ast_t* ast, scf_node_t** nodes, 
 	assert(v0);
 	assert(v1);
 
+	if (scf_variable_is_struct_pointer(v0) || scf_variable_is_struct_pointer(v1)) {
+
+		int ret = _semantic_do_overloaded(ast, nodes, nb_nodes, d);
+		if (0 == ret)
+			return 0;
+
+		if (-404 != ret) {
+			scf_loge("semantic do overloaded error\n");
+			return -1;
+		}
+	}
+
 	if (scf_variable_interger(v0) && scf_variable_interger(v1)) {
 
 		int const_flag = v0->const_flag && v1->const_flag;
@@ -1439,6 +1677,7 @@ static int _scf_op_semantic_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 	return 0;
 }
 
+
 static int _scf_op_semantic_binary_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
 	assert(2 == nb_nodes);
@@ -1455,6 +1694,18 @@ static int _scf_op_semantic_binary_assign(scf_ast_t* ast, scf_node_t** nodes, in
 	if (v0->const_flag || v0->nb_dimentions > 0) {
 		scf_loge("const var '%s' can't be assigned\n", v0->w->text->data);
 		return -1;
+	}
+
+	if (scf_variable_is_struct_pointer(v0) || scf_variable_is_struct_pointer(v1)) {
+
+		int ret = _semantic_do_overloaded(ast, nodes, nb_nodes, d);
+		if (0 == ret)
+			return 0;
+
+		if (-404 != ret) {
+			scf_loge("semantic do overloaded error\n");
+			return -1;
+		}
 	}
 
 	if (scf_variable_interger(v0) || scf_variable_float(v0)) {
@@ -1512,6 +1763,18 @@ static int _scf_op_semantic_binary_interger_assign(scf_ast_t* ast, scf_node_t** 
 	if (v0->const_flag || v0->nb_dimentions > 0) {
 		scf_loge("const var '%s' can't be assigned\n", v0->w->text->data);
 		return -1;
+	}
+
+	if (scf_variable_is_struct_pointer(v0) || scf_variable_is_struct_pointer(v1)) {
+
+		int ret = _semantic_do_overloaded(ast, nodes, nb_nodes, d);
+		if (0 == ret)
+			return 0;
+
+		if (-404 != ret) {
+			scf_loge("semantic do overloaded error\n");
+			return -1;
+		}
 	}
 
 	if (scf_variable_interger(v0) && scf_variable_interger(v1)) {
@@ -1602,6 +1865,18 @@ static int _scf_op_semantic_cmp(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 
 	assert(v0);
 	assert(v1);
+
+	if (scf_variable_is_struct_pointer(v0) || scf_variable_is_struct_pointer(v1)) {
+
+		int ret = _semantic_do_overloaded(ast, nodes, nb_nodes, d);
+		if (0 == ret)
+			return 0;
+
+		if (-404 != ret) {
+			scf_loge("semantic do overloaded error\n");
+			return -1;
+		}
+	}
 
 	if (scf_variable_interger(v0) || scf_variable_float(v0)) {
 

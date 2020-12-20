@@ -119,6 +119,34 @@ int scf_function_same_argv(scf_vector_t* argv0, scf_vector_t* argv1)
 	return 1;
 }
 
+int scf_function_like_argv(scf_vector_t* argv0, scf_vector_t* argv1)
+{
+	if (argv0) {
+		if (!argv1)
+			return 0;
+
+		if (argv0->size != argv1->size)
+			return 0;
+
+		int i;
+		for (i = 0; i < argv0->size; i++) {
+			scf_variable_t* v0 = argv0->data[i];
+			scf_variable_t* v1 = argv1->data[i];
+
+			if (scf_variable_type_like(v0, v1))
+				continue;
+
+			if (scf_variable_is_struct_pointer(v0) || scf_variable_is_struct_pointer(v1))
+				return 0;
+		}
+	} else {
+		if (argv1)
+			return 0;
+	}
+
+	return 1;
+}
+
 int scf_function_same_type(scf_function_t* f0, scf_function_t* f1)
 {
 	if (f0->ret) {
