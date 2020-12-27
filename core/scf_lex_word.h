@@ -55,6 +55,7 @@ enum scf_lex_words {
 
 	SCF_LEX_WORD_ARROW,         // -> arrow
 	SCF_LEX_WORD_DOT,			// . dot
+	SCF_LEX_WORD_VAR_ARGS,      // ... variable args
 
 	SCF_LEX_WORD_LB,			// { left brace
 	SCF_LEX_WORD_RB,			// } right brace

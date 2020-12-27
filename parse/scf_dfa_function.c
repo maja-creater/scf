@@ -109,6 +109,17 @@ int _function_add_arg(scf_dfa_t* dfa, dfa_parse_data_t* d)
 	return SCF_DFA_NEXT_WORD;
 }
 
+static int _function_action_vargs(scf_dfa_t* dfa, scf_vector_t* words, void* data)
+{
+	dfa_parse_data_t* d = data;
+
+	d->current_function->vargs_flag = 1;
+
+	scf_logw("\n");
+
+	return SCF_DFA_NEXT_WORD;
+}
+
 static int _function_action_comma(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 {
 	dfa_parse_data_t* d   = data;
@@ -274,6 +285,7 @@ static int _function_action_end(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 static int _dfa_init_module_function(scf_dfa_t* dfa)
 {
 	SCF_DFA_MODULE_NODE(dfa, function, comma,  scf_dfa_is_comma, _function_action_comma);
+	SCF_DFA_MODULE_NODE(dfa, function, vargs,  scf_dfa_is_vargs, _function_action_vargs);
 	SCF_DFA_MODULE_NODE(dfa, function, end,    scf_dfa_is_entry, _function_action_end);
 
 	SCF_DFA_MODULE_NODE(dfa, function, lp,     scf_dfa_is_lp,    _function_action_lp);
@@ -314,6 +326,7 @@ static int _dfa_fini_module_function(scf_dfa_t* dfa)
 static int _dfa_init_syntax_function(scf_dfa_t* dfa)
 {
 	SCF_DFA_GET_MODULE_NODE(dfa, function, comma,     comma);
+	SCF_DFA_GET_MODULE_NODE(dfa, function, vargs,     vargs);
 
 	SCF_DFA_GET_MODULE_NODE(dfa, function, lp,        lp);
 	SCF_DFA_GET_MODULE_NODE(dfa, function, rp,        rp);
@@ -345,6 +358,8 @@ static int _dfa_init_syntax_function(scf_dfa_t* dfa)
 
 	scf_dfa_node_add_child(comma,     base_type);
 	scf_dfa_node_add_child(comma,     type_name);
+	scf_dfa_node_add_child(comma,     vargs);
+	scf_dfa_node_add_child(vargs,     rp);
 
 	// function body
 	scf_dfa_node_add_child(rp,        block);

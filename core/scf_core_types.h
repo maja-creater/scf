@@ -79,7 +79,9 @@ enum scf_core_types {
 	SCF_OP_POINTER,     // -> struct member
 	SCF_OP_DOT,			// . dot
 
-	// 45
+	SCF_OP_VAR_ARGS,    // ... variable args
+
+	// 46
 	SCF_OP_BLOCK,		// statement block, first in fisr run
 	SCF_OP_IF,			// if statement
 	SCF_OP_FOR,			// for statement
@@ -89,7 +91,7 @@ enum scf_core_types {
 	SCF_OP_CONTINUE,	// continue statement
 	SCF_OP_ERROR,       // error statement
 
-	// 53
+	// 54
 	SCF_OP_3AC_TEQ,		// test if = 0
 	SCF_OP_3AC_CMP,		// cmp > 0, < 0, = 0, etc
 

@@ -1325,7 +1325,12 @@ static int _scf_op_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* 
 
 	v = _scf_operand_get(nodes[0]);
 	f = v->func_ptr;
-	assert(f->argv->size == nb_nodes - 1);
+
+	if (f->vargs_flag) {
+		if (f->argv->size > nb_nodes - 1)
+			return -1;
+	} else if (f->argv->size != nb_nodes - 1)
+		return -1;
 
 	argv = scf_vector_alloc();
 	if (!argv) {

@@ -1042,7 +1042,15 @@ static int _scf_op_semantic_call(scf_ast_t* ast, scf_node_t** nodes, int nb_node
 
 	scf_function_t* f = v0->func_ptr;
 
-	assert(f->argv->size == nb_nodes - 1);
+	if (f->vargs_flag) {
+		if (f->argv->size > nb_nodes - 1) {
+			scf_loge("\n");
+			return -1;
+		}
+	} else if (f->argv->size != nb_nodes - 1) {
+		scf_loge("\n");
+		return -1;
+	}
 
 	int i;
 	for (i = 0; i < f->argv->size; i++) {

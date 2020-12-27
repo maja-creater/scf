@@ -476,6 +476,11 @@ static int _lex_number(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c
 			}
 
 			// base 8
+			if ('8' == c1->c || '9' == c1->c) {
+				scf_loge("numbers in base 8 must be 0-7\n");
+				return -1;
+			}
+
 			scf_string_cat_cstr_len(s, (char*)&c1->c, 1);
 			lex->pos += 2;
 			free(c1);
@@ -491,8 +496,7 @@ static int _lex_number(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c
 					free(c2);
 					c2 = NULL;
 				} else if ('8' == c2->c || '9' == c2->c) {
-					// error
-					printf("%s(),%d, error: \n", __func__, __LINE__);
+					scf_loge("numbers in base 8 must be 0-7\n");
 					return -1;
 				} else {
 					_lex_push_char(lex, c2);
@@ -610,29 +614,39 @@ static int _lex_dot(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c0)
 	c0 = NULL;
 
 	int nb_numbers = 0;
+	int nb_dots    = 1;
+
 	while (1) {
 		scf_lex_char_t* c1 = _lex_pop_char(lex);
+
 		if ('0' <= c1->c && '9' >= c1->c) {
-			scf_string_cat_cstr_len(s, (char*)&c1->c, 1);
-			lex->pos++;
 			nb_numbers++;
-			free(c1);
-			c1 = NULL;
+		} else if ('.' == c1->c) {
+			nb_dots++;
 		} else {
+			_lex_push_char(lex, c1);
+			c1 = NULL;
+
 			scf_lex_word_t* w = NULL;
-			if (nb_numbers > 0) {
-				_lex_push_char(lex, c1);
-				c1 = NULL;
+
+			if (nb_numbers  > 0) {
+				if (nb_dots > 1) {
+					scf_loge("\n");
+					return -1;
+				}
 
 				w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_CONST_DOUBLE);
 				w->data.d = atof(s->data);
-			} else if ('.' == c1->c) {
-				printf("%s(),%d, error: \n", __func__, __LINE__);
-				return -1;
-			} else {
-				_lex_push_char(lex, c1);
-				c1 = NULL;
+
+			} else if (1 == nb_dots) { // dot .
 				w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_DOT);
+
+			} else if (3 == nb_dots) { // variable args ...
+				w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_VAR_ARGS);
+
+			} else if (nb_dots > 1) { // dot must be 1 or 3, others error
+				scf_loge("\n");
+				return -1;
 			}
 			w->text = s;
 			s = NULL;
@@ -640,6 +654,11 @@ static int _lex_dot(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c0)
 			*pword = w;
 			return 0;
 		}
+
+		scf_string_cat_cstr_len(s, (char*)&c1->c, 1);
+		lex->pos++;
+		free(c1);
+		c1 = NULL;
 	}
 }
 

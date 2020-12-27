@@ -40,6 +40,8 @@ struct scf_function_s {
 
 	int               local_vars_size;
 	int               code_bytes;
+
+	uint32_t          vargs_flag:1;
 };
 
 scf_function_t*	scf_function_alloc(scf_lex_word_t* w);
