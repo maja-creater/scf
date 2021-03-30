@@ -65,5 +65,17 @@ static inline void scf_list_add_front(scf_list_t* h, scf_list_t* n)
 		}\
 	} while(0)
 
+#define scf_list_mov(dst, src, type, member) \
+	do {\
+		scf_list_t* l;\
+		type*       t;\
+		for (l = scf_list_head(src); l != scf_list_sentinel(src);) {\
+			t  = scf_list_data(l, type, member);\
+			l  = scf_list_next(l);\
+			scf_list_del(&t->member);\
+			scf_list_add_tail(dst, &t->member);\
+		}\
+	} while(0)
+
 #endif
 

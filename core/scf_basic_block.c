@@ -70,9 +70,21 @@ scf_basic_block_t* scf_basic_block_alloc()
 	if (!bb->dn_resaves)
 		goto error_resaves;
 
+	bb->dn_malloced = scf_vector_alloc();
+	if (!bb->dn_malloced)
+		goto error_malloced;
+
+	bb->dn_freed = scf_vector_alloc();
+	if (!bb->dn_freed)
+		goto error_freed;
+
 	bb->generate_flag = 1;
 	return bb;
 
+error_freed:
+	scf_vector_free(bb->dn_malloced);
+error_malloced:
+	scf_vector_free(bb->dn_resaves);
 error_resaves:
 	scf_vector_free(bb->dn_reloads);
 error_reloads:
@@ -891,5 +903,57 @@ void scf_basic_block_mov_code(scf_list_t* start, scf_basic_block_t* bb_dst, scf_
 
 		c->basic_block = bb_dst;
 	}
+}
+
+int scf_basic_block_search_bfs(scf_basic_block_t* root, scf_basic_block_find_pt find)
+{
+	if (!root)
+		return -EINVAL;
+
+	scf_vector_t* queue   = scf_vector_alloc();
+	if (!queue)
+		return -ENOMEM;
+
+	scf_vector_t* checked = scf_vector_alloc();
+	if (!queue) {
+		scf_vector_free(queue);
+		return -ENOMEM;
+	}
+
+	int ret = scf_vector_add(queue, root);
+	if (ret < 0)
+		goto failed;
+
+	int count = 0;
+	int i     = 0;
+
+	while (i < queue->size) {
+		scf_basic_block_t* bb = queue->data[i];
+
+		int j;
+		for (j = 0; j < checked->size; j++) {
+			if (bb == checked->data[j])
+				goto next;
+		}
+
+		ret = scf_vector_add(checked, bb);
+		if (ret < 0)
+			goto failed;
+
+		ret = find(bb, queue);
+		if (ret < 0)
+			goto failed;
+		count += ret;
+next:
+		i++;
+	}
+
+	ret = count;
+failed:
+	scf_vector_free(queue);
+	scf_vector_free(checked);
+	queue   = NULL;
+	checked = NULL;
+	return ret;
 }
 

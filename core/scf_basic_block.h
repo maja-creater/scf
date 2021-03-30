@@ -65,6 +65,9 @@ struct scf_basic_block_s
 	scf_vector_t*   dn_reloads;
 	scf_vector_t*   dn_resaves;
 
+	scf_vector_t*   dn_malloced;
+	scf_vector_t*   dn_freed;
+
 	int             code_bytes;
 	int             index;
 
@@ -84,6 +87,11 @@ struct scf_basic_block_s
 	uint32_t        visited_flag:1;
 	uint32_t        native_flag :1;
 };
+
+typedef int       (*scf_basic_block_find_pt)  (scf_basic_block_t* bb,   scf_vector_t* queue);
+
+int                 scf_basic_block_search_bfs(scf_basic_block_t* root, scf_basic_block_find_pt find);
+
 
 scf_basic_block_t*  scf_basic_block_alloc();
 void                scf_basic_block_free(scf_basic_block_t* bb);

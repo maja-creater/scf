@@ -219,7 +219,7 @@ int scf_scope_find_overloaded_functions(scf_vector_t** pfunctions, scf_scope_t* 
 
 	if (0 == vec->size) {
 		scf_vector_free(vec);
-		return -1;
+		return -404;
 	}
 
 	*pfunctions = vec;

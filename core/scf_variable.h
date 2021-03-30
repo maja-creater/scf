@@ -49,6 +49,7 @@ struct scf_variable_s {
 	uint32_t            global_flag :1;
 	uint32_t            member_flag :1;
 	uint32_t            arg_flag    :1;
+	uint32_t            auto_gc_flag:1;
 };
 
 scf_variable_t*	scf_variable_alloc(scf_lex_word_t* w, scf_type_t* t);

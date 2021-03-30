@@ -764,6 +764,7 @@ int x64_load_reg(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, s
 			scf_variable_t* v = dn->var;
 			scf_loge("v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
 		} else {
+
 			if ((dn->var->nb_dimentions > 0 && dn->var->const_literal_flag)
 					|| (dn->var->type >= SCF_STRUCT && 0 == dn->var->nb_pointers))
 				mov  = x64_find_OpCode(SCF_X64_LEA, var_size, var_size, SCF_X64_E2G);
@@ -780,8 +781,10 @@ int x64_load_reg(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, s
 			mov  = x64_find_OpCode(SCF_X64_MOVSD, var_size, var_size, SCF_X64_E2G);
 	}
 
-	if (!mov)
+	if (!mov) {
+		scf_loge("\n");
 		return -EINVAL;
+	}
 
 	inst = x64_make_inst_M2G(&rela, mov, r, NULL, dn->var);
 	X64_INST_ADD_CHECK(c->instructions, inst);

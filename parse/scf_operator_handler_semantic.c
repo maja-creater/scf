@@ -7,6 +7,40 @@ typedef struct {
 
 } scf_handler_data_t;
 
+static int _semantic_add_address_of(scf_ast_t* ast, scf_node_t** pp, scf_node_t* src)
+{
+	scf_node_t* parent = src->parent;
+
+	scf_operator_t* op = scf_find_base_operator_by_type(SCF_OP_ADDRESS_OF);
+	if (!op)
+		return -EINVAL;
+
+	scf_variable_t* v_src = _scf_operand_get(src);
+	scf_type_t*     t     = scf_ast_find_type_type(ast, v_src->type);
+	scf_variable_t* v     = SCF_VAR_ALLOC_BY_TYPE(v_src->w, t, v_src->const_flag, v_src->nb_pointers + 1, v_src->func_ptr);
+	if (!v)
+		return -ENOMEM;
+
+	scf_node_t* address_of = scf_node_alloc(NULL, SCF_OP_ADDRESS_OF, NULL);
+	if (!address_of) {
+		scf_variable_free(v);
+		return -ENOMEM;
+	}
+
+	int ret = scf_node_add_child(address_of, src);
+	if (ret < 0) {
+		scf_variable_free(v);
+		scf_node_free(address_of);
+		return ret;
+	}
+
+	address_of->op     = op;
+	address_of->result = v;
+	address_of->parent = parent;
+	*pp = address_of;
+	return 0;
+}
+
 static int _semantic_add_type_cast(scf_ast_t* ast, scf_node_t** pp, scf_variable_t* v_dst, scf_node_t* src)
 {
 	scf_node_t* parent = src->parent;
@@ -138,13 +172,15 @@ static int _semantic_add_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, 
 	scf_node_add_child(parent, node_pf);
 
 	int i;
-	for (i = nb_nodes - 1; i >= 0; i--)
-		nodes[i + 1] = nodes[i];
-	nodes[0] = node_pf;
+	for (i = parent->nb_nodes - 1; i >= 0; i--)
+		parent->nodes[i + 1] = parent->nodes[i];
+	parent->nodes[0] = node_pf;
 
 	if (f->ret) {
 		t = scf_ast_find_type_type(ast, f->ret->type);
 
+		scf_loge("parent->w: %p\n", parent->w);
+		scf_loge("parent->w->text->data: %s\n", parent->w->text->data);
 		r = SCF_VAR_ALLOC_BY_TYPE(parent->w, t, f->ret->const_flag, f->ret->nb_pointers, f->ret->func_ptr);
 	} else {
 		t = scf_ast_find_type_type(ast, SCF_VAR_INT);
@@ -183,6 +219,96 @@ static int _semantic_do_overloaded(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 			t = scf_ast_find_type_type(ast, v->type);
 			assert(t->scope);
+		}
+
+		ret = scf_vector_add(argv, v);
+		if (ret < 0) {
+			scf_vector_free(argv);
+			return ret;
+		}
+	}
+
+	ret  = scf_scope_find_overloaded_functions(&fvec, t->scope, parent->type, argv);
+	if (ret < 0) {
+		scf_vector_free(argv);
+		return ret;
+	}
+
+	ret = 0;
+
+	for (i = 0; i < fvec->size; i++) {
+		f  = fvec->data[i];
+
+		if (scf_function_same_argv(f->argv, argv))
+			goto end;
+	}
+
+	for (i = 0; i < fvec->size; i++) {
+		f  = fvec->data[i];
+
+		int j;
+		for (j = 0; j < argv->size; j++) {
+
+			scf_variable_t* v0 = f->argv->data[j];
+			scf_variable_t* v1 =    argv->data[j];
+
+			if (scf_variable_is_struct_pointer(v0))
+				continue;
+
+			if (scf_type_cast_check(ast, v0, v1) < 0)
+				continue;
+
+			ret = _semantic_add_type_cast(ast, &nodes[j], v0, nodes[j]);
+			if (ret < 0)
+				scf_loge("\n");
+			else
+				ret = 0;
+			goto end;
+		}
+	}
+
+	ret = -404;
+end:
+	scf_vector_free(argv);
+	scf_vector_free(fvec);
+
+	if (0 == ret)
+		return _semantic_add_call(ast, nodes, nb_nodes, d, f);
+	return ret;
+}
+
+static int _semantic_do_overloaded_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, scf_handler_data_t* d)
+{
+	scf_function_t* f;
+	scf_variable_t* v;
+	scf_vector_t*   argv;
+	scf_vector_t*   fvec   = NULL;
+	scf_node_t*     parent = nodes[0]->parent;
+	scf_type_t*	    t      = NULL;
+
+	argv = scf_vector_alloc();
+	if (!argv)
+		return -ENOMEM;
+
+	int ret;
+	int i;
+	for (i = 0; i < nb_nodes; i++) {
+
+		v  = _scf_operand_get(nodes[i]);
+
+		if (scf_variable_is_struct(v)) {
+			if (!t) {
+				t = scf_ast_find_type_type(ast, v->type);
+				assert(t->scope);
+			}
+
+			ret = _semantic_add_address_of(ast, &nodes[i], nodes[i]);
+			if (ret < 0) {
+				scf_loge("\n");
+				return ret;
+			}
+
+			v  = _scf_operand_get(nodes[i]);
 		}
 
 		ret = scf_vector_add(argv, v);
@@ -1645,14 +1771,59 @@ static int _scf_op_semantic_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 	scf_handler_data_t* d = data;
 
-	scf_variable_t* v0 = _scf_operand_get(nodes[0]);
-	scf_variable_t* v1 = _scf_operand_get(nodes[1]);
+	scf_node_t*     parent = nodes[0]->parent;
+	scf_variable_t* v0     = _scf_operand_get(nodes[0]);
+	scf_variable_t* v1     = _scf_operand_get(nodes[1]);
 
 	assert(v0);
 	assert(v1);
 
 	if (v0->const_flag || v0->nb_dimentions > 0) {
 		scf_loge("const var '%s' can't be assigned\n", v0->w->text->data);
+		return -1;
+	}
+
+	if (scf_variable_is_struct(v0) || scf_variable_is_struct(v1)) {
+
+		int size = scf_variable_size(v0);
+
+		int ret = _semantic_do_overloaded_assign(ast, nodes, nb_nodes, d);
+		if (0 == ret)
+			return 0;
+
+		if (-404 != ret) {
+			scf_loge("semantic do overloaded error, ret: %d\n", ret);
+			return -1;
+		}
+
+		if (scf_variable_same_type(v0, v1)) {
+
+			scf_function_t* f = scf_ast_find_function(ast, "memcpy");
+			if (!f) {
+				scf_loge("semantic do overloaded error: default 'memcpy' NOT found\n");
+				return -1;
+			}
+
+			scf_type_t*     t = scf_ast_find_type_type(ast, SCF_VAR_INTPTR);
+			scf_variable_t* v = SCF_VAR_ALLOC_BY_TYPE(NULL, t, 1, 0, NULL);
+			if (!v) {
+				scf_loge("var alloc failed\n");
+				return -ENOMEM;
+			}
+			v->data.i64 = size;
+
+			scf_node_t* node_size = scf_node_alloc(NULL, v->type, v);
+			if (!node_size) {
+				scf_loge("node alloc failed\n");
+				return -ENOMEM;
+			}
+
+			scf_node_add_child(parent, node_size);
+
+			return _semantic_add_call(ast, parent->nodes, parent->nb_nodes, d, f);
+		}
+
+		scf_loge("semantic do overloaded error\n");
 		return -1;
 	}
 
@@ -1674,7 +1845,7 @@ static int _scf_op_semantic_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 	scf_type_t*	    t = scf_ast_find_type_type(ast, v0->type);
 
-	scf_lex_word_t* w = nodes[0]->parent->w;
+	scf_lex_word_t* w = parent->w;
 	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, v0->nb_pointers, v0->func_ptr);
 	if (!r) {
 		scf_loge("var alloc failed\n");
@@ -1684,7 +1855,6 @@ static int _scf_op_semantic_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 	*d->pret = r;
 	return 0;
 }
-
 
 static int _scf_op_semantic_binary_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {

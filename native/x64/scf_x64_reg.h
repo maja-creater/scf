@@ -81,7 +81,13 @@ typedef struct {
 
 static inline int x64_variable_size(scf_variable_t* v)
 {
-	return v->nb_dimentions > 0 ? 8 : v->size;
+	if (v->nb_dimentions > 0)
+		return 8;
+
+	if (v->type >= SCF_STRUCT && 0 == v->nb_pointers)
+		return 8;
+
+	return v->size;
 }
 
 typedef int         (*x64_sib_fill_pt)(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* index, scf_3ac_code_t* c, scf_function_t* f);

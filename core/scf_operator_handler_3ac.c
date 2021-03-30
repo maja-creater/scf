@@ -1609,9 +1609,10 @@ static int _scf_op_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 	assert(2 == nb_nodes);
 	scf_handler_data_t* d = data;
 
-	scf_node_t*    parent = nodes[0]->parent;
-	scf_node_t*    node0  = nodes[0];
-	scf_node_t*    node1  = nodes[1];
+	scf_node_t*     parent = nodes[0]->parent;
+	scf_node_t*     node0  = nodes[0];
+	scf_node_t*     node1  = nodes[1];
+	scf_variable_t* v0     = _scf_operand_get(node0);
 
 	if ( _scf_op_right_value(ast, node1, d) < 0)
 		return -1;

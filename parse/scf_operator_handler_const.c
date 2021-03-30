@@ -560,10 +560,10 @@ static int _scf_op_const_unary(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 
 	assert(v0);
 
-	if (scf_type_is_number(v0->type)) {
+	if (!v0->const_flag)
+		return 0;
 
-		if (!v0->const_flag)
-			return 0;
+	if (scf_type_is_number(v0->type)) {
 
 		scf_calculate_t* cal = scf_find_base_calculate(parent->type, v0->type, v0->type);
 		if (!cal) {
