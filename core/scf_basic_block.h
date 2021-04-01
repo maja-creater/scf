@@ -88,9 +88,11 @@ struct scf_basic_block_s
 	uint32_t        native_flag :1;
 };
 
-typedef int       (*scf_basic_block_find_pt)  (scf_basic_block_t* bb,   scf_vector_t* queue);
+typedef int       (*scf_basic_block_bfs_pt)(scf_basic_block_t* bb, void* data, scf_vector_t* queue);
+typedef int       (*scf_basic_block_dfs_pt)(scf_basic_block_t* bb, void* data);
 
-int                 scf_basic_block_search_bfs(scf_basic_block_t* root, scf_basic_block_find_pt find);
+int                 scf_basic_block_search_bfs(scf_basic_block_t* root, scf_basic_block_bfs_pt find, void* data);
+int                 scf_basic_block_search_dfs_prev(scf_basic_block_t* root, scf_basic_block_dfs_pt find, void* data, scf_vector_t* results);
 
 
 scf_basic_block_t*  scf_basic_block_alloc();

@@ -187,7 +187,9 @@ void scf_basic_block_print_list(scf_list_t* h)
 
 			scf_basic_block_t* bb = scf_list_data(l, scf_basic_block_t, list);
 
-			printf("\033[33mbasic_block: %p, index: %d\033[0m\n", bb, bb->index);
+			printf("\033[33mbasic_block: %p, index: %d, depth_first_order: %d\033[0m\n",
+					bb, bb->index, bb->depth_first_order);
+
 			scf_basic_block_print(bb, sentinel);
 
 			printf("\n");
@@ -217,6 +219,17 @@ void scf_basic_block_print_list(scf_list_t* h)
 				}
 			}
 #endif
+			if (bb->entry_dn_actives) {
+				for (i = 0; i < bb->entry_dn_actives->size; i++) {
+
+					scf_dag_node_t* dn = bb->entry_dn_actives->data[i];
+					scf_variable_t* v  = dn->var;
+
+					if (v && v->w)
+						printf("entry active: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+				}
+			}
+
 			if (bb->exit_dn_actives) {
 				for (i = 0; i < bb->exit_dn_actives->size; i++) {
 
@@ -224,9 +237,65 @@ void scf_basic_block_print_list(scf_list_t* h)
 					scf_variable_t* v  = dn->var;
 
 					if (v && v->w)
-						printf("exit active: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+						printf("exit  active: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
 				}
 			}
+
+			if (bb->dn_updateds) {
+				for (i = 0; i < bb->dn_updateds->size; i++) {
+
+					scf_dag_node_t* dn = bb->dn_updateds->data[i];
+					scf_variable_t* v  = dn->var;
+
+					if (v && v->w)
+						printf("updated:      v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+				}
+			}
+
+			if (bb->dn_loads) {
+				for (i = 0; i < bb->dn_loads->size; i++) {
+
+					scf_dag_node_t* dn = bb->dn_loads->data[i];
+					scf_variable_t* v  = dn->var;
+
+					if (v && v->w)
+						printf("loads:        v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+				}
+			}
+
+			if (bb->dn_reloads) {
+				for (i = 0; i < bb->dn_reloads->size; i++) {
+
+					scf_dag_node_t* dn = bb->dn_reloads->data[i];
+					scf_variable_t* v  = dn->var;
+
+					if (v && v->w)
+						printf("reloads:      v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+				}
+			}
+
+			if (bb->dn_saves) {
+				for (i = 0; i < bb->dn_saves->size; i++) {
+
+					scf_dag_node_t* dn = bb->dn_saves->data[i];
+					scf_variable_t* v  = dn->var;
+
+					if (v && v->w)
+						printf("saves:        v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+				}
+			}
+
+			if (bb->dn_resaves) {
+				for (i = 0; i < bb->dn_resaves->size; i++) {
+
+					scf_dag_node_t* dn = bb->dn_resaves->data[i];
+					scf_variable_t* v  = dn->var;
+
+					if (v && v->w)
+						printf("resaves:      v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+				}
+			}
+
 			printf("\n");
 		}
 	}
@@ -749,8 +818,11 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 				c->dst->dag_node->active = 1;
 			else
 				c->dst->dag_node->active = 0;
-
-			c->dst->dag_node->updated = 1;
+#if 1
+			if (SCF_OP_3AC_LOAD != c->op->type
+					&& SCF_OP_3AC_RELOAD != c->op->type)
+#endif
+				c->dst->dag_node->updated = 1;
 		}
 
 		if (c->srcs) {
@@ -905,7 +977,7 @@ void scf_basic_block_mov_code(scf_list_t* start, scf_basic_block_t* bb_dst, scf_
 	}
 }
 
-int scf_basic_block_search_bfs(scf_basic_block_t* root, scf_basic_block_find_pt find)
+int scf_basic_block_search_bfs(scf_basic_block_t* root, scf_basic_block_bfs_pt find, void* data)
 {
 	if (!root)
 		return -EINVAL;
@@ -940,7 +1012,7 @@ int scf_basic_block_search_bfs(scf_basic_block_t* root, scf_basic_block_find_pt 
 		if (ret < 0)
 			goto failed;
 
-		ret = find(bb, queue);
+		ret = find(bb, data, queue);
 		if (ret < 0)
 			goto failed;
 		count += ret;
@@ -955,5 +1027,45 @@ failed:
 	queue   = NULL;
 	checked = NULL;
 	return ret;
+}
+
+int scf_basic_block_search_dfs_prev(scf_basic_block_t* root, scf_basic_block_dfs_pt find, void* data, scf_vector_t* results)
+{
+	scf_basic_block_t* bb;
+
+	int i;
+	int j;
+	int ret;
+
+	assert(!root->jmp_flag);
+
+	root->visited_flag = 1;
+
+	for (i = 0; i < root->prevs->size; ++i) {
+
+		bb = root->prevs->data[i];
+
+		if (bb->visited_flag)
+			continue;
+
+		ret = find(bb, data);
+		if (ret < 0)
+			return ret;
+
+		if (ret > 0) {
+			ret = scf_vector_add(results, bb);
+			if (ret < 0)
+				return ret;
+
+			bb->visited_flag = 1;
+			continue;
+		}
+
+		ret = scf_basic_block_search_dfs_prev(bb, find, data, results);
+		if ( ret < 0)
+			return ret;
+	}
+
+	return 0;
 }
 
