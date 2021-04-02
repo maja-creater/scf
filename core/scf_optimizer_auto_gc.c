@@ -1,29 +1,5 @@
 #include"scf_optimizer.h"
 
-static scf_3ac_code_t* _auto_gc_code_alloc(const char* fname, scf_3ac_operand_t** operands, int nb_operands)
-{
-	scf_3ac_code_t* c    = scf_3ac_code_alloc();
-	scf_vector_t*   srcs = scf_vector_alloc();
-
-	int i;
-	for (i = 0; i < nb_operands; i++) {
-
-		scf_3ac_operand_t* src  = scf_3ac_operand_alloc();
-
-		scf_vector_add(srcs, src);
-
-		src->node     = operands[i]->node;
-		src->dag_node = operands[i]->dag_node;
-	}
-
-	c->op   = scf_3ac_find_operator(SCF_OP_3AC_CALL_EXTERN);
-	c->dst	= NULL;
-	c->srcs = srcs;
-	c->extern_fname = scf_string_cstr(fname);
-
-	return c;
-}
-
 static scf_3ac_code_t* _auto_gc_code_alloc_dn(const char* fname, scf_dag_node_t* dn)
 {
 	scf_3ac_code_t* c    = scf_3ac_code_alloc();
@@ -217,32 +193,66 @@ static int _bb_find_dn_active(scf_basic_block_t* root, scf_list_t* bb_list_head,
 	return scf_basic_block_search_dfs_prev(root, _find_dn_active, dn, results);
 }
 
-static int _bb_next_del(scf_basic_block_t* bb, void* data, scf_vector_t* queue)
+static int _bb_prev_add_active(scf_basic_block_t* bb, void* data, scf_vector_t* queue)
 {
-	scf_basic_block_t* next_bb;
+	scf_basic_block_t* bb_prev;
+
+	scf_dag_node_t* dn = data;
 
 	int count = 0;
 	int ret;
 	int j;
 
-	for (j = 0; j < bb->nexts->size; j++) {
-		next_bb   = bb->nexts->data[j];
+	for (j = 0; j < bb->prevs->size; j++) {
+		bb_prev   = bb->prevs->data[j];
 
-		scf_vector_del(next_bb->dn_malloced, data);
+		if (!scf_vector_find(bb_prev->exit_dn_aliases, dn)) {
+
+			ret = scf_vector_add_unique(bb_prev->exit_dn_actives, dn);
+			if (ret < 0)
+				return ret;
+		}
+
+		if (scf_vector_find(bb_prev->dn_updateds, dn)) {
+
+			if (scf_vector_find(bb_prev->exit_dn_aliases, dn)
+					|| scf_type_is_operator(dn->type))
+
+				ret = scf_vector_add_unique(bb_prev->dn_resaves, dn);
+			else
+				ret = scf_vector_add_unique(bb_prev->dn_saves, dn);
+
+			if (ret < 0)
+				return ret;
+		}
 
 		++count;
 
-		ret = scf_vector_add(queue, next_bb);
+		ret = scf_vector_add(queue, bb_prev);
 		if (ret < 0)
 			return ret;
 	}
 	return count;
 }
 
+static int _bb_add_active(scf_basic_block_t* bb, scf_dag_node_t* dn)
+{
+	int ret = scf_vector_add_unique(bb->entry_dn_actives, dn);
+	if (ret < 0)
+		return ret;
+
+	if (scf_type_is_operator(dn->type))
+		ret = scf_vector_add(bb->dn_reloads, dn);
+	else
+		ret = scf_vector_add(bb->dn_loads, dn);
+
+	return ret;
+}
+
 static int _bb_add_free(scf_function_t* f, scf_basic_block_t* bb, scf_dag_node_t* dn)
 {
-	scf_basic_block_t* bb1    = NULL;
-	scf_3ac_code_t*    c_free = _auto_gc_code_alloc_dn("scf_free", dn);
+	scf_basic_block_t* bb1     = NULL;
+	scf_3ac_code_t*    c_free  = _auto_gc_code_alloc_dn("scf_free", dn);
 	scf_dag_node_t*    dn2;
 
 	int ret = scf_basic_block_split(bb, &bb1);
@@ -250,26 +260,6 @@ static int _bb_add_free(scf_function_t* f, scf_basic_block_t* bb, scf_dag_node_t
 		return ret;
 
 	scf_list_add_front(&bb->list, &bb1->list);
-
-	if (bb->end_flag) {
-
-		scf_basic_block_mov_code(scf_list_head(&bb->code_list_head), bb1, bb);
-
-		scf_list_add_tail(&bb->code_list_head, &c_free->list);
-
-		c_free->basic_block = bb;
-
-		bb1->end_flag  = 1;
-		bb ->end_flag  = 0;
-		bb ->call_flag = 1;
-
-	} else {
-		bb1->call_flag = 1;
-
-		scf_list_add_tail(&bb1->code_list_head, &c_free->list);
-
-		c_free->basic_block = bb1;
-	}
 
 	scf_vector_del(bb->dn_malloced, dn);
 
@@ -285,7 +275,33 @@ static int _bb_add_free(scf_function_t* f, scf_basic_block_t* bb, scf_dag_node_t
 			return ret;
 	}
 
-	return scf_basic_block_search_bfs(bb1, _bb_next_del, dn);
+	if (bb->end_flag) {
+
+		scf_basic_block_mov_code(scf_list_head(&bb->code_list_head), bb1, bb);
+
+		scf_list_add_tail(&bb->code_list_head, &c_free->list);
+
+		c_free->basic_block = bb;
+
+		bb1->end_flag  = 1;
+		bb ->end_flag  = 0;
+		bb ->call_flag = 1;
+
+		bb1 = bb;
+
+	} else {
+		bb1->call_flag = 1;
+
+		scf_list_add_tail(&bb1->code_list_head, &c_free->list);
+
+		c_free->basic_block = bb1;
+	}
+
+	ret = _bb_add_active(bb1, dn);
+	if (ret < 0)
+		return ret;
+
+	return scf_basic_block_search_bfs(bb1, _bb_prev_add_active, dn);
 }
 
 static int _bb_split_prev_add_free(scf_function_t* f, scf_basic_block_t* bb, scf_list_t* bb_list_head, scf_dag_node_t* dn, scf_vector_t* bb_split_prevs)
@@ -409,7 +425,11 @@ static int _bb_split_prev_add_free(scf_function_t* f, scf_basic_block_t* bb, scf
 
 	scf_list_add_tail(&bb1->code_list_head, &c_free->list);
 
-	return scf_basic_block_search_bfs(bb1, _bb_next_del, dn);
+	int ret = _bb_add_active(bb1, dn);
+	if (ret < 0)
+		return ret;
+
+	return scf_basic_block_search_bfs(bb1, _bb_prev_add_active, dn);
 }
 
 static int _auto_gc_last_free(scf_function_t* f, scf_list_t* bb_list_head)
@@ -420,9 +440,10 @@ static int _auto_gc_last_free(scf_function_t* f, scf_list_t* bb_list_head)
 	l  = scf_list_tail(bb_list_head);
 	bb = scf_list_data(l, scf_basic_block_t, list);
 
-	while (bb->dn_malloced->size > 0) {
+	int i;
+	for (i = 0; i < bb->dn_malloced->size; i++) {
 
-		scf_dag_node_t* dn = bb->dn_malloced->data[0];
+		scf_dag_node_t* dn = bb->dn_malloced->data[i];
 		scf_variable_t* v  = dn->var;
 
 		scf_loge("last free: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
@@ -522,8 +543,72 @@ static int _auto_gc_last_free(scf_function_t* f, scf_list_t* bb_list_head)
 		\
 		SCF_XCHG(parent->dn_malloced, child->dn_malloced); \
 		\
+		scf_vector_free(child->exit_dn_actives); \
+		scf_vector_free(child->exit_dn_aliases); \
+		\
+		child->exit_dn_actives = scf_vector_clone(parent->exit_dn_actives); \
+		child->exit_dn_aliases = scf_vector_clone(parent->exit_dn_aliases); \
+		\
 		scf_list_add_front(&parent->list, &child->list); \
 	} while (0)
+
+static int _optimize_auto_gc_bb_ref(scf_function_t* f, scf_basic_block_t** pbb, scf_list_t* bb_list_head, scf_dag_node_t* dn)
+{
+	scf_basic_block_t* cur_bb = *pbb;
+	scf_basic_block_t* bb3    = NULL;
+	scf_3ac_code_t*    c_ref;
+
+	AUTO_GC_BB_SPLIT(cur_bb, bb3);
+
+	c_ref = _auto_gc_code_alloc_dn("scf_ref", dn);
+	c_ref->basic_block = bb3;
+
+	scf_list_add_tail(&bb3->code_list_head, &c_ref->list);
+
+	int ret = _bb_add_active(bb3, dn);
+	if (ret < 0)
+		return ret;
+
+	ret = scf_basic_block_search_bfs(bb3, _bb_prev_add_active, dn);
+	if (ret < 0)
+		return ret;
+
+	bb3->call_flag = 1;
+	bb3->dereference_flag = 0;
+
+	*pbb = bb3;
+	return 0;
+}
+
+static int _optimize_auto_gc_bb_free(scf_function_t* f, scf_basic_block_t** pbb, scf_list_t* bb_list_head, scf_dag_node_t* dn)
+{
+	scf_basic_block_t* cur_bb = *pbb;
+	scf_basic_block_t* bb1    = NULL;
+	scf_basic_block_t* bb2    = NULL;
+	scf_3ac_code_t*    c;
+
+	AUTO_GC_BB_SPLIT(cur_bb, bb1);
+	AUTO_GC_BB_SPLIT(bb1,    bb2);
+
+	bb1->call_flag = 1;
+	bb1->dereference_flag = 0;
+
+	c = _auto_gc_code_alloc_dn("scf_free", dn);
+	c->basic_block = bb1;
+
+	scf_list_add_tail(&bb1->code_list_head, &c->list);
+
+	int ret = _bb_add_active(bb1, dn);
+	if (ret < 0)
+		return ret;
+
+	ret = scf_basic_block_search_bfs(bb1, _bb_prev_add_active, dn);
+	if (ret < 0)
+		return ret;
+
+	*pbb = bb2;
+	return 0;
+}
 
 static int _optimize_auto_gc_bb(scf_function_t* f, scf_basic_block_t* bb, scf_list_t* bb_list_head)
 {
@@ -558,6 +643,8 @@ static int _optimize_auto_gc_bb(scf_function_t* f, scf_basic_block_t* bb, scf_li
 		}
 	}
 
+	scf_loge("bb: %p, dn_malloced->size: %d\n", bb, dn_malloced->size);
+
 #if 1
 	for (l = scf_list_head(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head); ) {
 
@@ -574,8 +661,6 @@ static int _optimize_auto_gc_bb(scf_function_t* f, scf_basic_block_t* bb, scf_li
 
 		if (scf_vector_find(dn_malloced, c->dst->dag_node)) {
 
-			scf_basic_block_t* bb1     = NULL;
-			scf_basic_block_t* bb2     = NULL;
 
 			scf_vector_t* bb_split_prevs;
 
@@ -599,7 +684,7 @@ static int _optimize_auto_gc_bb(scf_function_t* f, scf_basic_block_t* bb, scf_li
 				}
 			}
 
-			if (bb_split_prevs->size < bb->prevs->size) {
+			if (bb_split_prevs->size > 0 && bb_split_prevs->size < bb->prevs->size) {
 
 				scf_logw("auto gc error: bb: %p, not all v_%d_%d/%s in previous blocks malloced automaticly\n",
 						bb, v0->w->line, v0->w->pos, v0->w->text->data);
@@ -613,25 +698,19 @@ static int _optimize_auto_gc_bb(scf_function_t* f, scf_basic_block_t* bb, scf_li
 				scf_vector_free(bb_split_prevs);
 				bb_split_prevs = NULL;
 
-				AUTO_GC_BB_SPLIT(cur_bb, bb1);
-				AUTO_GC_BB_SPLIT(bb1,    bb2);
-
-				bb1->call_flag = 1;
-				bb1->dereference_flag = 0;
-
-				c_free = _auto_gc_code_alloc("scf_free", &c->dst, 1);
-				c_free->basic_block = bb1;
-
-				scf_list_add_tail(&bb1->code_list_head, &c_free->list);
+				int ret = _optimize_auto_gc_bb_free(f, &cur_bb, bb_list_head, c->dst->dag_node);
+				if (ret < 0)
+					return ret;
 
 				assert(0 == scf_vector_del(dn_malloced, c->dst->dag_node));
-
-				cur_bb = bb2;
 			}
 		}
 
 		scf_3ac_operand_t* src  = c->srcs->data[0];
 		scf_dag_node_t*    dn   = src->dag_node;
+
+		if (cur_bb != bb)
+			dn->var->local_flag = 1;
 
 		while (dn) {
 			if (SCF_OP_TYPE_CAST == dn->type)
@@ -658,37 +737,26 @@ static int _optimize_auto_gc_bb(scf_function_t* f, scf_basic_block_t* bb, scf_li
 		} else {
 			if (scf_vector_find(dn_malloced, dn)) {
 
-				auto_gc_flag = 1;
-
-				scf_basic_block_t* bb3 = NULL;
 				scf_basic_block_t* bb4 = NULL;
 
-				AUTO_GC_BB_SPLIT(cur_bb, bb3);
-
-				c_ref = _auto_gc_code_alloc("scf_ref", &c->dst, 1);
-				c_ref->basic_block = bb3;
-
-				scf_list_add_tail(&bb3->code_list_head, &c_ref->list);
-
-				assert(0 == scf_vector_add_unique(dn_malloced, c->dst->dag_node));
+				auto_gc_flag = 1;
 
 				if (cur_bb != bb) {
 					scf_list_del(&c->list);
 					scf_list_add_tail(&cur_bb->code_list_head, &c->list);
 				}
 
-				scf_logd("v0_%d_%d/%s, auto_gc_flag: %d\n", v0->w->line, v0->w->pos, v0->w->text->data,
-						auto_gc_flag);
+				int ret = _optimize_auto_gc_bb_ref(f, &cur_bb, bb_list_head, c->dst->dag_node);
+				if (ret < 0)
+					return ret;
+
+				assert(0 == scf_vector_add_unique(dn_malloced, c->dst->dag_node));
 
 				if (l != scf_list_sentinel(&bb->code_list_head)) {
 
-					AUTO_GC_BB_SPLIT(bb3, bb4);
+					AUTO_GC_BB_SPLIT(cur_bb, bb4);
 					cur_bb = bb4;
-				} else
-					cur_bb = bb3;
-
-				bb3->call_flag = 1;
-				bb3->dereference_flag = 0;
+				}
 				continue;
 			}
 		}
@@ -720,7 +788,6 @@ static int _optimize_auto_gc(scf_function_t* f, scf_list_t* bb_list_head)
 
 	int count;
 	int ret;
-	int i;
 
 	int n = 0;
 	do {
@@ -755,6 +822,12 @@ static int _optimize_auto_gc(scf_function_t* f, scf_list_t* bb_list_head)
 
 	for (l = scf_list_head(bb_list_head); l != scf_list_sentinel(bb_list_head); ) {
 
+		scf_dag_node_t* dn;
+		scf_vector_t*   dn_actives;
+
+		scf_list_t*     start = l;
+		scf_list_t*     l2;
+
 		bb = scf_list_data(l, scf_basic_block_t, list);
 		l  = scf_list_next(l);
 
@@ -763,6 +836,51 @@ static int _optimize_auto_gc(scf_function_t* f, scf_list_t* bb_list_head)
 			scf_loge("\n");
 			return ret;
 		}
+
+		dn_actives = scf_vector_alloc();
+		if (!dn_actives)
+			return -ENOMEM;
+
+		for (l2 = scf_list_prev(l); l2 != scf_list_prev(start); l2 = scf_list_prev(l2)) {
+
+			bb  = scf_list_data(l2, scf_basic_block_t, list);
+
+			ret = scf_basic_block_active_vars(bb);
+			if (ret < 0) {
+				scf_loge("\n");
+				return ret;
+			}
+
+			int i;
+			for (i = 0; i < dn_actives->size; i++) {
+				dn =        dn_actives->data[i];
+
+				ret = scf_vector_add_unique(bb->exit_dn_actives, dn);
+				if (ret < 0) {
+					scf_vector_free(dn_actives);
+					return ret;
+				}
+			}
+
+			for (i = 0; i < bb->entry_dn_actives->size; i++) {
+				dn =        bb->entry_dn_actives->data[i];
+
+				ret = scf_vector_add_unique(dn_actives, dn);
+				if (ret < 0) {
+					scf_vector_free(dn_actives);
+					return ret;
+				}
+			}
+
+			ret = scf_basic_block_loads_saves(bb, bb_list_head);
+			if (ret < 0) {
+				scf_vector_free(dn_actives);
+				return ret;
+			}
+		}
+
+		scf_vector_free(dn_actives);
+		dn_actives = NULL;
 	}
 
 	scf_basic_block_print_list(bb_list_head);

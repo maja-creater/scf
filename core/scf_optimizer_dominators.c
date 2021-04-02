@@ -332,7 +332,7 @@ static int _optimize_dominators(scf_function_t* f, scf_list_t* bb_list_head)
 		return ret;
 	}
 
-	scf_basic_block_print_list(bb_list_head);
+//	scf_basic_block_print_list(bb_list_head);
 	return 0;
 }
 

@@ -108,6 +108,7 @@ int                 scf_basic_block_dag2(scf_basic_block_t* bb, scf_list_t* dag_
 
 int                 scf_basic_block_active_vars(scf_basic_block_t* bb);
 int                 scf_basic_block_inited_vars(scf_basic_block_t* bb, scf_list_t* bb_list_head);
+int                 scf_basic_block_loads_saves(scf_basic_block_t* bb, scf_list_t* bb_list_head);
 
 int                 scf_basic_block_connect(scf_basic_block_t* prev_bb, scf_basic_block_t* next_bb);
 

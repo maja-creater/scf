@@ -1069,3 +1069,60 @@ int scf_basic_block_search_dfs_prev(scf_basic_block_t* root, scf_basic_block_dfs
 	return 0;
 }
 
+int scf_basic_block_loads_saves(scf_basic_block_t* bb, scf_list_t* bb_list_head)
+{
+	scf_dag_node_t* dn;
+	scf_list_t*     l = &bb->list;
+
+	int ret;
+	int i;
+
+	for (i = 0; i < bb->entry_dn_actives->size; i++) {
+
+		dn = bb->entry_dn_actives->data[i];
+
+		if (scf_vector_find(bb->entry_dn_aliases, dn)
+				|| scf_type_is_operator(dn->type))
+			ret = scf_vector_add_unique(bb->dn_reloads, dn);
+		else
+			ret = scf_vector_add_unique(bb->dn_loads, dn);
+		if (ret < 0)
+			return ret;
+	}
+
+	for (i = 0; i < bb->exit_dn_actives->size; i++) {
+
+		dn = bb->exit_dn_actives->data[i];
+
+		if (!scf_vector_find(bb->dn_updateds, dn)) {
+			if (l != scf_list_head(bb_list_head) || !dn->var->arg_flag)
+				continue;
+		}
+
+		if (scf_vector_find(bb->exit_dn_aliases, dn)
+				|| scf_type_is_operator(dn->type))
+			ret = scf_vector_add_unique(bb->dn_resaves, dn);
+		else
+			ret = scf_vector_add_unique(bb->dn_saves, dn);
+
+		if (ret < 0)
+			return ret;
+	}
+
+	for (i = 0; i < bb->exit_dn_aliases->size; i++) {
+
+		dn = bb->exit_dn_aliases->data[i];
+
+		if (!scf_vector_find(bb->dn_updateds, dn)) {
+			if (l != scf_list_head(bb_list_head) || !dn->var->arg_flag)
+				continue;
+		}
+
+		ret = scf_vector_add_unique(bb->dn_resaves, dn);
+		if (ret < 0)
+			return ret;
+	}
+
+	return 0;
+}
+
