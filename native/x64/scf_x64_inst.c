@@ -1403,6 +1403,42 @@ static int _x64_inst_address_of_pointer_handler(scf_native_t* ctx, scf_3ac_code_
 	return x64_inst_pointer(ctx, c, 1);
 }
 
+static int _x64_inst_push_rax_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	if (!c->instructions) {
+		c->instructions = scf_vector_alloc();
+		if (!c->instructions)
+			return -ENOMEM;
+	}
+
+	scf_register_x64_t* rax  = x64_find_register("rax");
+	scf_x64_OpCode_t*   push;
+	scf_instruction_t*  inst;
+
+	push = x64_find_OpCode(SCF_X64_PUSH, 8,8, SCF_X64_G);
+	inst = x64_make_inst_G(push, rax);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+	return 0;
+}
+
+static int _x64_inst_pop_rax_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	if (!c->instructions) {
+		c->instructions = scf_vector_alloc();
+		if (!c->instructions)
+			return -ENOMEM;
+	}
+
+	scf_register_x64_t* rax  = x64_find_register("rax");
+	scf_x64_OpCode_t*   pop;
+	scf_instruction_t*  inst;
+
+	pop  = x64_find_OpCode(SCF_X64_POP, 8,8, SCF_X64_G);
+	inst = x64_make_inst_G(pop, rax);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+	return 0;
+}
+
 static x64_inst_handler_t x64_inst_handlers[] = {
 
 	{SCF_OP_CALL,			_x64_inst_call_handler},
@@ -1489,6 +1525,9 @@ static x64_inst_handler_t x64_inst_handlers[] = {
 
 	{SCF_OP_3AC_INC,        _x64_inst_inc_handler},
 	{SCF_OP_3AC_DEC,        _x64_inst_dec_handler},
+
+	{SCF_OP_3AC_PUSH_RAX,   _x64_inst_push_rax_handler},
+	{SCF_OP_3AC_POP_RAX,    _x64_inst_pop_rax_handler},
 
 	{SCF_OP_3AC_ASSIGN_DEREFERENCE,     _x64_inst_assign_dereference_handler},
 	{SCF_OP_3AC_ASSIGN_ARRAY_INDEX,     _x64_inst_assign_array_index_handler},

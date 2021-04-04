@@ -30,19 +30,19 @@ static scf_optimizer_t*  scf_optimizers[] =
 	&scf_optimizer_loads_saves,
 
 	&scf_optimizer_dominators,
-
 	&scf_optimizer_auto_gc,
 
-//	&scf_optimizer_basic_block,
+	&scf_optimizer_basic_block,
 
-//	&scf_optimizer_loop,
+	&scf_optimizer_dominators,
+	&scf_optimizer_loop,
 
 	&scf_optimizer_generate_loads_saves,
 #endif
 };
 
 
-int scf_optimize(scf_function_t* f, scf_list_t* bb_list_head)
+int scf_optimize(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head)
 {
 	int i;
 
@@ -53,7 +53,7 @@ int scf_optimize(scf_function_t* f, scf_list_t* bb_list_head)
 		if (!optimizer)
 			continue;
 
-		int ret = optimizer->optimize(f, bb_list_head);
+		int ret = optimizer->optimize(ast, f, bb_list_head);
 		if (ret < 0) {
 			scf_loge("optimizer: %s\n", optimizer->name);
 			return ret;

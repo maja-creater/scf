@@ -152,6 +152,9 @@ enum scf_core_types {
 	SCF_OP_3AC_PUSH,    // push a var to stack,  only for 3ac & native 
 	SCF_OP_3AC_POP,     // pop a var from stack, only for 3ac & native
 
+	SCF_OP_3AC_PUSH_RAX, // push rax, only for 3ac & native
+	SCF_OP_3AC_POP_RAX,  // pop  rax, only for 3ac & native
+
 	SCF_OP_3AC_SAVE,     // save a var to memory,   only for 3ac & native
 	SCF_OP_3AC_LOAD,     // load a var from memory, only for 3ac & native
 	SCF_OP_3AC_RELOAD,   // reload a var from memory, only for 3ac & native

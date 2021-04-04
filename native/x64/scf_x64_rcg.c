@@ -961,6 +961,15 @@ static int _x64_rcg_address_of_pointer_handler(scf_native_t* ctx, scf_3ac_code_t
 	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
 }
 
+static int _x64_rcg_push_rax_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+{
+	return 0;
+}
+static int _x64_rcg_pop_rax_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+{
+	return 0;
+}
+
 static x64_rcg_handler_t x64_rcg_handlers[] = {
 
 	{SCF_OP_CALL,			_x64_rcg_call_handler},
@@ -1044,6 +1053,10 @@ static x64_rcg_handler_t x64_rcg_handlers[] = {
 
 	{SCF_OP_3AC_INC,        _x64_rcg_inc_handler},
 	{SCF_OP_3AC_DEC,        _x64_rcg_dec_handler},
+
+	{SCF_OP_3AC_PUSH_RAX,   _x64_rcg_push_rax_handler},
+	{SCF_OP_3AC_POP_RAX,    _x64_rcg_pop_rax_handler},
+
 
 	{SCF_OP_3AC_ASSIGN_DEREFERENCE,     _x64_rcg_assign_dereference_handler},
 	{SCF_OP_3AC_ASSIGN_ARRAY_INDEX,     _x64_rcg_assign_array_index_handler},

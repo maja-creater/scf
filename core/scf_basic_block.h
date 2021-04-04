@@ -68,6 +68,8 @@ struct scf_basic_block_s
 	scf_vector_t*   dn_malloced;
 	scf_vector_t*   dn_freed;
 
+	void*           dn_auto_gc;
+
 	int             code_bytes;
 	int             index;
 
@@ -81,7 +83,10 @@ struct scf_basic_block_s
 	uint32_t        dereference_flag:1;
 	uint32_t        array_index_flag:1;
 
-	uint32_t        generate_flag:1;
+	uint32_t        auto_ref_flag :1;
+	uint32_t        auto_free_flag:1;
+
+	uint32_t        generate_flag :1;
 
 	uint32_t        group_flag  :1;
 	uint32_t        visited_flag:1;

@@ -178,6 +178,78 @@ int scf_parse_dfa_init(scf_parse_t* parse)
 	return 0;
 }
 
+static int _add_global_function(scf_ast_t* ast, const char* fname)
+{
+	scf_string_t*   s;
+	scf_lex_word_t* w;
+	scf_function_t* f;
+	scf_variable_t* v;
+	scf_type_t*     t;
+
+	t = scf_ast_find_type_type(ast, SCF_VAR_U8);
+
+	s = scf_string_cstr("global");
+	if (!s)
+		return -1;
+
+	w = scf_lex_word_alloc(s, 0, 0, SCF_LEX_WORD_ID);
+	if (!s) {
+		scf_string_free(s);
+		return -1;
+	}
+
+	w->text = scf_string_cstr(fname);
+	if (!w->text) {
+		scf_string_free(s);
+		scf_lex_word_free(w);
+		return -1;
+	}
+
+	f = scf_function_alloc(w);
+	scf_lex_word_free(w);
+	w = NULL;
+	if (!f) {
+		scf_string_free(s);
+		return -1;
+	}
+
+	// function arg
+	w = scf_lex_word_alloc(s, 0, 0, SCF_LEX_WORD_ID);
+	if (!w) {
+		scf_string_free(s);
+		scf_function_free(f);
+		return -1;
+	}
+
+	w->text = scf_string_cstr("arg");
+	if (!w->text) {
+		scf_string_free(s);
+		scf_lex_word_free(w);
+		scf_function_free(f);
+		return -1;
+	}
+
+	v = SCF_VAR_ALLOC_BY_TYPE(w, t, 1, 1, NULL);
+	scf_lex_word_free(w);
+	w = NULL;
+	if (!v) {
+		scf_string_free(s);
+		scf_function_free(f);
+		return -1;
+	}
+
+	if (scf_vector_add(f->argv, v) < 0) {
+		scf_string_free(s);
+		scf_function_free(f);
+		scf_variable_free(v);
+		return -1;
+	}
+
+	scf_scope_push_function(ast->root_block->scope, f);
+	scf_node_add_child((scf_node_t*)ast->root_block, (scf_node_t*)f);
+	return 0;
+}
+
 int	scf_parse_open(scf_parse_t** pparse, const char* path)
 {
 	assert(pparse);
@@ -207,6 +279,18 @@ int	scf_parse_open(scf_parse_t** pparse, const char* path)
 	}
 
 	scf_ast_add_file_block(parse->ast, path);
+
+#if 1
+	if (_add_global_function(parse->ast, "scf_ref") < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	if (_add_global_function(parse->ast, "scf_free") < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+#endif
 
 	if (scf_parse_dfa_init(parse) < 0) {
 		scf_loge("\n");
@@ -486,15 +570,15 @@ int scf_parse_compile_function(scf_parse_t* parse, scf_native_t* native, scf_fun
 	scf_basic_block_print_list(&f->basic_block_list_head);
 
 #if 1
-	ret = scf_optimize(f, &f->basic_block_list_head);
+	ret = scf_optimize(parse->ast, f, &f->basic_block_list_head);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
 	}
 	scf_basic_block_print_list(&f->basic_block_list_head);
-//	_scf_loops_print(f->bb_loops);
+	_scf_loops_print(f->bb_loops);
 #endif
-	return 0;
+//	return 0;
 	return scf_native_select_inst(native, f);
 
 error:

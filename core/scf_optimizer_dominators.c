@@ -278,7 +278,7 @@ static int _bb_find_dominators(scf_list_t* bb_list_head)
 			}
 		}
 	} while (changed > 0);
-#if 1
+#if 0
 	for (i = 0; i < all->size; i++) {
 		bb = all->data[i];
 
@@ -298,7 +298,7 @@ error:
 	return ret;
 }
 
-static int _optimize_dominators(scf_function_t* f, scf_list_t* bb_list_head)
+static int _optimize_dominators(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head)
 {
 	if (!f || !bb_list_head)
 		return -EINVAL;
