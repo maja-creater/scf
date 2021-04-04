@@ -389,15 +389,18 @@ static int _bb_split_prev_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_
 				break;
 
 			if (bb3 == bb1) {
-				c      = scf_3ac_code_alloc();
-				c->dst = scf_3ac_operand_alloc();
-				c->op  = scf_3ac_find_operator(SCF_OP_GOTO);
-				c->dst->bb = bb;
-
 				bb3 = scf_basic_block_alloc();
 				if (!bb3)
 					return -ENOMEM;
 				bb3->jmp_flag = 1;
+
+				c      = scf_3ac_code_alloc();
+				c->dst = scf_3ac_operand_alloc();
+				c->op  = scf_3ac_find_operator(SCF_OP_GOTO);
+				c->dst->bb     = bb;
+				c->basic_block = bb3;
+
+				assert(0 == scf_vector_add(f->jmps, c));
 
 				scf_list_add_tail(&bb3->code_list_head, &c->list);
 
@@ -985,7 +988,7 @@ static int _optimize_auto_gc(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_l
 		}
 	}
 
-	scf_basic_block_print_list(bb_list_head);
+//	scf_basic_block_print_list(bb_list_head);
 	return 0;
 }
 

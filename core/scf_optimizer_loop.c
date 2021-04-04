@@ -335,6 +335,7 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 				scf_basic_block_t* jcc;
 				scf_3ac_code_t*    c;
 				scf_list_t*        l;
+				scf_list_t*        l2;
 
 				if (bb->nexts->data[k] != bbg->exit)
 					continue;
@@ -342,17 +343,17 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 				bb->nexts->data[k] = bbg->post;
 				assert(0 == scf_vector_del(bbg->exit->prevs, bb));
 
-				l   = scf_list_next(&bb->list);
-				assert(l != sentinel);
+				for (l  = scf_list_next(&bb->list); l != sentinel; l = scf_list_next(l)) {
 
-				jcc = scf_list_data(l, scf_basic_block_t, list);
-				assert(jcc->jmp_flag);
-				assert(jcc->jcc_flag);
+					jcc = scf_list_data(l, scf_basic_block_t, list);
+					if (!jcc->jmp_flag)
+						break;
 
-				l = scf_list_head(&jcc->code_list_head);
-				c = scf_list_data(l, scf_3ac_code_t, list);
-				if (c->dst->bb == bbg->exit)
-					c->dst->bb =  bbg->post;
+					l2 = scf_list_head(&jcc->code_list_head);
+					c  = scf_list_data(l2, scf_3ac_code_t, list);
+					if (c->dst->bb == bbg->exit)
+						c->dst->bb =  bbg->post;
+				}
 			}
 #if 1
 			for (k = 0; k < bb->dn_loads->size; k++) {
@@ -372,6 +373,8 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 			scf_vector_clear(bb->dn_saves, NULL);
 #endif
 		}
+
+		assert(0 == scf_vector_add_unique(bbg->exit->prevs, bbg->post));
 	}
 
 	return 0;
@@ -439,7 +442,7 @@ static int _optimize_loop(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list
 		return ret;
 	}
 
-#if 1
+#if 0
 	_scf_loops_print(f->bb_loops);
 #endif
 

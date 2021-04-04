@@ -548,7 +548,8 @@ static void _x64_set_offset_for_relas(scf_native_t* ctx, scf_function_t* f, scf_
 		scf_basic_block_t* bb;
 		scf_list_t*        l;
 
-		int bytes = 0;
+		int bytes = f->init_code_bytes;
+
 		for (l = scf_list_head(&f->basic_block_list_head); l != &cur_bb->list;
 				l = scf_list_next(l)) {
 
@@ -565,7 +566,6 @@ static void _x64_set_offset_for_relas(scf_native_t* ctx, scf_function_t* f, scf_
 		}
 
 		rela->inst_offset += bytes;
-		rela->inst_offset += f->init_code_bytes;
 	}
 }
 
@@ -820,6 +820,16 @@ static void _x64_bbg_fix_loads(scf_bb_group_t* bbg)
 
 				pre->code_bytes -= c->inst_bytes;
 				bb ->code_bytes += c->inst_bytes;
+
+				scf_3ac_code_t* c2;
+				scf_list_t*     l2;
+
+				for (l2 = scf_list_next(&c->list); l2 != scf_list_sentinel(&bb->code_list_head); ) {
+					c2  = scf_list_data(l2, scf_3ac_code_t, list);
+					l2  = scf_list_next(l2);
+
+					c2->bb_offset += c->inst_bytes;
+				}
 				break;
 			}
 		}

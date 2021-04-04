@@ -836,7 +836,7 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 
 			r->text_offset = offset + r->inst_offset;
 
-			scf_logw("rela text %s, text_offset: %ld, offset: %ld, inst_offset: %d\n",
+			scf_logw("rela text %s, text_offset: %#lx, offset: %ld, inst_offset: %d\n",
 					r->func->node.w->text->data, r->text_offset, offset, r->inst_offset);
 		}
 
