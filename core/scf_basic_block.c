@@ -70,19 +70,19 @@ scf_basic_block_t* scf_basic_block_alloc()
 	if (!bb->dn_resaves)
 		goto error_resaves;
 
-	bb->dn_malloced = scf_vector_alloc();
-	if (!bb->dn_malloced)
+	bb->ds_malloced = scf_vector_alloc();
+	if (!bb->ds_malloced)
 		goto error_malloced;
 
-	bb->dn_freed = scf_vector_alloc();
-	if (!bb->dn_freed)
+	bb->ds_freed = scf_vector_alloc();
+	if (!bb->ds_freed)
 		goto error_freed;
 
 	bb->generate_flag = 1;
 	return bb;
 
 error_freed:
-	scf_vector_free(bb->dn_malloced);
+	scf_vector_free(bb->ds_malloced);
 error_malloced:
 	scf_vector_free(bb->dn_resaves);
 error_resaves:

@@ -65,10 +65,10 @@ struct scf_basic_block_s
 	scf_vector_t*   dn_reloads;
 	scf_vector_t*   dn_resaves;
 
-	scf_vector_t*   dn_malloced;
-	scf_vector_t*   dn_freed;
+	scf_vector_t*   ds_malloced;
+	scf_vector_t*   ds_freed;
 
-	void*           dn_auto_gc;
+	void*           ds_auto_gc;
 
 	int             code_bytes;
 	int             index;

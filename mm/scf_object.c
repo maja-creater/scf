@@ -11,6 +11,7 @@ void* scf_malloc(int size)
 
 	scf_atomic_inc(&obj->refs);
 
+	scf_loge("obj: %p\n", obj);
 	return obj->data;
 }
 
@@ -21,8 +22,10 @@ void scf_free(void* data)
 
 	scf_object_t* obj = (scf_object_t*)((uint8_t*)data - sizeof(scf_object_t));
 
-	if (scf_atomic_dec_and_test(&obj->refs))
+	if (scf_atomic_dec_and_test(&obj->refs)) {
+		scf_loge("obj: %p\n", obj);
 		__sys_free(obj);
+	}
 }
 
 void scf_ref(void* data)
