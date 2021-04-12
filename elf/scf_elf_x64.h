@@ -47,6 +47,7 @@ typedef struct {
 	Elf64_Shdr		sh_strtab;
 
 	Elf64_Shdr		sh_shstrtab;
+	scf_string_t*   sh_shstrtab_data;   
 
 } scf_elf_x64_t;
 

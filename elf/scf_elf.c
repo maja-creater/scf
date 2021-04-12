@@ -9,7 +9,7 @@ scf_elf_ops_t*			elf_ops_array[] =
 	NULL,
 };
 
-int scf_elf_open(scf_elf_context_t** pelf, const char* machine, const char* path)
+int scf_elf_open(scf_elf_context_t** pelf, const char* machine, const char* path, const char* mode)
 {
 	scf_elf_context_t* elf = calloc(1, sizeof(scf_elf_context_t));
 	assert(elf);
@@ -27,7 +27,7 @@ int scf_elf_open(scf_elf_context_t** pelf, const char* machine, const char* path
 		return -1;
 	}
 
-	if (elf->ops->open && elf->ops->open(elf, path) == 0) {
+	if (elf->ops->open && elf->ops->open(elf, path, mode) == 0) {
 		*pelf = elf;
 		return 0;
 	}
@@ -87,6 +87,18 @@ int scf_elf_add_rela(scf_elf_context_t* elf, const scf_elf_rela_t* rela)
 	}
 
 	printf("%s(),%d, error: \n", __func__, __LINE__);
+	return -1;
+}
+
+int scf_elf_read_section(scf_elf_context_t* elf, scf_elf_section_t** psection, const char* name)
+{
+	if (elf && psection && name) {
+
+		if (elf->ops && elf->ops->read_section)
+			return elf->ops->read_section(elf, psection, name);
+	}
+
+	scf_loge("\n");
 	return -1;
 }
 

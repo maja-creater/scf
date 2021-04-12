@@ -1,14 +1,17 @@
 #include"scf_elf_x64.h"
 
-static int _x64_elf_open(scf_elf_context_t* elf, const char* path)
+static int _x64_elf_open(scf_elf_context_t* elf, const char* path, const char* mode)
 {
+	if (!elf || !path || !mode)
+		return -EINVAL;
+
 	scf_elf_x64_t* x64 = calloc(1, sizeof(scf_elf_x64_t));
 	if (!x64) {
 		printf("%s(),%d, error\n", __func__, __LINE__);
 		return -1;
 	}
 
-	x64->fp = fopen(path, "wb");
+	x64->fp = fopen(path, mode);
 	if (!x64->fp) {
 		printf("%s(),%d, error\n", __func__, __LINE__);
 
@@ -131,6 +134,183 @@ static int _x64_elf_add_section(scf_elf_context_t* elf, const scf_elf_section_t*
 
 	scf_vector_add(x64->sections, s);
 	return 0;
+}
+
+static int _x64_elf_read_section(scf_elf_context_t* elf, scf_elf_section_t** psection, const char* name)
+{
+	scf_elf_x64_t* x64 = elf->priv;
+
+	if (!x64 || !x64->fp)
+		return -1;
+
+	if (!x64->sh_shstrtab_data) {
+
+		int ret = fseek(x64->fp, 0, SEEK_SET);
+		if (ret < 0)
+			return ret;
+
+		ret = fread(&x64->eh, sizeof(Elf64_Ehdr), 1, x64->fp);
+		if (ret != 1)
+			return -1;
+
+		if (ELFMAG0        != x64->eh.e_ident[EI_MAG0]
+				|| ELFMAG1 != x64->eh.e_ident[EI_MAG1]
+				|| ELFMAG2 != x64->eh.e_ident[EI_MAG2]
+				|| ELFMAG3 != x64->eh.e_ident[EI_MAG3]) {
+			scf_loge("not elf file\n");
+			return -1;
+		}
+
+
+		long offset = x64->eh.e_shoff + x64->eh.e_shentsize * x64->eh.e_shstrndx;
+		fseek(x64->fp, offset, SEEK_SET);
+
+		ret = fread(&x64->sh_shstrtab, sizeof(Elf64_Shdr), 1, x64->fp);
+		if (ret != 1)
+			return -1;
+
+
+		x64->sh_shstrtab_data = scf_string_alloc();
+		if (!x64->sh_shstrtab_data)
+			return -1;
+
+		void* p = realloc(x64->sh_shstrtab_data->data, x64->sh_shstrtab.sh_size);
+		if (!p)
+			return -ENOMEM;
+		x64->sh_shstrtab_data->data     = p;
+		x64->sh_shstrtab_data->len      = x64->sh_shstrtab.sh_size;
+		x64->sh_shstrtab_data->capacity = x64->sh_shstrtab.sh_size;
+
+		scf_loge("x64->sh_shstrtab_data->data: %p\n",  x64->sh_shstrtab_data->data);
+		scf_loge("x64->sh_shstrtab_data->len:  %ld\n", x64->sh_shstrtab_data->len);
+
+		fseek(x64->fp, x64->sh_shstrtab.sh_offset, SEEK_SET);
+
+		ret = fread(x64->sh_shstrtab_data->data, x64->sh_shstrtab.sh_size, 1, x64->fp);
+		if (ret != 1)
+			return -1;
+
+		scf_loge("x64->sh_shstrtab_data->data: %p\n", x64->sh_shstrtab_data->data);
+		scf_loge("x64->sh_shstrtab_data->len:  %ld\n", x64->sh_shstrtab_data->len);
+
+		int i;
+		for (i = 0; i < x64->sh_shstrtab.sh_size; i++) {
+
+			unsigned char c = x64->sh_shstrtab_data->data[i];
+			if (c)
+				printf("%c", c);
+			else
+				printf("\n");
+		}
+		printf("\n");
+	}
+
+	int i;
+	for (i = 0; i < x64->sections->size; i++) {
+		scf_elf_x64_section_t* s = x64->sections->data[i];
+
+		if (!scf_string_cmp_cstr(s->name, name)) {
+
+			scf_elf_section_t* s2 = calloc(1, sizeof(scf_elf_section_t));
+			if (!s2)
+				return -ENOMEM;
+
+			s2->name = s->name->data;
+			s2->data = s->data;
+			s2->data_len = s->data_len;
+			s2->sh_type  = s->sh.sh_type;
+			s2->sh_flags = s->sh.sh_flags;
+			s2->sh_addralign = s->sh.sh_addralign;
+
+			*psection = s2;
+			return 0;
+		}
+	}
+
+	scf_elf_x64_section_t* s;
+	int j;
+	for (j = 1; j < x64->eh.e_shnum; j++) {
+
+		for (i = 0; i < x64->sections->size; i++) {
+			s  =        x64->sections->data[i];
+
+			if (j == s->index)
+				break;
+		}
+
+		if (i < x64->sections->size)
+			continue;
+
+		s = calloc(1, sizeof(scf_elf_x64_section_t));
+		if (!s)
+			return -ENOMEM;
+
+		long offset = x64->eh.e_shoff + x64->eh.e_shentsize * j;
+		fseek(x64->fp, offset, SEEK_SET);
+
+		int ret = fread(&s->sh, sizeof(Elf64_Shdr), 1, x64->fp);
+		if (ret != 1) {
+			free(s);
+			return -1;
+		}
+
+		s->index = j;
+		s->name  = scf_string_cstr(x64->sh_shstrtab_data->data + s->sh.sh_name);
+		if (!s->name) {
+			free(s);
+			return -1;
+		}
+
+		ret = scf_vector_add(x64->sections, s);
+		if (ret < 0) {
+			scf_string_free(s->name);
+			free(s);
+			return -1;
+		}
+
+		if (!scf_string_cmp_cstr(s->name, name))
+			break;
+	}
+
+	if (j < x64->eh.e_shnum) {
+
+		if (!s->data) {
+
+			s->data = malloc(s->sh.sh_size);
+			if (!s->data)
+				return -1;
+			s->data_len = s->sh.sh_size;
+
+			fseek(x64->fp, s->sh.sh_offset, SEEK_SET);
+
+			int ret = fread(s->data, s->data_len, 1, x64->fp);
+			if (ret != 1) {
+				free(s->data);
+				s->data = NULL;
+				s->data_len = 0;
+				return -1;
+			}
+		} else {
+			assert(s->data_len == s->sh.sh_size);
+		}
+
+		scf_elf_section_t* s2 = calloc(1, sizeof(scf_elf_section_t));
+		if (!s2)
+			return -ENOMEM;
+
+		s2->name = s->name->data;
+		s2->data = s->data;
+		s2->data_len = s->data_len;
+		s2->sh_type  = s->sh.sh_type;
+		s2->sh_flags = s->sh.sh_flags;
+		s2->sh_addralign = s->sh.sh_addralign;
+
+		*psection = s2;
+		return 0;
+	}
+
+	scf_loge("\n");
+	return -1;
 }
 
 static void _x64_elf_header_fill(Elf64_Ehdr* eh, Elf64_Addr e_entry, uint16_t e_shnum, uint16_t e_shstrndx)
@@ -296,15 +476,17 @@ static int _x64_elf_write_rel(scf_elf_context_t* elf, scf_list_t* code_list_head
 
 scf_elf_ops_t	elf_ops_x64 = {
 
-	.machine	 = "x64",
+	.machine	   = "x64",
 
-	.open		 = _x64_elf_open,
-	.close		 = _x64_elf_close,
+	.open		   = _x64_elf_open,
+	.close		   = _x64_elf_close,
 
-	.add_sym	 = _x64_elf_add_sym,
-	.add_section = _x64_elf_add_section,
-	.add_rela	 = _x64_elf_add_rela,
+	.add_sym	   = _x64_elf_add_sym,
+	.add_section   = _x64_elf_add_section,
+	.add_rela	   = _x64_elf_add_rela,
 
-	.write_rel	 = _x64_elf_write_rel,
+	.read_section  = _x64_elf_read_section,
+
+	.write_rel	   = _x64_elf_write_rel,
 };
 

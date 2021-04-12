@@ -1,11 +1,12 @@
 #include"scf_object.h"
 
 #define __sys_malloc  malloc
+#define __sys_calloc  calloc
 #define __sys_free    free
 
 void* scf_malloc(int size)
 {
-	scf_object_t* obj = __sys_malloc(sizeof(scf_object_t) + size);
+	scf_object_t* obj = __sys_calloc(1, sizeof(scf_object_t) + size);
 	if (!obj)
 		return NULL;
 
@@ -22,10 +23,10 @@ void scf_free(void* data)
 
 	scf_object_t* obj = (scf_object_t*)((uint8_t*)data - sizeof(scf_object_t));
 
-	if (scf_atomic_dec_and_test(&obj->refs)) {
-		scf_loge("obj: %p\n", obj);
+	scf_loge("obj: %p\n", obj);
+
+	if (scf_atomic_dec_and_test(&obj->refs))
 		__sys_free(obj);
-	}
 }
 
 void scf_ref(void* data)
@@ -34,6 +35,8 @@ void scf_ref(void* data)
 		return;
 
 	scf_object_t* obj = (scf_object_t*)((uint8_t*)data - sizeof(scf_object_t));
+
+	scf_loge("obj: %p\n", obj);
 
 	scf_atomic_inc(&obj->refs);
 }
