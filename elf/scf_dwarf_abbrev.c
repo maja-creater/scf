@@ -443,7 +443,7 @@ static void _dwarf_abbrev_print(scf_dwarf_abbrev_declaration_t* d)
 			printf("%u ", attr->name);
 		else {
 			int len = printf("%s ", scf_dwarf_find_attribute(attr->name));
-			len = 26 - len;
+			len = 30 - len;
 
 			char fmt[16];
 			sprintf(fmt, "%%%dc", len);

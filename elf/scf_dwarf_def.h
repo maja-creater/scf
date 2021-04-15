@@ -19,6 +19,11 @@ typedef struct    scf_dwarf_line_result_s         scf_dwarf_line_result_t;
 typedef struct    scf_dwarf_abbrev_declaration_s  scf_dwarf_abbrev_declaration_t;
 typedef struct    scf_dwarf_abbrev_attribute_s    scf_dwarf_abbrev_attribute_t;
 
+typedef struct    scf_dwarf_info_header_s         scf_dwarf_info_header_t;
+typedef struct    scf_dwarf_info_entry_s          scf_dwarf_info_entry_t;
+typedef struct    scf_dwarf_info_attr_s           scf_dwarf_info_attr_t;
+typedef struct    scf_dwarf_attr_block_s          scf_dwarf_attr_block_t;
+
 // dwarf line standard opcodes
 #define DW_LNS_copy              1
 #define DW_LNS_advance_pc        2
@@ -212,6 +217,58 @@ typedef struct    scf_dwarf_abbrev_attribute_s    scf_dwarf_abbrev_attribute_t;
 #define DW_FORM_flag_present          0x19
 #define DW_FORM_ref_sig8              0x20
 
+struct scf_dwarf_info_header_s
+{
+	scf_dwarf_uword_t  length;
+	scf_dwarf_uhalf_t  version;
+	scf_dwarf_uword_t  offset;
+	scf_dwarf_ubyte_t  address_size;
+};
+
+struct scf_dwarf_info_entry_s
+{
+	scf_dwarf_uword_t  code;
+
+	uint64_t           cu_byte_offset;
+
+	scf_vector_t*      attributes;
+};
+
+struct scf_dwarf_info_attr_s
+{
+	scf_dwarf_uword_t       name;
+	scf_dwarf_uword_t       form;
+
+	scf_dwarf_info_entry_t* ref_entry;
+
+	uintptr_t               block_ref;
+	uint64_t                block_ref8;
+
+	union {
+		scf_dwarf_uword_t   block_length;
+
+		uintptr_t           address;
+		uint8_t             const1;
+		uint16_t            const2;
+		uint32_t            const4;
+		uint64_t            const8;
+		scf_dwarf_sword_t   sdata;
+		scf_dwarf_uword_t   udata;
+
+		scf_dwarf_ubyte_t   flag;
+
+		scf_dwarf_uword_t   lineptr;
+		scf_dwarf_uword_t   exprloc;
+
+		uintptr_t           ref;
+		uint64_t            ref8;
+
+		scf_dwarf_uword_t   str_offset;
+	};
+
+	scf_string_t*           data;
+};
+
 struct scf_dwarf_abbrev_attribute_s
 {
 	scf_dwarf_uword_t  name;
@@ -289,6 +346,9 @@ struct scf_dwarf_line_machine_s
 	scf_dwarf_line_prologue_t* prologue;
 };
 
+scf_dwarf_info_entry_t*          scf_dwarf_info_entry_alloc();
+void                             scf_dwarf_info_entry_free(scf_dwarf_info_entry_t* ie);
+void                             scf_dwarf_info_attr_free(scf_dwarf_info_attr_t* attr);
 
 scf_dwarf_line_machine_t*        scf_dwarf_line_machine_alloc();
 scf_dwarf_abbrev_declaration_t*  scf_dwarf_abbrev_declaration_alloc();
@@ -299,7 +359,11 @@ int scf_dwarf_line_machine_encode(scf_dwarf_line_machine_t* lm, scf_vector_t* li
 int scf_dwarf_abbrev_decode(scf_vector_t* abbrev_results, const char*   debug_abbrev, size_t debug_abbrev_size);
 int scf_dwarf_abbrev_encode(scf_vector_t* abbrev_results, scf_string_t* debug_abbrev);
 
+int scf_dwarf_info_decode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string_t* debug_str, const char*   debug_info, size_t debug_info_size, scf_dwarf_info_header_t* header);
+int scf_dwarf_info_encode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string_t* debug_str, scf_string_t* debug_info, scf_dwarf_info_header_t* header);
+
 void scf_dwarf_abbrev_print(scf_vector_t* abbrev_results);
+void scf_dwarf_info_print  (scf_vector_t* infos);
 
 const char* scf_dwarf_find_tag (const uint32_t type);
 const char* scf_dwarf_find_form(const uint32_t type);

@@ -205,29 +205,33 @@ static int _x64_elf_read_section(scf_elf_context_t* elf, scf_elf_section_t** pse
 		printf("\n");
 	}
 
+	scf_elf_x64_section_t* s;
 	int i;
 	for (i = 0; i < x64->sections->size; i++) {
-		scf_elf_x64_section_t* s = x64->sections->data[i];
+		s = x64->sections->data[i];
 
 		if (!scf_string_cmp_cstr(s->name, name)) {
 
-			scf_elf_section_t* s2 = calloc(1, sizeof(scf_elf_section_t));
-			if (!s2)
-				return -ENOMEM;
+			if (s->data) {
+				scf_elf_section_t* s2 = calloc(1, sizeof(scf_elf_section_t));
+				if (!s2)
+					return -ENOMEM;
 
-			s2->name = s->name->data;
-			s2->data = s->data;
-			s2->data_len = s->data_len;
-			s2->sh_type  = s->sh.sh_type;
-			s2->sh_flags = s->sh.sh_flags;
-			s2->sh_addralign = s->sh.sh_addralign;
+				s2->name = s->name->data;
+				s2->data = s->data;
+				s2->data_len = s->data_len;
+				s2->sh_type  = s->sh.sh_type;
+				s2->sh_flags = s->sh.sh_flags;
+				s2->sh_addralign = s->sh.sh_addralign;
 
-			*psection = s2;
-			return 0;
+				*psection = s2;
+				return 0;
+			}
+
+			goto _read_data;
 		}
 	}
 
-	scf_elf_x64_section_t* s;
 	int j;
 	for (j = 1; j < x64->eh.e_shnum; j++) {
 
@@ -274,6 +278,7 @@ static int _x64_elf_read_section(scf_elf_context_t* elf, scf_elf_section_t** pse
 
 	if (j < x64->eh.e_shnum) {
 
+_read_data:
 		if (!s->data) {
 
 			s->data = malloc(s->sh.sh_size);

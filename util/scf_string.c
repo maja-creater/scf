@@ -192,6 +192,84 @@ int	scf_string_cat_cstr_len(scf_string_t* s0, const char* str, size_t len)
 	return scf_string_cat(s0, &s1);
 }
 
+static int* _prefix_kmp(const uint8_t* P, int m)
+{
+	int* prefix = malloc(sizeof(int) * m);
+	if (!prefix)
+		return NULL;
+
+	prefix[0] = -1;
+
+	int k = -1;
+	int q;
+
+	for (q = 1; q < m; q++) {
+
+		while (k > -1 && P[k + 1] != P[q])
+			k = prefix[k];
+
+		if (P[k + 1] == P[q])
+			k++;
+
+		prefix[q] = k;
+	}
+	return prefix;
+}
+
+static int _match_kmp(const uint8_t* T, int Tlen, const uint8_t* P, int Plen, scf_vector_t* offsets)
+{
+	if (Tlen <= 0 || Plen <= 0)
+		return -EINVAL;
+
+	int n = Tlen;
+	int m = Plen;
+
+	int* prefix = _prefix_kmp(P, m);
+	if (!prefix)
+		return -1;
+
+	int q = -1;
+	int i;
+
+	for (i = 0; i < n; i++) {
+
+		while (q > -1 && P[q + 1] != T[i])
+			q = prefix[q];
+
+		if (P[q + 1] == T[i])
+			q++;
+
+		if (q == m - 1) {
+			scf_logd("KMP find P: %s in T: %s, offset: %d\n", P, T, i - m + 1);
+
+			int ret = scf_vector_add(offsets, (void*)(intptr_t)(i - m + 1));
+			if (ret < 0)
+				return ret;
+
+			q = prefix[q];
+		}
+	}
+
+	free(prefix);
+	return 0;
+}
+
+int scf_string_match_kmp(const scf_string_t* T, const scf_string_t* P, scf_vector_t* offsets)
+{
+	if (!T || !P || !offsets)
+		return -EINVAL;
+
+	return _match_kmp(T->data, T->len, P->data, P->len, offsets);
+}
+
+int scf_string_match_kmp_cstr(const uint8_t* T, const uint8_t* P, scf_vector_t* offsets)
+{
+	if (!T || !P || !offsets)
+		return -EINVAL;
+
+	return _match_kmp(T, strlen(T), P, strlen(P), offsets);
+}
+
 #if 0
 int main(int argc, char* argv[])
 {
@@ -215,6 +293,24 @@ int main(int argc, char* argv[])
 
 	scf_string_cat_cstr(s0, "he he he!");
 	printf("s0: %s\n", s0->data);
+
+	scf_string_t* s4  = scf_string_cstr("hello, world!");
+	scf_string_t* s5  = scf_string_cstr("ll");
+	scf_vector_t* vec = scf_vector_alloc();
+
+	int ret = scf_string_match_kmp(s4, s5, vec);
+	if (ret < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	int i;
+	for (i = 0; i < vec->size; i++) {
+
+		int offset = (intptr_t)vec->data[i];
+
+		printf("i: %d, offset: %d\n", i, offset);
+	}
 
 	scf_string_free(s0);
 	scf_string_free(s1);

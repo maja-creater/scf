@@ -1,7 +1,7 @@
 #ifndef SCF_STRING_H
 #define SCF_STRING_H
 
-#include"scf_def.h"
+#include"scf_vector.h"
 
 typedef struct {
 	int      capacity;
@@ -32,7 +32,10 @@ int				scf_string_cat(scf_string_t* s0, const scf_string_t* s1);
 
 int				scf_string_cat_cstr(scf_string_t* s0, const char* str);
 
-int				scf_string_cat_cstr_len(scf_string_t* s0, const char* str, size_t len);
+int             scf_string_cat_cstr_len(scf_string_t* s0, const char* str, size_t len);
+
+int             scf_string_match_kmp(const scf_string_t* T, const scf_string_t* P, scf_vector_t* offsets);
+int             scf_string_match_kmp_cstr(const uint8_t* T, const uint8_t* P,      scf_vector_t* offsets);
 
 #endif
 
