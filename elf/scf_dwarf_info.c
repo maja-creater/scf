@@ -430,6 +430,124 @@ int scf_dwarf_info_encode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string
 	return 0;
 }
 
+int scf_dwarf_info_fill_attr(scf_dwarf_info_attr_t* iattr, uint8_t* data, size_t len)
+{
+	if (!iattr || !data || 0 == len) {
+		scf_loge("\n");
+		return -EINVAL;
+	}
+
+	switch (iattr->form) {
+
+		case DW_FORM_addr:
+			assert(len >= sizeof(uintptr_t));
+
+			iattr->address = *(uintptr_t*)data;
+			break;
+
+		case DW_FORM_data1:
+			assert(len >= sizeof(uint8_t));
+
+			iattr->const1 = *(uint8_t*)data;
+			break;
+		case DW_FORM_data2:
+			assert(len >= sizeof(uint16_t));
+
+			iattr->const2 = *(uint16_t*)data;
+			break;
+		case DW_FORM_data4:
+			assert(len >= sizeof(uint32_t));
+
+			iattr->const4 = *(uint32_t*)data;
+			break;
+		case DW_FORM_data8:
+			assert(len >= sizeof(uint64_t));
+
+			iattr->const8 = *(uint64_t*)data;
+			break;
+
+		case DW_FORM_sdata:
+			assert(len >= sizeof(scf_dwarf_sword_t));
+			iattr->sdata = *(scf_dwarf_sword_t*)data;
+			break;
+		case DW_FORM_udata:
+			assert(len >= sizeof(scf_dwarf_uword_t));
+			iattr->udata = *(scf_dwarf_uword_t*)data;
+			break;
+
+		case DW_FORM_flag:
+			assert(len >= 1);
+			iattr->flag  = data[0];
+			break;
+		case DW_FORM_flag_present:
+			iattr->flag  = 1;
+			break;
+
+		case DW_FORM_ref1:
+			assert(len >= sizeof(uint8_t));
+
+			iattr->ref8 = *(uint8_t*)data;
+			break;
+		case DW_FORM_ref2:
+			assert(len >= sizeof(uint16_t));
+
+			iattr->ref8 = *(uint16_t*)data;
+			break;
+		case DW_FORM_ref4:
+			assert(len >= sizeof(uint32_t));
+
+			iattr->ref8 = *(uint32_t*)data;
+			break;
+		case DW_FORM_ref8:
+			assert(len >= sizeof(uint64_t));
+
+			iattr->ref8 = *(uint64_t*)data;
+			break;
+		case DW_FORM_ref_udata:
+			iattr->ref8 = *(scf_dwarf_uword_t*)data;
+			break;
+
+		case DW_FORM_string:
+
+			iattr->data = scf_string_cstr_len(data, len);
+			if (!iattr->data)
+				return -ENOMEM;
+			break;
+		case DW_FORM_strp:
+			assert(len >= sizeof(scf_dwarf_uword_t));
+
+			iattr->str_offset = *(scf_dwarf_uword_t*)data;
+			break;
+
+		case DW_FORM_sec_offset:
+			assert(len >= sizeof(scf_dwarf_uword_t));
+
+			iattr->lineptr = *(scf_dwarf_uword_t*)data;
+			break;
+
+		case DW_FORM_exprloc:
+			assert(len >= sizeof(scf_dwarf_uword_t));
+			iattr->exprloc = *(scf_dwarf_uword_t*)data;
+
+			assert(len >= sizeof(scf_dwarf_uword_t) + iattr->exprloc);
+
+			iattr->data = scf_string_cstr_len(data + sizeof(scf_dwarf_uword_t), iattr->exprloc);
+			if (!iattr->data)
+				return -ENOMEM;
+			break;
+		case 0:
+			assert(0 == iattr->name);
+			break;
+		default:
+			scf_loge("iattr->form: %u\n", iattr->form);
+			scf_loge("iattr->form: %s\n", scf_dwarf_find_form(iattr->form));
+			return -1;
+			break;
+	};
+
+	return 0;
+}
+
 void scf_dwarf_info_print(scf_vector_t* infos)
 {
 	if (!infos)

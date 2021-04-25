@@ -6,6 +6,7 @@
 #include"scf_basic_block.h"
 #include"scf_optimizer.h"
 #include"scf_elf.h"
+#include"scf_leb128.h"
 
 scf_base_type_t	base_types[] = {
 	{SCF_VAR_CHAR,		"char",		1},
@@ -298,13 +299,19 @@ int	scf_parse_open(scf_parse_t** pparse, const char* path)
 	}
 
 	parse->symtab = scf_vector_alloc();
-	if (!parse->symtab) {
-		scf_loge("\n");
+	if (!parse->symtab)
 		return -1;
-	}
+
+	parse->debug = scf_dwarf_debug_alloc();
+	if (!parse->debug)
+		goto debug_error;
 
 	*pparse = parse;
 	return 0;
+
+debug_error:
+	scf_vector_free(parse->symtab);
+	return -1;
 }
 
 static int _find_sym(const void* v0, const void* v1)
@@ -403,9 +410,283 @@ int scf_parse_parse(scf_parse_t* parse)
 	return 0;
 }
 
-static int _fill_code_list_inst(scf_string_t* code, scf_list_t* h)
+static int _debug_abbrev_find_by_tag(const void* v0, const void* v1)
+{
+	const scf_dwarf_uword_t               tag = (scf_dwarf_uword_t)(uintptr_t)v0;
+	const scf_dwarf_abbrev_declaration_t* d   = v1;
+
+	return tag != d->tag;
+}
+
+static int _debug_add_var(scf_parse_t* parse, scf_node_t* node)
+{
+	scf_variable_t* var = node->var;
+	scf_type_t*     t   = scf_ast_find_type_type(parse->ast, var->type);
+
+	int ret;
+
+	if (t->type >= SCF_STRUCT) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	scf_dwarf_abbrev_declaration_t* d;
+	scf_dwarf_abbrev_declaration_t* d2;
+	scf_dwarf_abbrev_attribute_t*   attr;
+	scf_dwarf_info_entry_t*         ie;
+	scf_dwarf_info_entry_t*         ie2;
+	scf_dwarf_info_attr_t*          iattr;
+
+	d = scf_vector_find_cmp(parse->debug->abbrevs, (void*)DW_TAG_base_type, _debug_abbrev_find_by_tag);
+	if (!d) {
+		ret = scf_dwarf_abbrev_add_base_type(parse->debug->abbrevs);
+		if (ret < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+
+		d = parse->debug->abbrevs->data[parse->debug->abbrevs->size - 1];
+
+		assert(DW_TAG_base_type == d->tag);
+	}
+
+	int i;
+	int j;
+	for (i = 0; i < parse->debug->infos->size; i++) {
+		ie =        parse->debug->infos->data[i];
+
+		if (ie->code != d->code)
+			continue;
+
+		assert(ie->attributes->size == d->attributes->size);
+
+		for (j = 0; j < d ->attributes->size; j++) {
+			attr      = d ->attributes->data[j];
+
+			if (DW_AT_name != attr->name)
+				continue;
+
+			iattr     = ie->attributes->data[j];
+
+			if (!scf_string_cmp(iattr->data, t->name))
+				goto _find_type;
+		}
+	}
+
+	ie = scf_dwarf_info_entry_alloc();
+	if (!ie)
+		return -ENOMEM;
+	ie->code = d->code;
+
+	ret = scf_vector_add(parse->debug->infos, ie);
+	if (ret < 0) {
+		scf_dwarf_info_entry_free(ie);
+		return ret;
+	}
+
+	for (j = 0; j < d ->attributes->size; j++) {
+		attr      = d ->attributes->data[j];
+
+		iattr = calloc(1, sizeof(scf_dwarf_info_attr_t));
+		if (!iattr)
+			return -ENOMEM;
+
+		ret = scf_vector_add(ie->attributes, iattr);
+		if (ret < 0) {
+			free(iattr);
+			return ret;
+		}
+
+		iattr->name = attr->name;
+		iattr->form = attr->form;
+
+		if (DW_AT_byte_size == iattr->name) {
+
+			ret = scf_dwarf_info_fill_attr(iattr, (uint8_t*)&t->size, sizeof(t->size));
+			if (ret < 0)
+				return ret;
+
+		} else if (DW_AT_encoding == iattr->name) {
+
+			uint8_t ate;
+
+			if (SCF_VAR_CHAR == t->type || SCF_VAR_I8 == t->type)
+				ate = DW_ATE_signed_char;
+
+			else if (scf_type_is_signed(t->type))
+				ate = DW_ATE_signed;
+
+			else if (SCF_VAR_U8 == t->type)
+				ate = DW_ATE_unsigned_char;
+
+			else if (scf_type_is_unsigned(t->type))
+				ate = DW_ATE_unsigned;
+			else {
+				scf_loge("\n");
+				return -1;
+			}
+
+			ret = scf_dwarf_info_fill_attr(iattr, &ate, 1);
+			if (ret < 0)
+				return ret;
+
+		} else if (DW_AT_name == iattr->name) {
+
+			if (DW_FORM_string != iattr->form) {
+				scf_loge("\n");
+				return -1;
+			}
+
+			ret = scf_dwarf_info_fill_attr(iattr, t->name->data, t->name->len);
+			if (ret < 0)
+				return ret;
+
+		} else if (0 == iattr->name) {
+			assert(0 == iattr->form);
+		} else {
+			scf_loge("iattr->name: %d\n", iattr->name);
+			return -1;
+		}
+	}
+
+_find_type:
+	d2 = scf_vector_find_cmp(parse->debug->abbrevs, (void*)DW_TAG_variable, _debug_abbrev_find_by_tag);
+	if (!d2) {
+		ret = scf_dwarf_abbrev_add_base_var(parse->debug->abbrevs);
+		if (ret < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+
+		d2 = parse->debug->abbrevs->data[parse->debug->abbrevs->size - 1];
+
+		assert(DW_TAG_variable == d2->tag);
+	}
+
+	for (i  = 0; i < parse->debug->infos->size; i++) {
+		ie2 =        parse->debug->infos->data[i];
+
+		if (ie2->code != d2->code)
+			continue;
+
+		assert(ie2->attributes->size == d2->attributes->size);
+
+		for (j = 0; j < d2 ->attributes->size; j++) {
+			attr      = d2 ->attributes->data[j];
+
+			if (DW_AT_name != attr->name)
+				continue;
+
+			iattr     = ie2->attributes->data[j];
+
+			if (!scf_string_cmp(iattr->data, var->w->text)) {
+				scf_logw("find var: %s\n", var->w->text->data);
+				return 0;
+			}
+		}
+	}
+
+	ie2 = scf_dwarf_info_entry_alloc();
+	if (!ie2)
+		return -ENOMEM;
+
+	ret = scf_vector_add(parse->debug->infos, ie2);
+	if (ret < 0) {
+		scf_dwarf_info_entry_free(ie2);
+		return ret;
+	}
+
+	for (j = 0; j < d2 ->attributes->size; j++) {
+		attr      = d2 ->attributes->data[j];
+
+		iattr = calloc(1, sizeof(scf_dwarf_info_attr_t));
+		if (!iattr)
+			return -ENOMEM;
+
+		int ret = scf_vector_add(ie2->attributes, iattr);
+		if (ret < 0) {
+			free(iattr);
+			return ret;
+		}
+
+		iattr->name = attr->name;
+		iattr->form = attr->form;
+
+		if (DW_AT_name == iattr->name) {
+
+			if (DW_FORM_string != iattr->form) {
+				scf_loge("\n");
+				return -1;
+			}
+
+			ret = scf_dwarf_info_fill_attr(iattr, var->w->text->data, var->w->text->len);
+			if (ret < 0)
+				return ret;
+
+		} else if (DW_AT_decl_file == iattr->name) {
+
+			uint8_t file = 1;
+
+			ret = scf_dwarf_info_fill_attr(iattr, &file, 1);
+			if (ret < 0)
+				return ret;
+
+		} else if (DW_AT_decl_line == iattr->name) {
+
+			ret = scf_dwarf_info_fill_attr(iattr, (uint8_t*)&var->w->line, sizeof(var->w->line));
+			if (ret < 0)
+				return ret;
+
+		} else if (DW_AT_type == iattr->name) {
+
+			uint32_t type = 0x73;
+
+			ret = scf_dwarf_info_fill_attr(iattr, (uint8_t*)&type, sizeof(uint32_t));
+			if (ret < 0)
+				return ret;
+
+		} else if (DW_AT_location == iattr->name) {
+
+			if (!var->local_flag) {
+				scf_loge("var: %s\n", var->w->text->data);
+				return -1;
+			}
+
+			scf_loge("var->bp_offset: %d, var: %s\n", var->bp_offset, var->w->text->data);
+
+			uint8_t buf[64];
+
+			buf[sizeof(scf_dwarf_uword_t)] = DW_OP_fbreg;
+
+			size_t len = scf_leb128_encode_int32(var->bp_offset,
+					buf         + sizeof(scf_dwarf_uword_t) + 1,
+					sizeof(buf) - sizeof(scf_dwarf_uword_t) - 1);
+			assert(len > 0);
+
+			*(scf_dwarf_uword_t*) buf = 1 + len;
+
+			ret = scf_dwarf_info_fill_attr(iattr, buf, sizeof(scf_dwarf_uword_t) + 1 + len);
+			if (ret < 0)
+				return ret;
+
+		} else if (0 == iattr->name) {
+			assert(0 == iattr->form);
+		} else {
+			scf_loge("\n");
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int _fill_code_list_inst(scf_string_t* code, scf_list_t* h, int64_t offset, scf_parse_t* parse)
 {
 	scf_list_t* l;
+	scf_node_t* node;
+
+	uint32_t    line  = 0;
+	uint32_t    line2 = 0;
 
 	for (l = scf_list_head(h); l != scf_list_sentinel(h); l = scf_list_next(l)) {
 
@@ -425,12 +706,72 @@ static int _fill_code_list_inst(scf_string_t* code, scf_list_t* h)
 			if (ret < 0)
 				return ret;
 		}
+
+		if (c->dst && c->dst->dag_node && c->dst->dag_node->node) {
+
+			node = c->dst->dag_node->node;
+
+			if (node->debug_w) {
+				line2 = node->debug_w->line;
+
+				if (scf_type_is_var(node->type) && node->var->local_flag) {
+
+					ret = _debug_add_var(parse, node);
+					if (ret < 0)
+						return ret;
+				}
+			}
+		}
+
+		if (c->srcs) {
+			scf_3ac_operand_t* src;
+
+			for (i = 0; i < c->srcs->size; i++) {
+				src       = c->srcs->data[i];
+
+				if (!src->dag_node || !src->dag_node->node)
+					continue;
+
+				node = src->dag_node->node;
+
+				if (node->debug_w) {
+					if (line2 < node->debug_w->line)
+						line2 = node->debug_w->line;
+
+					if (scf_type_is_var(node->type) && node->var->local_flag) {
+
+						ret = _debug_add_var(parse, node);
+						if (ret < 0)
+							return ret;
+					}
+				}
+			}
+		}
+
+		if (line2 > line) {
+			line  = line2;
+
+			scf_dwarf_line_result_t* r = calloc(1, sizeof(scf_dwarf_line_result_t));
+			if (!r)
+				return -ENOMEM;
+
+			r->address = offset;
+			r->line    = line;
+
+			ret = scf_vector_add(parse->debug->lines, r);
+			if (ret < 0) {
+				free(r);
+				return ret;
+			}
+		}
+
+		offset += c->inst_bytes;
 	}
 
 	return 0;
 }
 
-static int _fill_function_inst(scf_string_t* code, scf_function_t* f)
+static int _fill_function_inst(scf_string_t* code, scf_function_t* f, int64_t offset, scf_parse_t* parse)
 {
 	scf_list_t* l;
 	int ret;
@@ -457,13 +798,19 @@ static int _fill_function_inst(scf_string_t* code, scf_function_t* f)
 
 		scf_basic_block_t* bb = scf_list_data(l, scf_basic_block_t, list);
 
-		ret = _fill_code_list_inst(code, &bb->code_list_head);
+		ret = _fill_code_list_inst(code, &bb->code_list_head, offset + f->code_bytes, parse);
 		if (ret < 0)
 			return ret;
 
 		f->code_bytes += bb->code_bytes;
 	}
 
+	if (parse->debug->lines->size > 0) {
+
+		scf_dwarf_line_result_t* r = parse->debug->lines->data[parse->debug->lines->size - 1];
+
+		r->end_sequence = 1;
+	}
 	return 0;
 }
 
@@ -737,11 +1084,11 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 
 	int ret = 0;
 
-	scf_vector_t*      functions   = NULL;
-	scf_vector_t*      global_vars = NULL;
-	scf_elf_context_t* elf         = NULL;
-	scf_native_t*      native      = NULL;
-	scf_string_t*      code        = NULL;
+	scf_vector_t*      functions     = NULL;
+	scf_vector_t*      global_vars   = NULL;
+	scf_elf_context_t* elf           = NULL;
+	scf_native_t*      native        = NULL;
+	scf_string_t*      code          = NULL;
 
 	scf_elf_section_t  cs;
 
@@ -767,7 +1114,7 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 		goto open_native_error;
 	}
 
-	ret = scf_elf_open(&elf, "x64", "./1.elf");
+	ret = scf_elf_open(&elf, "x64", "./1.elf", "wb");
 	if (ret < 0) {
 		scf_loge("open elf file failed\n");
 		goto open_elf_error;
@@ -805,7 +1152,7 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 			goto error;
 		}
 
-		ret = _fill_function_inst(code, f);
+		ret = _fill_function_inst(code, f, offset, parse);
 		if (ret < 0) {
 			scf_loge("\n");
 			goto error;
@@ -936,6 +1283,13 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 		goto error;
 	}
 	ret = 0;
+
+	for (i = 0; i < parse->debug->lines->size; i++) {
+
+		scf_dwarf_line_result_t* r = parse->debug->lines->data[i];
+
+		scf_logi("i: %d, line: %d, address: %#lx\n", i, r->line, r->address);
+	}
 
 	scf_logi("ok\n\n");
 

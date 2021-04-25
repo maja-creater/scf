@@ -127,6 +127,7 @@ static int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
 		scf_scope_push_var(parse->ast->current_block->scope, var);
 
 		d->current_var   = var;
+		d->current_var_w = id->identity;
 		id0->nb_pointers = 0;
 		id0->const_flag  = 0;
 
@@ -234,7 +235,7 @@ static int _var_action_assign(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	scf_node_t*     n0 = scf_node_alloc(w, op->type, NULL);
 	n0->op = op;
 
-	scf_node_t*     n1 = scf_node_alloc(NULL, d->current_var->type, d->current_var);
+	scf_node_t*     n1 = scf_node_alloc(d->current_var_w, d->current_var->type, d->current_var);
 	scf_expr_t*     e  = scf_expr_alloc();
 
 	scf_node_add_child(n0, n1);

@@ -160,6 +160,8 @@ int	scf_lex_open(scf_lex_t** plex, const char* path)
 	lex->file = scf_string_cstr(path);
 	assert(lex->file);
 
+	lex->nb_lines = 1;
+
 	*plex = lex;
 	return 0;
 }

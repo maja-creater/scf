@@ -46,14 +46,21 @@ scf_node_t* scf_node_alloc(scf_lex_word_t* w, int type, scf_variable_t* var)
 			node->w = NULL;
 	}
 
+	if (w) {
+		node->debug_w = scf_lex_word_clone(w);
+		if (!node->debug_w) {
+			scf_loge("node word clone failed\n");
+			goto _failed;
+		}
+	}
+
 	node->type = type;
 
 	scf_logd("node: %p, node->type: %d\n", node, node->type);
 	return node;
 
 _failed:
-	free(node);
-	node = NULL;
+	scf_node_free(node);
 	return NULL;
 }
 
@@ -112,6 +119,11 @@ void scf_node_free_data(scf_node_t* node)
 			scf_lex_word_free(node->w);
 			node->w = NULL;
 		}
+	}
+
+	if (node->debug_w) {
+		scf_lex_word_free(node->debug_w);
+		node->debug_w = NULL;
 	}
 
 	if (node->result) {

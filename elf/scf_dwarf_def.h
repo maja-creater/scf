@@ -24,6 +24,8 @@ typedef struct    scf_dwarf_info_entry_s          scf_dwarf_info_entry_t;
 typedef struct    scf_dwarf_info_attr_s           scf_dwarf_info_attr_t;
 typedef struct    scf_dwarf_attr_block_s          scf_dwarf_attr_block_t;
 
+typedef struct    scf_dwarf_debug_s               scf_dwarf_debug_t;
+
 // dwarf line standard opcodes
 #define DW_LNS_copy              1
 #define DW_LNS_advance_pc        2
@@ -190,6 +192,17 @@ typedef struct    scf_dwarf_attr_block_s          scf_dwarf_attr_block_t;
 #define DW_AT_GNU_all_call_sites      0x2117
 #define DW_AT_hi_user                 0x3fff
 
+#define DW_ATE_address                0x1
+#define DW_ATE_boolean                0x2
+#define DW_ATE_complex_float          0x3
+#define DW_ATE_float                  0x4
+#define DW_ATE_signed                 0x5
+#define DW_ATE_signed_char            0x6
+#define DW_ATE_unsigned               0x7
+#define DW_ATE_unsigned_char          0x8
+#define DW_ATE_lo_user                0x80
+#define DW_ATE_hi_user                0xff
+
 // dwarf forms
 #define DW_FORM_addr                  0x01
 #define DW_FORM_block2                0x03
@@ -216,6 +229,8 @@ typedef struct    scf_dwarf_attr_block_s          scf_dwarf_attr_block_t;
 #define DW_FORM_exprloc               0x18
 #define DW_FORM_flag_present          0x19
 #define DW_FORM_ref_sig8              0x20
+
+#define DW_OP_fbreg                   0x91
 
 struct scf_dwarf_info_header_s
 {
@@ -346,9 +361,27 @@ struct scf_dwarf_line_machine_s
 	scf_dwarf_line_prologue_t* prologue;
 };
 
+struct scf_dwarf_debug_s
+{
+	scf_vector_t*       lines;
+	scf_vector_t*       infos;
+	scf_vector_t*       abbrevs;
+	scf_string_t*       str;
+};
+
+scf_dwarf_debug_t*               scf_dwarf_debug_alloc();
+void                             scf_dwarf_debug_free(scf_dwarf_debug_t* debug);
+
+int scf_dwarf_abbrev_add_cu(scf_vector_t* abbrevs);
+int scf_dwarf_abbrev_add_subprogram(scf_vector_t* abbrevs);
+int scf_dwarf_abbrev_add_base_type (scf_vector_t* abbrevs);
+int scf_dwarf_abbrev_add_base_var  (scf_vector_t* abbrevs);
+
 scf_dwarf_info_entry_t*          scf_dwarf_info_entry_alloc();
 void                             scf_dwarf_info_entry_free(scf_dwarf_info_entry_t* ie);
 void                             scf_dwarf_info_attr_free(scf_dwarf_info_attr_t* attr);
+
+int scf_dwarf_info_fill_attr(scf_dwarf_info_attr_t* iattr, uint8_t* data, size_t len);
 
 scf_dwarf_line_machine_t*        scf_dwarf_line_machine_alloc();
 scf_dwarf_abbrev_declaration_t*  scf_dwarf_abbrev_declaration_alloc();

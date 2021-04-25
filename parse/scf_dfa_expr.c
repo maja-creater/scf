@@ -113,7 +113,7 @@ int _expr_add_var(scf_parse_t* parse, dfa_parse_data_t* d)
 		var->const_literal_flag = 1;
 	}
 
-	node = scf_node_alloc(NULL, var->type, var);
+	node = scf_node_alloc(w, var->type, var);
 	if (!node) {
 		scf_loge("var node '%s' alloc failed\n", w->text->data);
 		return SCF_DFA_ERROR;
@@ -225,7 +225,7 @@ static int _expr_action_number(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 		return SCF_DFA_ERROR;
 	}
 
-	scf_node_t* n = scf_node_alloc(NULL, var->type, var);
+	scf_node_t* n = scf_node_alloc(w, var->type, var);
 	if (!n) {
 		scf_loge("var node '%s' alloc failed\n", w->text->data);
 		return SCF_DFA_ERROR;

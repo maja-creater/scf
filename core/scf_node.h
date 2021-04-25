@@ -25,6 +25,8 @@ struct scf_node_s {
 		scf_label_t*		label;
 	};
 
+	scf_lex_word_t*		debug_w;
+
 	int					priority;
 	scf_operator_t*		op;
 

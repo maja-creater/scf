@@ -5,6 +5,7 @@
 #include"scf_ast.h"
 #include"scf_dfa.h"
 #include"scf_stack.h"
+#include"scf_dwarf_def.h"
 
 typedef struct scf_parse_s		scf_parse_t;
 typedef struct dfa_parse_data_s dfa_parse_data_t;
@@ -23,6 +24,8 @@ struct scf_parse_s {
 	dfa_parse_data_t*  dfa_data;
 
 	scf_vector_t*      symtab;
+
+	scf_dwarf_debug_t* debug;
 };
 
 typedef struct {
@@ -50,6 +53,7 @@ struct dfa_parse_data_s {
 
 	scf_stack_t*         current_identities;
 	scf_variable_t*      current_var;
+	scf_lex_word_t*      current_var_w;
 
 	int                  nb_sizeofs;
 
