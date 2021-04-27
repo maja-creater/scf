@@ -18,7 +18,7 @@ int main(int argc, char* argv[])
 
 	printf("\n");
 #if 1
-	if (scf_parse_compile(parse, "./1.o") < 0) {
+	if (scf_parse_compile(parse, argv[1]) < 0) {
 		printf("%s(),%d, error: \n", __func__, __LINE__);
 		return -1;
 	}

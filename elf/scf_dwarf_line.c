@@ -17,6 +17,147 @@ scf_dwarf_line_machine_t* scf_dwarf_line_machine_alloc()
 	return lm;
 }
 
+void scf_dwarf_line_filename_free(scf_dwarf_line_filename_t* f)
+{
+	if (f) {
+		if (f->name)
+			free(f->name);
+		free(f);
+	}
+}
+
+void scf_dwarf_line_machine_free(scf_dwarf_line_machine_t* lm)
+{
+	if (lm) {
+		if (lm->prologue) {
+
+			if (lm->prologue->standard_opcode_lengths)
+				free(lm->prologue->standard_opcode_lengths);
+
+			if (lm->prologue->file_names) {
+				scf_vector_clear(lm->prologue->file_names, ( void (*)(void*) )scf_dwarf_line_filename_free);
+				scf_vector_free(lm->prologue->file_names);
+			}
+
+			free(lm->prologue);
+		}
+
+		free(lm);
+	}
+}
+
+static scf_dwarf_ubyte_t standard_opcode_lengths[13] = {
+	0, 1, 1, 1, 1,
+	0, 0, 0, 1, 0,
+	0, 1, 0
+};
+
+int scf_dwarf_line_machine_fill(scf_dwarf_line_machine_t* lm, scf_vector_t* file_names)
+{
+	if (!lm)
+		return -EINVAL;
+
+	lm->address = 0;
+	lm->file    = 1;
+	lm->line    = 1;
+	lm->column  = 0;
+	lm->is_stmt = 1;
+	lm->basic_block  = 0;
+	lm->end_sequence = 0;
+
+	lm->prologue->total_length = 0;
+	lm->prologue->version      = 2;
+	lm->prologue->prologue_length = 0;
+	lm->prologue->minimum_instruction_length = 1;
+	lm->prologue->default_is_stmt = 1;
+	lm->prologue->line_base       = -5;
+	lm->prologue->line_range      = 14;
+	lm->prologue->opcode_base     = 13;
+
+	lm->prologue->standard_opcode_lengths = calloc(lm->prologue->opcode_base, sizeof(scf_dwarf_ubyte_t));
+	if (!lm->prologue->standard_opcode_lengths)
+		return -ENOMEM;
+
+	memcpy(lm->prologue->standard_opcode_lengths, standard_opcode_lengths, 13 * sizeof(scf_dwarf_ubyte_t));
+
+	lm->prologue->include_directories = NULL;
+
+	lm->prologue->file_names = scf_vector_alloc();
+	if (!lm->prologue->file_names)
+		return -ENOMEM;
+
+	scf_dwarf_line_filename_t* f;
+	int i;
+
+	for (i = 0; i  < file_names->size; i++) {
+
+		scf_string_t* fname = file_names->data[i];
+
+		f = calloc(1, sizeof(scf_dwarf_line_filename_t));
+		if (!f)
+			return -ENOMEM;
+
+		f->name = malloc(fname->len + 1);
+		if (!f->name) {
+			free(f);
+			return -ENOMEM;
+		}
+
+		memcpy(f->name, fname->data, fname->len);
+		f->name[fname->len] = '\0';
+
+		if (scf_vector_add(lm->prologue->file_names, f) < 0) {
+			free(f->name);
+			free(f);
+			return -ENOMEM;
+		}
+	}
+
+	return 0;
+}
+
+void scf_dwarf_line_machine_print(scf_dwarf_line_machine_t* lm)
+{
+	if (lm) {
+		printf("lm->address: %#lx\n", lm->address);
+		printf("lm->file:    %u\n",   lm->file);
+		printf("lm->line:    %u\n",   lm->line);
+		printf("lm->column:  %u\n",   lm->column);
+		printf("lm->is_stmt: %u\n",   lm->is_stmt);
+		printf("lm->basic_block:  %u\n", lm->basic_block);
+		printf("lm->end_sequence: %u\n", lm->end_sequence);
+
+		printf("prologue->total_length:    %u\n", lm->prologue->total_length);
+		printf("prologue->version:         %u\n", lm->prologue->version);
+		printf("prologue->prologue_length: %u\n", lm->prologue->prologue_length);
+		printf("prologue->minimum_instruction_length: %u\n", lm->prologue->minimum_instruction_length);
+		printf("prologue->default_is_stmt: %u\n", lm->prologue->default_is_stmt);
+
+		printf("prologue->line_base:   %d\n", lm->prologue->line_base);
+		printf("prologue->line_range:  %u\n", lm->prologue->line_range);
+		printf("prologue->opcode_base: %u\n", lm->prologue->opcode_base);
+
+		printf("prologue->standard_opcode_lengths: %p\n", lm->prologue->standard_opcode_lengths);
+		int i;
+		for (i = 0; i < lm->prologue->opcode_base; i++) {
+			printf("i: %d, len: %u\n", i, lm->prologue->standard_opcode_lengths[i]);
+		}
+
+		printf("prologue->include_directories: %p\n", lm->prologue->include_directories);
+
+		scf_dwarf_line_filename_t* f;
+
+		for (i = 0; i < lm->prologue->file_names->size; i++) {
+			f  =        lm->prologue->file_names->data[i];
+
+			printf("i: %d, name:          %s\n", i, f->name);
+			printf("i: %d, dir_index:     %u\n", i, f->dir_index);
+			printf("i: %d, time_modified: %u\n", i, f->time_modified);
+			printf("i: %d, length:        %u\n", i, f->length);
+		}
+	}
+}
+
 static inline void _decode_special_opcode(scf_dwarf_line_prologue_t* prologue, scf_dwarf_ubyte_t opcode, scf_dwarf_uword_t* paddress_advance, scf_dwarf_sword_t* pline_advance)
 {
 	opcode -= prologue->opcode_base;
@@ -24,9 +165,9 @@ static inline void _decode_special_opcode(scf_dwarf_line_prologue_t* prologue, s
 	*pline_advance    = opcode % prologue->line_range + (scf_dwarf_sword_t)prologue->line_base;
 }
 
-int scf_dwarf_line_machine_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_results, scf_string_t* cu, const char*   debug_line, size_t debug_line_size)
+int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_results, const char*   debug_line, size_t debug_line_size)
 {
-	if (!lm || !line_results || !cu || !debug_line || debug_line_size < sizeof(scf_dwarf_uword_t)) {
+	if (!lm || !line_results || !debug_line || debug_line_size < sizeof(scf_dwarf_uword_t)) {
 		scf_loge("\n");
 		return -EINVAL;
 	}
@@ -412,9 +553,9 @@ int scf_dwarf_line_machine_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* li
 	return 0;
 }
 
-int scf_dwarf_line_machine_encode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_results, scf_string_t* cu, scf_string_t* debug_line)
+int scf_dwarf_line_encode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_results, scf_string_t* debug_line)
 {
-	if (!lm || !line_results || !cu || !debug_line)
+	if (!lm || !line_results || !debug_line)
 		return -EINVAL;
 
 #define DWARF_DEBUG_LINE_FILL(data) \
@@ -435,9 +576,15 @@ int scf_dwarf_line_machine_encode(scf_dwarf_line_machine_t* lm, scf_vector_t* li
 		} \
 	} while (0)
 
+	size_t origin_len = debug_line->len;
+
 	DWARF_DEBUG_LINE_FILL(lm->prologue->total_length);
 	DWARF_DEBUG_LINE_FILL(lm->prologue->version);
+
+	size_t prologue_pos = debug_line->len;
+
 	DWARF_DEBUG_LINE_FILL(lm->prologue->prologue_length);
+
 	DWARF_DEBUG_LINE_FILL(lm->prologue->minimum_instruction_length);
 	DWARF_DEBUG_LINE_FILL(lm->prologue->default_is_stmt);
 	DWARF_DEBUG_LINE_FILL(lm->prologue->line_base);
@@ -485,6 +632,12 @@ int scf_dwarf_line_machine_encode(scf_dwarf_line_machine_t* lm, scf_vector_t* li
 	scf_dwarf_ubyte_t end_file_names = 0;
 	DWARF_DEBUG_LINE_FILL(end_file_names);
 
+	lm->prologue->prologue_length = debug_line->len - prologue_pos - sizeof(lm->prologue->prologue_length);
+	memcpy(debug_line->data + prologue_pos, &lm->prologue->prologue_length, sizeof(lm->prologue->prologue_length));
+
+	scf_loge("lm->prologue->prologue_length: %u\n\n", lm->prologue->prologue_length);
+
+
 	lm->address = 0;
 	lm->file    = 1;
 	lm->line    = 1;
@@ -520,10 +673,11 @@ int scf_dwarf_line_machine_encode(scf_dwarf_line_machine_t* lm, scf_vector_t* li
 		}
 
 		if (result->is_stmt != lm->is_stmt) {
+		scf_loge("i: %d, result->is_stmt: %u, lm->is_stmt: %u\n", i, result->is_stmt, lm->is_stmt);
 			lm->is_stmt     = !lm->is_stmt;
 
 			opcode = DW_LNS_negate_stmt;
-			DWARF_DEBUG_LINE_FILL2(buf, 1);
+			DWARF_DEBUG_LINE_FILL2(&opcode, 1);
 		}
 
 		if (result->basic_block != lm->basic_block && result->basic_block) {
@@ -539,6 +693,7 @@ int scf_dwarf_line_machine_encode(scf_dwarf_line_machine_t* lm, scf_vector_t* li
 		assert(address_advance % lm->prologue->minimum_instruction_length == 0);
 
 		address_advance /= lm->prologue->minimum_instruction_length;
+		scf_loge("i: %d, line_advance: %d, address_advance: %u\n", i, line_advance, address_advance);
 
 		while (1) {
 			opcode = (line_advance - lm->prologue->line_base)
@@ -546,6 +701,8 @@ int scf_dwarf_line_machine_encode(scf_dwarf_line_machine_t* lm, scf_vector_t* li
 				+ lm->prologue->opcode_base;
 
 			if (opcode <= 255) {
+			scf_loge("i: %d, line_advance: %d, address_advance: %u, opcode: %u\n", i, line_advance, address_advance, opcode);
+
 				DWARF_DEBUG_LINE_FILL2(&opcode, 1);
 				break;
 			}
@@ -557,18 +714,20 @@ int scf_dwarf_line_machine_encode(scf_dwarf_line_machine_t* lm, scf_vector_t* li
 				DWARF_DEBUG_LINE_FILL2(&opcode, 1);
 				DWARF_DEBUG_LINE_FILL2(buf,     len);
 
+			scf_loge("i: %d, line_advance: %d, address_advance: %u, opcode: %u\n", i, line_advance, address_advance, opcode);
 				line_advance = 0;
 				continue;
 			}
 
 			if (address_advance > 0) {
-				address_advance = 0;
-
 				opcode = DW_LNS_advance_pc;
 				len    = scf_leb128_encode_uint32(address_advance, buf, sizeof(buf));
 				assert(len > 0);
 				DWARF_DEBUG_LINE_FILL2(&opcode, 1);
 				DWARF_DEBUG_LINE_FILL2(buf,     len);
+
+			scf_loge("i: %d, line_advance: %d, address_advance: %u, opcode: %u\n", i, line_advance, address_advance, opcode);
+				address_advance = 0;
 			}
 		}
 		lm->line    = result->line;
@@ -598,20 +757,11 @@ int scf_dwarf_line_machine_encode(scf_dwarf_line_machine_t* lm, scf_vector_t* li
 		}
 	}
 
-	lm->prologue->total_length = debug_line->len - sizeof(lm->prologue->total_length);
-	memcpy(debug_line->data, &lm->prologue->total_length, sizeof(lm->prologue->total_length));
+	lm->prologue->total_length = debug_line->len - origin_len - sizeof(lm->prologue->total_length);
+	memcpy(debug_line->data + origin_len, &lm->prologue->total_length, sizeof(lm->prologue->total_length));
 
-#if 1
-	for (i = 0; i < debug_line->len; i++) {
+	scf_loge("lm->prologue->total_length: %u\n", lm->prologue->total_length);
 
-		if (i > 0 && i % 4 == 0)
-			printf("\n");
-
-		unsigned char c = debug_line->data[i];
-		printf("%#02x ", c);
-	}
-	printf("\n");
-#endif
 	return 0;
 }
 

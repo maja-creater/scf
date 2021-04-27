@@ -44,15 +44,15 @@ int main(int argc, char* argv[])
 	assert(lm);
 
 	scf_vector_t* line_results = scf_vector_alloc();
-	scf_string_t* cu = scf_string_alloc();
 	assert(line_results);
-	assert(cu);
 #if 1
-	ret = scf_dwarf_line_machine_decode(lm, line_results, cu, s->data, s->data_len);
+	ret = scf_dwarf_line_decode(lm, line_results, s->data, s->data_len);
 	if (ret < 0) {
 		scf_loge("\n");
 		return -1;
 	}
+
+	scf_dwarf_line_machine_print(lm);
 
 #if 1
 	for (i = 0; i < line_results->size; i++) {
@@ -66,7 +66,7 @@ int main(int argc, char* argv[])
 
 	scf_string_t* debug_line = scf_string_alloc();
 
-	ret = scf_dwarf_line_machine_encode(lm, line_results, cu, debug_line);
+	ret = scf_dwarf_line_encode(lm, line_results, debug_line);
 	if (ret < 0) {
 		scf_loge("\n");
 		return -1;
@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
 
 	lm->prologue->total_length = debug_line->len - sizeof(scf_dwarf_uword_t);
 
-	ret = scf_dwarf_line_machine_decode(lm, line_results, cu, debug_line->data, debug_line->len);
+	ret = scf_dwarf_line_decode(lm, line_results, debug_line->data, debug_line->len);
 	if (ret < 0) {
 		scf_loge("\n");
 		return -1;

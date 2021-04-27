@@ -5,7 +5,9 @@ CFILES += scf_elf_x64.c
 CFILES += scf_dwarf_line.c
 CFILES += scf_dwarf_abbrev.c
 CFILES += scf_dwarf_info.c
-CFILES += scf_dwarf_info_test.c
+CFILES += scf_dwarf_line_test.c
+#CFILES += scf_dwarf_info_test.c
+#CFILES += scf_dwarf_abbrev_test.c
 
 CFLAGS += -g
 #CFLAGS += -Wall 

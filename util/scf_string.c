@@ -92,6 +92,24 @@ void scf_string_free(scf_string_t* s)
 	s = NULL;
 }
 
+void scf_string_print_bin(scf_string_t* s)
+{
+	if (!s)
+		return;
+
+	int i;
+	for (i = 0; i < s->len; i++) {
+
+		unsigned char c = s->data[i];
+
+		if (i > 0 && i % 10 == 0)
+			printf("\n");
+
+		printf("%#02x ", c);
+	}
+	printf("\n");
+}
+
 int	scf_string_cmp(const scf_string_t* s0, const scf_string_t* s1)
 {
 	if (!s0 || !s1 || !s0->data || !s1->data)
@@ -194,7 +212,7 @@ int	scf_string_cat_cstr_len(scf_string_t* s0, const char* str, size_t len)
 
 static int* _prefix_kmp(const uint8_t* P, int m)
 {
-	int* prefix = malloc(sizeof(int) * m);
+	int* prefix = malloc(sizeof(int) * (m + 1));
 	if (!prefix)
 		return NULL;
 
@@ -268,6 +286,44 @@ int scf_string_match_kmp_cstr(const uint8_t* T, const uint8_t* P, scf_vector_t* 
 		return -EINVAL;
 
 	return _match_kmp(T, strlen(T), P, strlen(P), offsets);
+}
+
+int scf_string_match_kmp_cstr_len(const scf_string_t* T, const uint8_t* P, size_t Plen, scf_vector_t* offsets)
+{
+	if (!T || !P || 0 == Plen || !offsets)
+		return -EINVAL;
+
+	return _match_kmp(T->data, T->len, P, Plen, offsets);
+}
+
+int scf_string_get_offset(scf_string_t* str, const char* data, size_t len)
+{
+	int ret;
+
+	if (0 == str->len) {
+
+		if (scf_string_cat_cstr_len(str, data, len) < 0)
+			return -1;
+		return 0;
+	}
+
+	scf_vector_t* vec = scf_vector_alloc();
+	if (!vec)
+		return -ENOMEM;
+
+	ret = scf_string_match_kmp_cstr_len(str, data, len, vec);
+	if (ret < 0) {
+
+	} else if (0 == vec->size) {
+		ret = str->len;
+
+		if (scf_string_cat_cstr_len(str, data, len) < 0)
+			ret = -1;
+	} else
+		ret = (intptr_t)(vec->data[0]);
+
+	scf_vector_free(vec);
+	return ret;
 }
 
 #if 0

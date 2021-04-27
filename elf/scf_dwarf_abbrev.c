@@ -459,6 +459,9 @@ static void _dwarf_abbrev_print(scf_dwarf_abbrev_declaration_t* d)
 	if (!d->has_children)
 		return;
 
+	if (!d->childs)
+		return;
+
 	for (j = 0; j < d->childs->size; j++) {
 		d2 =        d->childs->data[j];
 

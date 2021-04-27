@@ -46,10 +46,27 @@ static scf_dwarf_abbrev_attribute_t abbrev_base_var[] =
 	{0,                        0},
 };
 
-static int _abbrev_add(scf_vector_t* abbrevs, scf_dwarf_uword_t tag, scf_dwarf_abbrev_attribute_t* attributes, int nb_attributes)
+static int __abbrev_add(scf_vector_t* abbrevs)
 {
+	scf_dwarf_abbrev_declaration_t* parent;
 	scf_dwarf_abbrev_declaration_t* d;
-	scf_dwarf_abbrev_attribute_t*   attr;
+
+	if (abbrevs->size < 1)
+		return -EINVAL;
+
+	parent = abbrevs->data[abbrevs->size - 1];
+
+	while (parent && !parent->has_children)
+		parent = parent->parent;
+
+	if (!parent)
+		return -EINVAL;
+
+	if (!parent->childs) {
+		parent->childs = scf_vector_alloc();
+		if (!parent->childs)
+			return -ENOMEM;
+	}
 
 	d = scf_dwarf_abbrev_declaration_alloc();
 	if (!d)
@@ -60,8 +77,31 @@ static int _abbrev_add(scf_vector_t* abbrevs, scf_dwarf_uword_t tag, scf_dwarf_a
 		return -ENOMEM;
 	}
 
-	d->code = abbrevs->size + 1;
-	d->tag  = tag;
+	if (scf_vector_add(parent->childs, d) < 0)
+		return -ENOMEM;
+
+	d->parent = parent;
+	d->code   = abbrevs->size;
+
+	return 0;
+}
+
+static int _abbrev_add(scf_vector_t* abbrevs, scf_dwarf_uword_t tag, scf_dwarf_abbrev_attribute_t* attributes, int nb_attributes)
+{
+	scf_dwarf_abbrev_declaration_t* d;
+	scf_dwarf_abbrev_attribute_t*   attr;
+
+	int ret = __abbrev_add(abbrevs);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	assert(abbrevs->size > 1);
+
+	d = abbrevs->data[abbrevs->size - 1];
+
+	d->tag    = tag;
 	d->has_children = 0;
 
 	int i;
@@ -101,17 +141,17 @@ int scf_dwarf_abbrev_add_subprogram(scf_vector_t* abbrevs)
 	scf_dwarf_abbrev_declaration_t* d;
 	scf_dwarf_abbrev_attribute_t*   attr;
 
-	d = scf_dwarf_abbrev_declaration_alloc();
-	if (!d)
-		return -ENOMEM;
-
-	if (scf_vector_add(abbrevs, d) < 0) {
-		free(d);
-		return -ENOMEM;
+	int ret = __abbrev_add(abbrevs);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
 	}
 
-	d->code = abbrevs->size + 1;
-	d->tag  = DW_TAG_subprogram;
+	assert(abbrevs->size > 1);
+
+	d = abbrevs->data[abbrevs->size - 1];
+
+	d->tag    = DW_TAG_subprogram;
 	d->has_children = 1;
 
 	int i;
@@ -147,9 +187,11 @@ int scf_dwarf_abbrev_add_cu(scf_vector_t* abbrevs)
 		return -ENOMEM;
 	}
 
-	d->code = abbrevs->size + 1;
+	d->code = abbrevs->size;
 	d->tag  = DW_TAG_compile_unit;
 	d->has_children = 1;
+
+	scf_loge("abbrevs->size: %d, d->code: %u\n", abbrevs->size, d->code);
 
 	int i;
 	for (i = 0; i < sizeof(abbrev_cu) / sizeof(abbrev_cu[0]); i++) {
@@ -167,21 +209,44 @@ int scf_dwarf_abbrev_add_cu(scf_vector_t* abbrevs)
 		attr->form = abbrev_cu[i].form;
 	}
 
-	int ret = scf_dwarf_abbrev_add_subprogram(abbrevs);
+	return scf_dwarf_abbrev_add_subprogram(abbrevs);
+}
+
+int scf_dwarf_debug_encode(scf_dwarf_debug_t* debug, scf_vector_t* file_names)
+{
+	int ret = scf_dwarf_abbrev_encode(debug->abbrevs, debug->debug_abbrev);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	scf_dwarf_info_header_t  header;
+
+	header.length  = 0;
+	header.version = 4;
+	header.offset  = 0;
+	header.address_size = sizeof(void*);
+
+	ret = scf_dwarf_info_encode(debug->infos, debug->abbrevs, debug->str, debug->debug_info, &header);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	scf_dwarf_line_machine_t* lm = scf_dwarf_line_machine_alloc();
+	if (!lm)
+		return -ENOMEM;
+
+	ret = scf_dwarf_line_machine_fill(lm, file_names);
 	if (ret < 0)
 		return ret;
 
-	assert(abbrevs->size > 1);
-	d2 = abbrevs->data[abbrevs->size - 1];
-	d2->parent = d;
+	ret = scf_dwarf_line_encode(lm, debug->lines, debug->debug_line);
+	scf_dwarf_line_machine_free(lm);
+	if (ret < 0)
+		return ret;
 
-	if (!d->childs) {
-		d->childs = scf_vector_alloc();
-		if (!d->childs)
-			return -ENOMEM;
-	}
-
-	return scf_vector_add(d->childs, d2);
+	return 0;
 }
 
 scf_dwarf_debug_t* scf_dwarf_debug_alloc()
@@ -214,6 +279,24 @@ scf_dwarf_debug_t* scf_dwarf_debug_alloc()
 		return NULL;
 	}
 
+	debug->debug_line = scf_string_alloc();
+	if (!debug->debug_line) {
+		scf_dwarf_debug_free(debug);
+		return NULL;
+	}
+
+	debug->debug_info = scf_string_alloc();
+	if (!debug->debug_info) {
+		scf_dwarf_debug_free(debug);
+		return NULL;
+	}
+
+	debug->debug_abbrev = scf_string_alloc();
+	if (!debug->debug_abbrev) {
+		scf_dwarf_debug_free(debug);
+		return NULL;
+	}
+
 	if (scf_dwarf_abbrev_add_cu(debug->abbrevs) < 0) {
 		scf_dwarf_debug_free(debug);
 
@@ -238,6 +321,15 @@ void scf_dwarf_debug_free (scf_dwarf_debug_t* debug)
 
 		if (debug->str)
 			scf_string_free(debug->str);
+
+		if (debug->debug_line)
+			scf_string_free(debug->debug_line);
+
+		if (debug->debug_info)
+			scf_string_free(debug->debug_info);
+
+		if (debug->debug_abbrev)
+			scf_string_free(debug->debug_abbrev);
 
 		free(debug);
 	}

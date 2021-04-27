@@ -85,13 +85,7 @@ int main(int argc, char* argv[])
 #endif
 
 	printf("encode_str->len: %ld\n", encode_str->len);
-	for (i = 0; i < encode_str->len; i++) {
-		if (i > 0 && i % 4 == 0)
-			printf("\n");
-
-		unsigned char c = encode_str->data[i];
-		printf("%#02x ", c);
-	}
+	scf_string_print_bin(encode_str);
 	printf("\n\n");
 
 #endif

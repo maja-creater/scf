@@ -26,7 +26,7 @@ int main(int argc, char* argv[])
 	printf("s->data_len: %d\n", s->data_len);
 	int i;
 	for (i = 0; i < s->data_len; i++) {
-		if (i > 0 && i % 4 == 0)
+		if (i > 0 && i % 10 == 0)
 			printf("\n");
 
 		unsigned char c = s->data[i];
@@ -57,7 +57,7 @@ int main(int argc, char* argv[])
 	}
 
 	for (i = 0; i < abbrev->len; i++) {
-		if (i > 0 && i % 4 == 0)
+		if (i > 0 && i % 10 == 0)
 			printf("\n");
 
 		unsigned char c  = abbrev->data[i];
