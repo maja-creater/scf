@@ -382,6 +382,9 @@ struct scf_dwarf_debug_s
 	scf_string_t*       debug_line;
 	scf_string_t*       debug_info;
 	scf_string_t*       debug_abbrev;
+
+	scf_vector_t*       line_relas;
+	scf_vector_t*       info_relas;
 };
 
 scf_dwarf_debug_t*               scf_dwarf_debug_alloc();
@@ -409,7 +412,7 @@ scf_dwarf_abbrev_declaration_t*  scf_dwarf_abbrev_declaration_alloc();
 void                             scf_dwarf_abbrev_declaration_free(scf_dwarf_abbrev_declaration_t* d);
 
 int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_results, const char*   debug_line, size_t debug_line_size);
-int scf_dwarf_line_encode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_results, scf_string_t* debug_line);
+int scf_dwarf_line_encode(scf_dwarf_debug_t* debug, scf_dwarf_line_machine_t* lm, scf_vector_t* line_results, scf_string_t* debug_line);
 
 int scf_dwarf_abbrev_decode(scf_vector_t* abbrev_results, const char*   debug_abbrev, size_t debug_abbrev_size);
 int scf_dwarf_abbrev_encode(scf_vector_t* abbrev_results, scf_string_t* debug_abbrev);

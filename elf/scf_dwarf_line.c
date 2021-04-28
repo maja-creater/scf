@@ -1,5 +1,6 @@
 #include"scf_dwarf_def.h"
 #include"scf_leb128.h"
+#include"scf_native.h"
 
 scf_dwarf_line_machine_t* scf_dwarf_line_machine_alloc()
 {
@@ -553,9 +554,9 @@ int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_resul
 	return 0;
 }
 
-int scf_dwarf_line_encode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_results, scf_string_t* debug_line)
+int scf_dwarf_line_encode(scf_dwarf_debug_t* debug, scf_dwarf_line_machine_t* lm, scf_vector_t* line_results, scf_string_t* debug_line)
 {
-	if (!lm || !line_results || !debug_line)
+	if (!debug || !lm || !line_results || !debug_line)
 		return -EINVAL;
 
 #define DWARF_DEBUG_LINE_FILL(data) \
@@ -669,11 +670,29 @@ int scf_dwarf_line_encode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_resul
 			DWARF_DEBUG_LINE_FILL (extended_flag);
 			DWARF_DEBUG_LINE_FILL2(buf, len);
 			DWARF_DEBUG_LINE_FILL (extended_opcode);
+
+			scf_rela_t* rela = calloc(1, sizeof(scf_rela_t));
+			if (!rela)
+				return -ENOMEM;
+
+			rela->name = scf_string_cstr(".text");
+			if (!rela->name) {
+				free(rela);
+				return -ENOMEM;
+			}
+
+			if (scf_vector_add(debug->line_relas, rela) < 0) {
+				scf_string_free(rela->name);
+				free(rela);
+				return -ENOMEM;
+			}
+			rela->addend      = result->address;
+			rela->text_offset = debug_line->len;
+
 			DWARF_DEBUG_LINE_FILL (lm->address);
 		}
 
 		if (result->is_stmt != lm->is_stmt) {
-		scf_loge("i: %d, result->is_stmt: %u, lm->is_stmt: %u\n", i, result->is_stmt, lm->is_stmt);
 			lm->is_stmt     = !lm->is_stmt;
 
 			opcode = DW_LNS_negate_stmt;

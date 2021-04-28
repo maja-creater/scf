@@ -68,7 +68,11 @@ static int _x64_elf_add_sym(scf_elf_context_t* elf, const scf_elf_sym_t* sym)
 		return -1;
 	}
 
-	s->name			= scf_string_cstr(sym->name);
+	if (sym->name)
+		s->name = scf_string_cstr(sym->name);
+	else
+		s->name = NULL;
+
 	s->sym.st_size  = sym->st_size;
 	s->sym.st_value = sym->st_value;
 	s->sym.st_shndx = sym->st_shndx;
@@ -88,10 +92,10 @@ static int _x64_elf_add_rela(scf_elf_context_t* elf, const scf_elf_rela_t* rela)
 		return -1;
 	}
 
-	r->name			= scf_string_cstr(rela->name);
-	r->rela.r_offset= rela->r_offset;
-	r->rela.r_info	= rela->r_info;
-	r->rela.r_addend= rela->r_addend;
+	r->name			 = scf_string_cstr(rela->name);
+	r->rela.r_offset = rela->r_offset;
+	r->rela.r_info	 = rela->r_info;
+	r->rela.r_addend = rela->r_addend;
 
 	scf_vector_add(x64->relas, r);
 	return 0;
@@ -102,18 +106,13 @@ static int _x64_elf_add_section(scf_elf_context_t* elf, const scf_elf_section_t*
 	scf_elf_x64_t* x64 = elf->priv;
 
 	scf_elf_x64_section_t* s = calloc(1, sizeof(scf_elf_x64_section_t));
-	if (!s) {
-		printf("%s(),%d, error\n", __func__, __LINE__);
-		return -1;
-	}
+	if (!s)
+		return -ENOMEM;
 
 	s->name = scf_string_cstr(section->name);
 	if (!s->name) {
-		printf("%s(),%d, error\n", __func__, __LINE__);
-
 		free(s);
-		s = NULL;
-		return -1;
+		return -ENOMEM;
 	}
 
 	s->index 			= x64->sections->size + 1;
@@ -124,16 +123,80 @@ static int _x64_elf_add_section(scf_elf_context_t* elf, const scf_elf_section_t*
 	if (section->data && section->data_len > 0) {
 		s->data = malloc(section->data_len);
 		if (!s->data) {
-			printf("%s(),%d, error\n", __func__, __LINE__);
-			return -1;
+			scf_string_free(s->name);
+			free(s);
+			return -ENOMEM;
 		}
 
 		memcpy(s->data, section->data, section->data_len);
 		s->data_len = section->data_len;
 	}
 
-	scf_vector_add(x64->sections, s);
-	return 0;
+	if (scf_vector_add(x64->sections, s) < 0) {
+		if (s->data)
+			free(s->data);
+		scf_string_free(s->name);
+		free(s);
+		return -ENOMEM;
+	}
+	return s->index;
+}
+
+static int _x64_elf_add_rela_section(scf_elf_context_t* elf, const scf_elf_section_t* section, scf_vector_t* relas)
+{
+	if (relas->size <= 0) {
+		scf_loge("\n");
+		return -EINVAL;
+	}
+
+	scf_elf_x64_t* x64 = elf->priv;
+
+	scf_elf_x64_section_t* s = calloc(1, sizeof(scf_elf_x64_section_t));
+	if (!s)
+		return -ENOMEM;
+
+	s->name = scf_string_cstr(section->name);
+	if (!s->name) {
+		free(s);
+		return -ENOMEM;
+	}
+
+	s->index            = x64->sections->size + 1;
+	s->sh.sh_type       = SHT_RELA;
+	s->sh.sh_flags      = SHF_INFO_LINK;
+	s->sh.sh_addralign  = section->sh_addralign;
+	s->sh.sh_link       = section->sh_link;
+	s->sh.sh_info       = section->sh_info;
+	s->sh.sh_entsize    = sizeof(Elf64_Rela);
+
+	s->data_len = sizeof(Elf64_Rela) * relas->size;
+
+	s->data = malloc(s->data_len);
+	if (!s->data) {
+		scf_string_free(s->name);
+		free(s);
+		return -ENOMEM;
+	}
+
+	Elf64_Rela* pr = (Elf64_Rela*) s->data;
+
+	int i;
+	for (i = 0; i < relas->size; i++) {
+
+		scf_elf_rela_t* r = relas->data[i];
+
+		pr[i].r_offset = r->r_offset;
+		pr[i].r_info   = r->r_info;
+		pr[i].r_addend = r->r_addend;
+	}
+
+	if (scf_vector_add(x64->sections, s) < 0) {
+		free(s->data);
+		scf_string_free(s->name);
+		free(s);
+		return -ENOMEM;
+	}
+	return s->index;
 }
 
 static int _x64_elf_read_section(scf_elf_context_t* elf, scf_elf_section_t** psection, const char* name)
@@ -381,13 +444,16 @@ static int _x64_elf_write_rel(scf_elf_context_t* elf, scf_list_t* code_list_head
 	for (i = 0; i < x64->sections->size; i++) {
 		scf_elf_x64_section_t* s = x64->sections->data[i];
 
+		if (SHT_RELA == s->sh.sh_type)
+			s->sh.sh_link = nb_sections - 3;
+
 		_x64_elf_section_header_fill(&s->sh, shstrtab_offset, 0,
 				section_offset, s->data_len,
-				0, 0, 0);
+				s->sh.sh_link,  s->sh.sh_info, s->sh.sh_entsize);
 		s->sh.sh_addralign = 8;
 
-		section_offset += s->data_len;
-		shstrtab_offset  += s->name->len + 1;
+		section_offset  += s->data_len;
+		shstrtab_offset += s->name->len + 1;
 
 		fwrite(&s->sh, sizeof(s->sh), 1, x64->fp);
 	}
@@ -401,17 +467,26 @@ static int _x64_elf_write_rel(scf_elf_context_t* elf, scf_list_t* code_list_head
 	shstrtab_offset  += strlen(".rela.text") + 1;
 
 	// set user's symbols' name
+	int  nb_local_syms = 1;
+
 	for (i = 0; i < x64->symbols->size; i++) {
 		scf_elf_x64_sym_t* sym = x64->symbols->data[i];
 
-		sym->sym.st_name = strtab_offset;
-		strtab_offset	 += sym->name->len + 1;
+		if (sym->name) {
+			sym->sym.st_name = strtab_offset;
+			strtab_offset	 += sym->name->len + 1;
+		} else
+			sym->sym.st_name = 0;
+
+		if (STB_LOCAL == ELF64_ST_BIND(sym->sym.st_info))
+			nb_local_syms++;
 	}
 
+	scf_loge("x64->symbols->size: %d\n", x64->symbols->size);
 	// write symtab section header
 	_x64_elf_section_header_fill(&x64->sh_symtab, shstrtab_offset, 0,
 			section_offset, (x64->symbols->size + 1) * sizeof(Elf64_Sym),
-			nb_sections - 2, 1, sizeof(Elf64_Sym));
+			nb_sections - 2, nb_local_syms, sizeof(Elf64_Sym));
 	fwrite(&x64->sh_symtab, sizeof(x64->sh_symtab), 1, x64->fp);
 	section_offset   += (x64->symbols->size + 1) * sizeof(Elf64_Sym);
 	shstrtab_offset  += strlen(".symtab") + 1;
@@ -462,7 +537,8 @@ static int _x64_elf_write_rel(scf_elf_context_t* elf, scf_list_t* code_list_head
 	for (i = 0; i < x64->symbols->size; i++) {
 		scf_elf_x64_sym_t* sym = x64->symbols->data[i];
 
-		fwrite(sym->name->data, sym->name->len + 1, 1, x64->fp);
+		if (sym->name)
+			fwrite(sym->name->data, sym->name->len + 1, 1, x64->fp);
 	}
 
 	// write shstrtab data (shstrtab section, section names of all sections)
@@ -489,6 +565,8 @@ scf_elf_ops_t	elf_ops_x64 = {
 	.add_sym	   = _x64_elf_add_sym,
 	.add_section   = _x64_elf_add_section,
 	.add_rela	   = _x64_elf_add_rela,
+
+	.add_rela_section = _x64_elf_add_rela_section,
 
 	.read_section  = _x64_elf_read_section,
 

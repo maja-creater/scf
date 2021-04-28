@@ -32,9 +32,12 @@ typedef struct {
 	scf_3ac_code_t*     code;        // related 3ac code
 	scf_function_t*     func;
 	scf_variable_t*     var;
+	scf_string_t*       name;
+
 	int                 inst_index;  // index in code->instructions
 	int                 inst_offset; // byte offset in instruction
 	int64_t             text_offset; // byte offset in .text segment
+	int                 addend;
 } scf_rela_t;
 
 typedef struct {

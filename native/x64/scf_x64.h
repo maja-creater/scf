@@ -29,6 +29,7 @@
 			(rela)->var  = (v); \
 			(rela)->func = (f); \
 			(rela)->inst_index = (c)->instructions->size - 1; \
+			(rela)->addend = -4; \
 			int ret = scf_vector_add((vec), (rela)); \
 			if (ret < 0) { \
 				scf_loge("\n"); \

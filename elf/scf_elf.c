@@ -23,7 +23,7 @@ int scf_elf_open(scf_elf_context_t** pelf, const char* machine, const char* path
 	}
 
 	if (!elf->ops) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 
@@ -32,7 +32,7 @@ int scf_elf_open(scf_elf_context_t** pelf, const char* machine, const char* path
 		return 0;
 	}
 
-	printf("%s(),%d, error: \n", __func__, __LINE__);
+	scf_loge("\n");
 
 	free(elf);
 	elf = NULL;
@@ -50,7 +50,7 @@ int scf_elf_close(scf_elf_context_t* elf)
 		return 0;
 	}
 
-	printf("%s(),%d, error: \n", __func__, __LINE__);
+	scf_loge("\n");
 	return -1;
 }
 
@@ -62,7 +62,7 @@ int scf_elf_add_sym(scf_elf_context_t* elf, const scf_elf_sym_t* sym)
 			return elf->ops->add_sym(elf, sym);
 	}
 
-	printf("%s(),%d, error: \n", __func__, __LINE__);
+	scf_loge("\n");
 	return -1;
 }
 
@@ -74,7 +74,7 @@ int scf_elf_add_section(scf_elf_context_t* elf, const scf_elf_section_t* section
 			return elf->ops->add_section(elf, section);
 	}
 
-	printf("%s(),%d, error: \n", __func__, __LINE__);
+	scf_loge("\n");
 	return -1;
 }
 
@@ -86,7 +86,19 @@ int scf_elf_add_rela(scf_elf_context_t* elf, const scf_elf_rela_t* rela)
 			return elf->ops->add_rela(elf, rela);
 	}
 
-	printf("%s(),%d, error: \n", __func__, __LINE__);
+	scf_loge("\n");
+	return -1;
+}
+
+int	scf_elf_add_rela_section(scf_elf_context_t* elf, const scf_elf_section_t* section, scf_vector_t* relas)
+{
+	if (elf && section && relas) {
+
+		if (elf->ops && elf->ops->add_rela_section)
+			return elf->ops->add_rela_section(elf, section, relas);
+	}
+
+	scf_loge("\n");
 	return -1;
 }
 
@@ -110,7 +122,7 @@ int scf_elf_write_rel(scf_elf_context_t* elf, scf_list_t* code_list_head)
 			return elf->ops->write_rel(elf, code_list_head);
 	}
 
-	printf("%s(),%d, error: \n", __func__, __LINE__);
+	scf_loge("\n");
 	return -1;
 }
 
@@ -122,7 +134,7 @@ int scf_elf_write_dyn(scf_elf_context_t* elf, scf_list_t* code_list_head)
 			return elf->ops->write_dyn(elf, code_list_head);
 	}
 
-	printf("%s(),%d, error: \n", __func__, __LINE__);
+	scf_loge("\n");
 	return -1;
 }
 
@@ -134,7 +146,7 @@ int scf_elf_write_exec(scf_elf_context_t* elf, scf_list_t* code_list_head)
 			return elf->ops->write_exec(elf, code_list_head);
 	}
 
-	printf("%s(),%d, error: \n", __func__, __LINE__);
+	scf_loge("\n");
 	return -1;
 }
 

@@ -3,6 +3,7 @@
 
 #include<elf.h>
 #include"scf_list.h"
+#include"scf_vector.h"
 
 typedef struct scf_elf_context_s	scf_elf_context_t;
 typedef struct scf_elf_ops_s		scf_elf_ops_t;
@@ -33,6 +34,8 @@ typedef struct {
 	uint32_t	sh_type;
     uint64_t	sh_flags;
 	uint64_t    sh_addralign;
+	uint32_t    sh_link;
+	uint32_t    sh_info;
 } scf_elf_section_t;
 
 struct scf_elf_ops_s {
@@ -41,9 +44,12 @@ struct scf_elf_ops_s {
 	int				(*open)(scf_elf_context_t* elf, const char* path, const char* mode);
 	int				(*close)(scf_elf_context_t* elf);
 
-	int				(*add_sym)(    scf_elf_context_t* elf, const scf_elf_sym_t*     sym);
+	int				(*add_sym )(scf_elf_context_t* elf, const scf_elf_sym_t*     sym);
+	int				(*add_rela)(scf_elf_context_t* elf, const scf_elf_rela_t*    rela);
+
 	int				(*add_section)(scf_elf_context_t* elf, const scf_elf_section_t* section);
-	int				(*add_rela)(   scf_elf_context_t* elf, const scf_elf_rela_t*    rela);
+
+	int				(*add_rela_section)(scf_elf_context_t* elf, const scf_elf_section_t* section, scf_vector_t* relas);
 
 	int				(*read_section)(scf_elf_context_t* elf, scf_elf_section_t** psection, const char* name);
 
@@ -59,12 +65,15 @@ struct scf_elf_context_s {
 	void*			priv;
 };
 
-int scf_elf_open( scf_elf_context_t** pelf, const char* machine, const char* path, const char* mode);
+int scf_elf_open (scf_elf_context_t** pelf, const char* machine, const char* path, const char* mode);
 int scf_elf_close(scf_elf_context_t* elf);
 
-int scf_elf_add_sym(    scf_elf_context_t* elf, const scf_elf_sym_t*     sym);
+int scf_elf_add_sym (scf_elf_context_t* elf, const scf_elf_sym_t*     sym);
+int scf_elf_add_rela(scf_elf_context_t* elf, const scf_elf_rela_t*    rela);
+
 int scf_elf_add_section(scf_elf_context_t* elf, const scf_elf_section_t* section);
-int scf_elf_add_rela(   scf_elf_context_t* elf, const scf_elf_rela_t*    rela);
+
+int	scf_elf_add_rela_section(scf_elf_context_t* elf, const scf_elf_section_t* section, scf_vector_t* relas);
 
 int scf_elf_read_section(scf_elf_context_t* elf, scf_elf_section_t** psection, const char* name);
 

@@ -319,6 +319,9 @@ static int _find_sym(const void* v0, const void* v1)
 	const char*          name = v0;
 	const scf_elf_sym_t* sym  = v1;
 
+	if (!sym->name)
+		return -1;
+
 	return strcmp(name, sym->name);
 }
 
@@ -326,16 +329,22 @@ static int _scf_parse_add_sym(scf_parse_t* parse, const char* name,
 		uint64_t st_size, Elf64_Addr st_value,
 		uint16_t st_shndx, uint8_t st_info)
 {
-	scf_elf_sym_t* sym = scf_vector_find_cmp(parse->symtab, name, _find_sym);
+	scf_elf_sym_t* sym = NULL;
+
+	if (name)
+		sym = scf_vector_find_cmp(parse->symtab, name, _find_sym);
+
 	if (!sym) {
 		sym = calloc(1, sizeof(scf_elf_sym_t));
 		if (!sym)
 			return -ENOMEM;
 
-		sym->name = strdup(name);
-		if (!sym->name) {
-			free(sym);
-			return -ENOMEM;
+		if (name) {
+			sym->name = strdup(name);
+			if (!sym->name) {
+				free(sym);
+				return -ENOMEM;
+			}
 		}
 
 		sym->st_size  = st_size;
@@ -345,7 +354,8 @@ static int _scf_parse_add_sym(scf_parse_t* parse, const char* name,
 
 		int ret = scf_vector_add(parse->symtab, sym);
 		if (ret < 0) {
-			free(sym->name);
+			if (sym->name)
+				free(sym->name);
 			free(sym);
 			return ret;
 		}
@@ -526,6 +536,9 @@ static int _debug_add_base_type(scf_dwarf_info_entry_t** pie, scf_parse_t* parse
 
 			else if (scf_type_is_unsigned(t->type))
 				ate = DW_ATE_unsigned;
+
+			else if (scf_type_is_float(t->type))
+				ate = DW_ATE_float;
 			else {
 				scf_loge("\n");
 				return -1;
@@ -1368,6 +1381,9 @@ static int _scf_parse_add_rela(scf_parse_t* parse, scf_elf_context_t* elf, scf_r
 	for (i = 0; i < parse->symtab->size; i++) {
 		scf_elf_sym_t* sym = parse->symtab->data[i];
 
+		if (!sym->name)
+			continue;
+
 		if (!strcmp(name, sym->name))
 			break;
 	}
@@ -1387,7 +1403,7 @@ static int _scf_parse_add_rela(scf_parse_t* parse, scf_elf_context_t* elf, scf_r
 	rela.name     = (char*)name;
 	rela.r_offset = r->text_offset;
 	rela.r_info   = ELF64_R_INFO(i + 1, R_X86_64_PC32);
-	rela.r_addend = -4;
+	rela.r_addend = r->addend;
 	ret = scf_elf_add_rela(elf, &rela);
 	if (ret < 0) {
 		scf_loge("\n");
@@ -1492,6 +1508,109 @@ error:
 	return ret;
 }
 
+static int _add_debug_section(scf_elf_context_t* elf, const char* name, uint64_t type, const scf_string_t* bin, const uint64_t flags)
+{
+	scf_elf_section_t s;
+
+	s.name         = (char*)name;
+	s.sh_type      = type;
+	s.sh_flags     = flags;
+	s.sh_addralign = 8;
+	s.data         = bin->data;
+	s.data_len     = bin->len;
+
+	return scf_elf_add_section(elf, &s);
+}
+
+static int _add_debug_sections(scf_parse_t* parse, scf_elf_context_t* elf)
+{
+	int sindex_line = _add_debug_section(elf, ".debug_line", SHT_PROGBITS,  parse->debug->debug_line, 0);
+	if (sindex_line < 0) {
+		scf_loge("\n");
+		return sindex_line;
+	}
+
+	int sindex_abbrev = _add_debug_section(elf, ".debug_abbrev", SHT_PROGBITS, parse->debug->debug_abbrev, 0);
+	if (sindex_abbrev < 0) {
+		scf_loge("\n");
+		return sindex_abbrev;
+	}
+
+	int sindex_info = _add_debug_section(elf, ".debug_info", SHT_PROGBITS, parse->debug->debug_info, 0);
+	if (sindex_info < 0) {
+		scf_loge("\n");
+		return sindex_info;
+	}
+
+	int sindex_str = _add_debug_section(elf, ".debug_str", SHT_PROGBITS, parse->debug->str, 0);
+	if (sindex_str < 0) {
+		scf_loge("\n");
+		return sindex_str;
+	}
+
+	scf_vector_t* relas = scf_vector_alloc();
+	if (!relas)
+		return -ENOMEM;
+
+	int ret;
+	int i;
+#if 1
+	for (i = 0; i     < parse->debug->line_relas->size; i++) {
+
+		scf_rela_t* r = parse->debug->line_relas->data[i];
+
+		int j;
+		for (j = 0; j < parse->symtab->size; j++) {
+			scf_elf_sym_t* sym = parse->symtab->data[j];
+
+			if (1 == sym->st_shndx && ELF64_ST_INFO(STB_LOCAL, STT_SECTION) == sym->st_info)
+				break;
+		}
+
+		if (j == parse->symtab->size) {
+			ret = _scf_parse_add_sym(parse, NULL, 0, 0, 1, ELF64_ST_INFO(STB_LOCAL, STT_SECTION));
+			if (ret < 0) {
+				scf_loge("\n");
+				return ret;
+			}
+		}
+
+		scf_elf_rela_t* rela = calloc(1, sizeof(scf_elf_rela_t));
+		if (!rela)
+			return -ENOMEM;
+
+		if (scf_vector_add(relas, rela) < 0) {
+			free(rela);
+			return -ENOMEM;
+		}
+
+		rela->name     = r->name->data;
+		rela->r_offset = r->text_offset;
+		rela->r_info   = ELF64_R_INFO(j + 1, R_X86_64_64);
+		rela->r_addend = r->addend;
+	}
+#endif
+	ret = 0;
+#if 1
+	scf_elf_section_t s;
+
+	s.name         = ".rela.debug_line";
+	s.sh_type      = SHT_RELA;
+	s.sh_flags     = SHF_INFO_LINK;
+	s.sh_addralign = 8;
+	s.data         = NULL;
+	s.data_len     = 0;
+	s.sh_link      = 0;
+	s.sh_info      = sindex_line;
+
+	ret = scf_elf_add_rela_section(elf, &s, relas);
+#endif
+
+	scf_vector_clear(relas, (void (*)(void*) ) free);
+	scf_vector_free(relas);
+	return ret;
+}
+
 int scf_parse_compile(scf_parse_t* parse, const char* path)
 {
 	scf_block_t* b = parse->ast->root_block;
@@ -1550,6 +1669,18 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 
 	scf_logi("all functions: %d\n",   functions->size);
 	scf_logi("all global_vars: %d\n", global_vars->size);
+
+	ret = _scf_parse_add_sym(parse, path, 0, 0, SHN_ABS, ELF64_ST_INFO(STB_LOCAL, STT_FILE));
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	ret = _scf_parse_add_sym(parse, NULL, 0, 0, 1, ELF64_ST_INFO(STB_LOCAL, STT_SECTION));
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
 
 	int64_t offset  = 0;
 	int i;
@@ -1683,16 +1814,6 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 		}
 	}
 
-	for (i = 0; i < parse->symtab->size; i++) {
-		scf_elf_sym_t* sym = parse->symtab->data[i];
-
-		ret = scf_elf_add_sym(elf, sym);
-		if (ret < 0) {
-			scf_loge("\n");
-			goto error;
-		}
-	}
-
 	scf_vector_t* file_names = scf_vector_alloc();
 	if (!file_names) {
 		scf_loge("\n");
@@ -1732,28 +1853,21 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 		goto error;
 	}
 
-#define SCF_ELF_ADD_DEBUG_SECTION(sname, sdata) \
-	do { \
-		scf_elf_section_t s; \
-		\
-		s.name         = sname; \
-		s.sh_type      = SHT_PROGBITS; \
-		s.sh_flags     = SHF_ALLOC | SHF_WRITE; \
-		s.sh_addralign = 8; \
-		s.data         = (sdata)->data; \
-		s.data_len     = (sdata)->len; \
-		\
-		ret = scf_elf_add_section(elf, &s); \
-		if (ret < 0) { \
-			scf_loge("\n"); \
-			goto error; \
-		} \
-	} while (0)
+	ret = _add_debug_sections(parse, elf);
+	if (ret < 0) {
+		scf_loge("\n");
+		goto error;
+	}
 
-	SCF_ELF_ADD_DEBUG_SECTION(".debug_line",   parse->debug->debug_line);
-	SCF_ELF_ADD_DEBUG_SECTION(".debug_abbrev", parse->debug->debug_abbrev);
-	SCF_ELF_ADD_DEBUG_SECTION(".debug_info",   parse->debug->debug_info);
-	SCF_ELF_ADD_DEBUG_SECTION(".debug_str",    parse->debug->str);
+	for (i = 0; i < parse->symtab->size; i++) {
+		scf_elf_sym_t* sym = parse->symtab->data[i];
+
+		ret = scf_elf_add_sym(elf, sym);
+		if (ret < 0) {
+			scf_loge("\n");
+			goto error;
+		}
+	}
 
 	ret = scf_elf_write_rel(elf, NULL);
 	if (ret < 0) {
