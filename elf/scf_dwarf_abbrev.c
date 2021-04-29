@@ -406,6 +406,9 @@ int scf_dwarf_abbrev_encode(scf_vector_t* abbrev_results, scf_string_t* debug_ab
 		d  =        abbrev_results->data[i];
 
 		d->visited_flag = 0;
+
+		if (d->code)
+			scf_loge("d->code: %u, d->tag: %s\n", d->code, scf_dwarf_find_tag(d->tag));
 	}
 
 	for (i = 0; i < abbrev_results->size; i++) {

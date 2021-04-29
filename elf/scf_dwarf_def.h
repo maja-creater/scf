@@ -256,6 +256,8 @@ struct scf_dwarf_attr_ref_s
 	scf_dwarf_info_attr_t*  iattr;
 
 	scf_dwarf_info_entry_t* ie;
+	scf_dwarf_info_entry_t* ref_entry;
+
 	uint64_t                offset;
 	size_t                  size;
 };
@@ -391,10 +393,13 @@ scf_dwarf_debug_t*               scf_dwarf_debug_alloc();
 void                             scf_dwarf_debug_free  (scf_dwarf_debug_t* debug);
 int                              scf_dwarf_debug_encode(scf_dwarf_debug_t* debug, scf_vector_t* file_names);
 
-int scf_dwarf_abbrev_add_cu(scf_vector_t* abbrevs);
-int scf_dwarf_abbrev_add_subprogram(scf_vector_t* abbrevs);
-int scf_dwarf_abbrev_add_base_type (scf_vector_t* abbrevs);
-int scf_dwarf_abbrev_add_base_var  (scf_vector_t* abbrevs);
+int scf_dwarf_abbrev_add_cu (scf_vector_t* abbrevs);
+int scf_dwarf_abbrev_add_var(scf_vector_t* abbrevs);
+
+int scf_dwarf_abbrev_add_subprogram (scf_vector_t* abbrevs);
+int scf_dwarf_abbrev_add_struct_type(scf_vector_t* abbrevs);
+int scf_dwarf_abbrev_add_member_var (scf_vector_t* abbrevs);
+int scf_dwarf_abbrev_add_base_type  (scf_vector_t* abbrevs);
 
 scf_dwarf_info_entry_t*          scf_dwarf_info_entry_alloc();
 void                             scf_dwarf_info_entry_free(scf_dwarf_info_entry_t* ie);

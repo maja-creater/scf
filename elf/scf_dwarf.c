@@ -36,13 +36,41 @@ static scf_dwarf_abbrev_attribute_t abbrev_base_type[] =
 	{0,                        0},
 };
 
-static scf_dwarf_abbrev_attribute_t abbrev_base_var[] =
+static scf_dwarf_abbrev_attribute_t abbrev_var[] =
 {
 	{DW_AT_name,               DW_FORM_string},
 	{DW_AT_decl_file,          DW_FORM_data1},
 	{DW_AT_decl_line,          DW_FORM_data1},
 	{DW_AT_type,               DW_FORM_ref4},
 	{DW_AT_location,           DW_FORM_exprloc},
+	{0,                        0},
+};
+
+static scf_dwarf_abbrev_attribute_t abbrev_struct_type[] =
+{
+	{DW_AT_name,               DW_FORM_strp},
+	{DW_AT_byte_size,          DW_FORM_data4},
+	{DW_AT_decl_file,          DW_FORM_data1},
+	{DW_AT_decl_line,          DW_FORM_data1},
+	{DW_AT_sibling,            DW_FORM_ref4},
+	{0,                        0},
+};
+
+static scf_dwarf_abbrev_attribute_t abbrev_member_var[] =
+{
+	{DW_AT_name,                 DW_FORM_string},
+	{DW_AT_decl_file,            DW_FORM_data1},
+	{DW_AT_decl_line,            DW_FORM_data1},
+	{DW_AT_type,                 DW_FORM_ref4},
+
+	{DW_AT_data_member_location, DW_FORM_data4},
+	{0,                          0},
+};
+
+static scf_dwarf_abbrev_attribute_t abbrev_pointer_type[] =
+{
+	{DW_AT_byte_size,          DW_FORM_data1},
+	{DW_AT_type,               DW_FORM_ref4},
 	{0,                        0},
 };
 
@@ -86,23 +114,9 @@ static int __abbrev_add(scf_vector_t* abbrevs)
 	return 0;
 }
 
-static int _abbrev_add(scf_vector_t* abbrevs, scf_dwarf_uword_t tag, scf_dwarf_abbrev_attribute_t* attributes, int nb_attributes)
+static int _abbrev_add_attributes(scf_dwarf_abbrev_declaration_t* d, scf_dwarf_abbrev_attribute_t* attributes, int nb_attributes)
 {
-	scf_dwarf_abbrev_declaration_t* d;
-	scf_dwarf_abbrev_attribute_t*   attr;
-
-	int ret = __abbrev_add(abbrevs);
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-
-	assert(abbrevs->size > 1);
-
-	d = abbrevs->data[abbrevs->size - 1];
-
-	d->tag    = tag;
-	d->has_children = 0;
+	scf_dwarf_abbrev_attribute_t* attr;
 
 	int i;
 	for (i = 0; i < nb_attributes; i++) {
@@ -122,24 +136,9 @@ static int _abbrev_add(scf_vector_t* abbrevs, scf_dwarf_uword_t tag, scf_dwarf_a
 	return 0;
 }
 
-int scf_dwarf_abbrev_add_base_var(scf_vector_t* abbrevs)
-{
-	int n = sizeof(abbrev_base_var) / sizeof(abbrev_base_var[0]);
-
-	return _abbrev_add(abbrevs, DW_TAG_variable, abbrev_base_var, n);
-}
-
-int scf_dwarf_abbrev_add_base_type(scf_vector_t* abbrevs)
-{
-	int n = sizeof(abbrev_base_type) / sizeof(abbrev_base_type[0]);
-
-	return _abbrev_add(abbrevs, DW_TAG_base_type, abbrev_base_type, n);
-}
-
-int scf_dwarf_abbrev_add_subprogram(scf_vector_t* abbrevs)
+static int _abbrev_add(scf_vector_t* abbrevs, scf_dwarf_uword_t tag, scf_dwarf_ubyte_t has_children, scf_dwarf_abbrev_attribute_t* attributes, int nb_attributes)
 {
 	scf_dwarf_abbrev_declaration_t* d;
-	scf_dwarf_abbrev_attribute_t*   attr;
 
 	int ret = __abbrev_add(abbrevs);
 	if (ret < 0) {
@@ -151,32 +150,50 @@ int scf_dwarf_abbrev_add_subprogram(scf_vector_t* abbrevs)
 
 	d = abbrevs->data[abbrevs->size - 1];
 
-	d->tag    = DW_TAG_subprogram;
-	d->has_children = 1;
+	d->tag    = tag;
+	d->has_children = has_children;
 
-	int i;
-	for (i = 0; i < sizeof(abbrev_subprogram) / sizeof(abbrev_subprogram[0]); i++) {
+	return _abbrev_add_attributes(d, attributes, nb_attributes);
+}
 
-		attr = malloc(sizeof(scf_dwarf_abbrev_attribute_t));
-		if (!attr)
-			return -ENOMEM;
+int scf_dwarf_abbrev_add_var(scf_vector_t* abbrevs)
+{
+	int n = sizeof(abbrev_var) / sizeof(abbrev_var[0]);
 
-		if (scf_vector_add(d->attributes, attr) < 0) {
-			free(attr);
-			return -ENOMEM;
-		}
+	return _abbrev_add(abbrevs, DW_TAG_variable, 0, abbrev_var, n);
+}
 
-		attr->name = abbrev_subprogram[i].name;
-		attr->form = abbrev_subprogram[i].form;
-	}
-	return 0;
+int scf_dwarf_abbrev_add_member_var(scf_vector_t* abbrevs)
+{
+	int n = sizeof(abbrev_member_var) / sizeof(abbrev_member_var[0]);
+
+	return _abbrev_add(abbrevs, DW_TAG_member, 0, abbrev_member_var, n);
+}
+
+int scf_dwarf_abbrev_add_base_type(scf_vector_t* abbrevs)
+{
+	int n = sizeof(abbrev_base_type) / sizeof(abbrev_base_type[0]);
+
+	return _abbrev_add(abbrevs, DW_TAG_base_type, 0, abbrev_base_type, n);
+}
+
+int scf_dwarf_abbrev_add_struct_type(scf_vector_t* abbrevs)
+{
+	int n = sizeof(abbrev_struct_type) / sizeof(abbrev_struct_type[0]);
+
+	return _abbrev_add(abbrevs, DW_TAG_structure_type, 1, abbrev_struct_type, n);
+}
+
+int scf_dwarf_abbrev_add_subprogram(scf_vector_t* abbrevs)
+{
+	int n = sizeof(abbrev_subprogram) / sizeof(abbrev_subprogram[0]);
+
+	return _abbrev_add(abbrevs, DW_TAG_subprogram, 1, abbrev_subprogram, n);
 }
 
 int scf_dwarf_abbrev_add_cu(scf_vector_t* abbrevs)
 {
 	scf_dwarf_abbrev_declaration_t* d;
-	scf_dwarf_abbrev_declaration_t* d2;
-	scf_dwarf_abbrev_attribute_t*   attr;
 
 	d = scf_dwarf_abbrev_declaration_alloc();
 	if (!d)
@@ -191,23 +208,11 @@ int scf_dwarf_abbrev_add_cu(scf_vector_t* abbrevs)
 	d->tag  = DW_TAG_compile_unit;
 	d->has_children = 1;
 
-	scf_loge("abbrevs->size: %d, d->code: %u\n", abbrevs->size, d->code);
+	int n = sizeof(abbrev_cu) / sizeof(abbrev_cu[0]);
 
-	int i;
-	for (i = 0; i < sizeof(abbrev_cu) / sizeof(abbrev_cu[0]); i++) {
-
-		attr = malloc(sizeof(scf_dwarf_abbrev_attribute_t));
-		if (!attr)
-			return -ENOMEM;
-
-		if (scf_vector_add(d->attributes, attr) < 0) {
-			free(attr);
-			return -ENOMEM;
-		}
-
-		attr->name = abbrev_cu[i].name;
-		attr->form = abbrev_cu[i].form;
-	}
+	int ret = _abbrev_add_attributes(d, abbrev_cu, n);
+	if (ret < 0)
+		return ret;
 
 	return scf_dwarf_abbrev_add_subprogram(abbrevs);
 }

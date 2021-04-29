@@ -310,7 +310,7 @@ int scf_dwarf_info_encode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string
 		} \
 	} while (0)
 
-#define DWARF_INFO_ADD_REF(refs, iattr_, ie_, offset_, size_) \
+#define DWARF_INFO_ADD_REF(refs, iattr_, ie_, ref_entry_, offset_, size_) \
 	do { \
 		scf_dwarf_attr_ref_t* iref = malloc(sizeof(scf_dwarf_attr_ref_t)); \
 		if (!iref) { \
@@ -324,10 +324,11 @@ int scf_dwarf_info_encode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string
 			return ret; \
 		} \
 		\
-		iref->iattr  = iattr_; \
-		iref->ie     = ie_; \
-		iref->offset = offset_; \
-		iref->size   = size_; \
+		iref->iattr     = iattr_; \
+		iref->ie        = ie_; \
+		iref->ref_entry = ref_entry_; \
+		iref->offset    = offset_; \
+		iref->size      = size_; \
 	} while (0)
 
 	size_t origin_len = debug_info->len;
@@ -373,6 +374,7 @@ int scf_dwarf_info_encode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string
 		for (k = 0; k < ie->attributes->size; k++) {
 			iattr     = ie->attributes->data[k];
 
+			int ret;
 			int j;
 
 			switch (iattr->form) {
@@ -412,23 +414,23 @@ int scf_dwarf_info_encode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string
 					break;
 
 				case DW_FORM_ref1:
-					DWARF_INFO_ADD_REF(refs, iattr, iattr->ref_entry, debug_info->len, sizeof(uint8_t));
+					DWARF_INFO_ADD_REF(refs, iattr, ie, iattr->ref_entry, debug_info->len, sizeof(uint8_t));
 					DWARF_INFO_FILL(debug_info, &iattr->ref8, sizeof(uint8_t));
 					break;
 				case DW_FORM_ref2:
-					DWARF_INFO_ADD_REF(refs, iattr, iattr->ref_entry, debug_info->len, sizeof(uint16_t));
+					DWARF_INFO_ADD_REF(refs, iattr, ie, iattr->ref_entry, debug_info->len, sizeof(uint16_t));
 					DWARF_INFO_FILL(debug_info, &iattr->ref8, sizeof(uint16_t));
 					break;
 				case DW_FORM_ref4:
-					DWARF_INFO_ADD_REF(refs, iattr, iattr->ref_entry, debug_info->len, sizeof(uint32_t));
+					DWARF_INFO_ADD_REF(refs, iattr, ie, iattr->ref_entry, debug_info->len, sizeof(uint32_t));
 					DWARF_INFO_FILL(debug_info, &iattr->ref8, sizeof(uint32_t));
 					break;
 				case DW_FORM_ref8:
-					DWARF_INFO_ADD_REF(refs, iattr, iattr->ref_entry, debug_info->len, sizeof(uint64_t));
+					DWARF_INFO_ADD_REF(refs, iattr, ie, iattr->ref_entry, debug_info->len, sizeof(uint64_t));
 					DWARF_INFO_FILL(debug_info, &iattr->ref8, sizeof(uint64_t));
 					break;
 				case DW_FORM_ref_udata:
-					DWARF_INFO_ADD_REF(refs, iattr, iattr->ref_entry, debug_info->len, sizeof(uint64_t));
+					DWARF_INFO_ADD_REF(refs, iattr, ie, iattr->ref_entry, debug_info->len, sizeof(uint64_t));
 					DWARF_INFO_FILL(debug_info, &iattr->ref8, sizeof(uint64_t));
 //					len = scf_leb128_encode_uint32(iattr->ref8, buf, sizeof(buf));
 //					assert(len > 0);
@@ -439,6 +441,14 @@ int scf_dwarf_info_encode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string
 					DWARF_INFO_FILL(debug_info, iattr->data->data, iattr->data->len + 1);
 					break;
 				case DW_FORM_strp:
+
+					ret = scf_string_get_offset(debug_str, iattr->data->data, iattr->data->len + 1);
+					if (ret < 0) {
+						scf_loge("\n");
+						return ret;
+					}
+
+					iattr->str_offset = ret;
 					DWARF_INFO_FILL(debug_info, &iattr->str_offset, sizeof(scf_dwarf_uword_t));
 					break;
 
@@ -471,12 +481,13 @@ int scf_dwarf_info_encode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string
 		if (DW_AT_sibling == iref->iattr->name)
 			continue;
 
-		if (!iref->ie) {
-			scf_loge("iattr->name: %s\n", scf_dwarf_find_attribute(iref->iattr->name));
+		if (!iref->ref_entry) {
+			scf_loge("ie: %p, ie->code: %u, iattr->name: %s\n",
+					iref->ie, iref->ie->code, scf_dwarf_find_attribute(iref->iattr->name));
 			return -1;
 		}
 
-		memcpy(debug_info->data + iref->offset, &iref->ie->cu_byte_offset, iref->size);
+		memcpy(debug_info->data + iref->offset, &iref->ref_entry->cu_byte_offset, iref->size);
 	}
 
 	scf_vector_free(refs);
@@ -574,7 +585,11 @@ int scf_dwarf_info_fill_attr(scf_dwarf_info_attr_t* iattr, uint8_t* data, size_t
 		case DW_FORM_strp:
 			assert(len >= sizeof(scf_dwarf_uword_t));
 
-			iattr->str_offset = *(scf_dwarf_uword_t*)data;
+			iattr->data = scf_string_cstr_len(data, len);
+			if (!iattr->data)
+				return -ENOMEM;
+
+			iattr->str_offset = 0;
 			break;
 
 		case DW_FORM_sec_offset:
