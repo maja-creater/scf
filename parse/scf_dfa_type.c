@@ -76,15 +76,15 @@ int _type_find_type(scf_dfa_t* dfa, dfa_identity_t* id)
 				scf_loge("function ptr not support\n");
 				return SCF_DFA_ERROR;
 			}
-		}
 
-		if (SCF_FUNCTION_PTR == id->type->type) {
+			if (SCF_FUNCTION_PTR == id->type->type) {
 
-			id->func_ptr = _type_find_function(parse->ast->current_block, id->identity->text->data);
+				id->func_ptr = _type_find_function(parse->ast->current_block, id->identity->text->data);
 
-			if (!id->func_ptr) {
-				scf_loge("can't find funcptr type '%s'\n", id->identity->text->data);
-				return SCF_DFA_ERROR;
+				if (!id->func_ptr) {
+					scf_loge("can't find funcptr type '%s'\n", id->identity->text->data);
+					return SCF_DFA_ERROR;
+				}
 			}
 		}
 

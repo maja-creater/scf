@@ -420,8 +420,7 @@ static int _scf_expr_calculate_internal(scf_ast_t* ast, scf_node_t* node, void* 
 
 			// recursive calculate every child node
 			if (_scf_expr_calculate_internal(ast, node->nodes[i], d) < 0) {
-
-				printf("%s(),%d, error: \n", __func__, __LINE__);
+				scf_loge("\n");
 				goto _error;
 			}
 		}
@@ -429,7 +428,7 @@ static int _scf_expr_calculate_internal(scf_ast_t* ast, scf_node_t* node, void* 
 		// find the handler for this node 
 		scf_operator_handler_t* h = scf_find_semantic_operator_handler(node->op->type, -1, -1, -1);
 		if (!h) {
-			printf("%s(),%d, error: \n", __func__, __LINE__);
+			scf_loge("\n");
 			goto _error;
 		}
 
@@ -437,7 +436,7 @@ static int _scf_expr_calculate_internal(scf_ast_t* ast, scf_node_t* node, void* 
 
 		// calculate this node
 		if (h->func(ast, node->nodes, node->nb_nodes, d) < 0) {
-			printf("%s(),%d, error: \n", __func__, __LINE__);
+			scf_loge("\n");
 			goto _error;
 		}
 	} else {
@@ -449,8 +448,7 @@ static int _scf_expr_calculate_internal(scf_ast_t* ast, scf_node_t* node, void* 
 
 			// recursive calculate every child node
 			if (_scf_expr_calculate_internal(ast, node->nodes[i], d) < 0) {
-
-				printf("%s(),%d, error: \n", __func__, __LINE__);
+				scf_loge("\n");
 				goto _error;
 			}
 		}
@@ -488,7 +486,7 @@ static int _scf_expr_calculate(scf_ast_t* ast, scf_expr_t* e, scf_variable_t** p
 
 	if (scf_type_is_var(root->type)) {
 
-		printf("%s(),%d, root: %p var: %p\n", __func__, __LINE__, root, root->var);
+		scf_logd("root: %p var: %p\n", root, root->var);
 
 		_semantic_check_var_size(ast, root);
 
@@ -503,7 +501,7 @@ static int _scf_expr_calculate(scf_ast_t* ast, scf_expr_t* e, scf_variable_t** p
 	d.pret = &root->result;
 
 	if (_scf_expr_calculate_internal(ast, root, &d) < 0) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 
@@ -841,13 +839,13 @@ static int _scf_op_semantic_break(scf_ast_t* ast, scf_node_t** nodes, int nb_nod
 	}
 
 	if (!n) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 	assert(SCF_OP_WHILE == n->type || SCF_OP_FOR == n->type);
 
 	if (!n->parent) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 
@@ -865,7 +863,7 @@ static int _scf_op_semantic_continue(scf_ast_t* ast, scf_node_t** nodes, int nb_
 	}
 
 	if (!n) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 	assert(SCF_OP_WHILE == n->type || SCF_OP_FOR == n->type);
@@ -891,7 +889,7 @@ static int _scf_op_semantic_goto(scf_ast_t* ast, scf_node_t** nodes, int nb_node
 
 	scf_label_t* l2 = scf_block_find_label(ast->current_block, l->w->text->data);
 	if (!l2) {
-		printf("%s(),%d, error: label '%s' not found\n", __func__, __LINE__, l->w->text->data);
+		scf_loge("label '%s' not found\n", l->w->text->data);
 		return -1;
 	}
 
@@ -933,7 +931,7 @@ static int _scf_op_semantic_node(scf_ast_t* ast, scf_node_t* node, scf_handler_d
 static int _scf_op_semantic_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
 	if (nb_nodes < 2) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 
@@ -946,12 +944,12 @@ static int _scf_op_semantic_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 
 	scf_variable_t* r = NULL;
 	if (_scf_expr_calculate(ast, e, &r) < 0) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 
 	if (!r || !scf_variable_interger(r)) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 	scf_variable_free(r);
@@ -963,19 +961,19 @@ static int _scf_op_semantic_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 		scf_operator_t* op   = node->op;
 
 		if (node->w) {
-			printf("%s(),%d, node: %p, w: %s, line:%d\n", __func__, __LINE__, node, node->w->text->data, node->w->line);
+			scf_logi("node: %p, w: %s, line:%d\n", node, node->w->text->data, node->w->line);
 		}
 		if (!op) {
 			op = scf_find_base_operator_by_type(node->type);
 			if (!op) {
-				printf("%s(),%d, error: \n", __func__, __LINE__);
+				scf_loge("\n");
 				return -1;
 			}
 		}
 
 		scf_operator_handler_t* h = scf_find_semantic_operator_handler(op->type, -1, -1, -1);
 		if (!h) {
-			printf("%s(),%d, error: \n", __func__, __LINE__);
+			scf_loge("\n");
 			return -1;
 		}
 
@@ -986,12 +984,11 @@ static int _scf_op_semantic_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 		d->pret = pret;
 
 		if (ret < 0) {
-			printf("%s(),%d, error: \n", __func__, __LINE__);
+			scf_loge("\n");
 			return -1;
 		}
 	}
 
-	printf("%s(),%d, ok: \n", __func__, __LINE__);
 	return 0;
 }
 
@@ -1048,7 +1045,6 @@ static int _scf_op_semantic_while(scf_ast_t* ast, scf_node_t** nodes, int nb_nod
 		return -1;
 	}
 
-	scf_logi("ok\n");
 	return 0;
 }
 
@@ -1224,7 +1220,7 @@ static int _scf_op_semantic_expr(scf_ast_t* ast, scf_node_t** nodes, int nb_node
 	d->pret = pret;
 
 	if (ret < 0) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 
@@ -1276,7 +1272,7 @@ static int _scf_op_semantic_neg(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 		return 0;
 	}
 
-	printf("%s(),%d, error: \n", __func__, __LINE__);
+	scf_loge("\n");
 	return -1;
 }
 
@@ -1409,7 +1405,6 @@ static int _scf_op_semantic_address_of(scf_ast_t* ast, scf_node_t** nodes, int n
 
 static int _scf_op_semantic_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
-	printf("%s(),%d\n", __func__, __LINE__);
 	assert(2 == nb_nodes);
 
 	scf_handler_data_t* d = data;
@@ -1465,7 +1460,6 @@ static int _scf_op_semantic_sizeof(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 static int _scf_op_semantic_logic_not(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
-	printf("%s(),%d\n", __func__, __LINE__);
 	assert(1 == nb_nodes);
 
 	scf_handler_data_t* d = data;
@@ -1499,7 +1493,7 @@ static int _scf_op_semantic_logic_not(scf_ast_t* ast, scf_node_t** nodes, int nb
 		return 0;
 	}
 
-	printf("%s(),%d, error: \n", __func__, __LINE__);
+	scf_loge("\n");
 	return -1;
 }
 

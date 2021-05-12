@@ -60,6 +60,8 @@ struct dfa_parse_data_s {
 	scf_function_t*      current_function;
 	int                  argc;
 
+	scf_lex_word_t*      current_async_w;
+
 	// every dimention has a vector,
 	// every vector has init exprs for this dimention
 	scf_vector_t*        init_exprs;

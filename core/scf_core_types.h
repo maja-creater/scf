@@ -89,6 +89,7 @@ enum scf_core_types {
 	SCF_OP_RETURN,		// return statement
 	SCF_OP_BREAK,		// break statement
 	SCF_OP_CONTINUE,	// continue statement
+	SCF_OP_ASYNC,       // async statement
 	SCF_OP_ERROR,       // error statement
 
 	// 54

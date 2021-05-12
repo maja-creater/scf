@@ -159,6 +159,7 @@ static int _dfa_init_module_block(scf_dfa_t* dfa)
 	SCF_DFA_GET_MODULE_NODE(dfa, goto,     _goto,     _goto);
 	SCF_DFA_GET_MODULE_NODE(dfa, label,    label,     label);
 	SCF_DFA_GET_MODULE_NODE(dfa, error,    error,     error);
+	SCF_DFA_GET_MODULE_NODE(dfa, async,    async,     async);
 #endif
 	// block could includes these statements
 	scf_dfa_node_add_child(entry, lb);
@@ -177,6 +178,7 @@ static int _dfa_init_module_block(scf_dfa_t* dfa)
 	scf_dfa_node_add_child(entry, _goto);
 	scf_dfa_node_add_child(entry, label);
 	scf_dfa_node_add_child(entry, error);
+	scf_dfa_node_add_child(entry, async);
 #endif
 
 	scf_parse_t*      parse = dfa->priv;

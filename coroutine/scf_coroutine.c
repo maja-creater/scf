@@ -2,7 +2,8 @@
 
 static scf_co_thread_t* co_thread = NULL;
 
-static void _async_test(int n0, int n1, int n2, int n3);
+int  __scf_co_task_run(scf_co_task_t* task);
+void __asm_co_task_yield(scf_co_task_t* task, uintptr_t* task_rip, uintptr_t* task_rsp, uintptr_t task_rsp0);
 
 int64_t scf_gettime()
 {
@@ -42,7 +43,7 @@ int scf_co_thread_close(scf_co_thread_t*  thread)
 	return -1;
 }
 
-int scf_co_task_alloc(scf_co_task_t** ptask, uintptr_t rdi, uintptr_t rsi, uintptr_t rdx, uintptr_t rcx)
+int scf_co_task_alloc(scf_co_task_t** ptask, uintptr_t func_ptr, uintptr_t rdi, uintptr_t rsi, uintptr_t rdx, uintptr_t rcx)
 {
 	scf_co_task_t* task = calloc(1, sizeof(scf_co_task_t));
 	if (!task)
@@ -66,7 +67,7 @@ int scf_co_task_alloc(scf_co_task_t** ptask, uintptr_t rdi, uintptr_t rsi, uintp
 
 	task->stack_capacity = task->stack_len;
 
-	task->rip = (uintptr_t)_async_test;
+	task->rip = func_ptr;
 
 	*ptask = task;
 	return 0;
@@ -117,6 +118,26 @@ int scf_co_thread_add_task(scf_co_thread_t* thread, scf_co_task_t* task)
 	return 0;
 }
 
+int scf_async(uintptr_t funcptr, uintptr_t rdi, uintptr_t rsi, uintptr_t rdx)
+{
+	if (!co_thread) {
+		if (scf_co_thread_open(&co_thread) < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+	}
+
+	scf_co_task_t* task = NULL;
+
+	if (scf_co_task_alloc(&task, funcptr, rdi, rsi, rdx, 0) < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	scf_co_thread_add_task(co_thread, task);
+	return 0;
+}
+
 int __save_stack(scf_co_task_t* task)
 {
 	task->stack_len = task->rsp0 - task->rsp;
@@ -127,7 +148,7 @@ int __save_stack(scf_co_task_t* task)
 	if (task->stack_len > task->stack_capacity) {
 		void* p = realloc(task->stack_data, task->stack_len);
 		if (!p) {
-			task->ret = -ENOMEM;
+			task->err = -ENOMEM;
 			return -ENOMEM;
 		}
 
@@ -138,8 +159,6 @@ int __save_stack(scf_co_task_t* task)
 	memcpy(task->stack_data, (void*)task->rsp, task->stack_len);
 	return 0;
 }
-
-void __asm_co_task_yield(scf_co_task_t* task, uintptr_t* task_rip, uintptr_t* task_rsp, uintptr_t task_rsp0);
 
 void __async_msleep(int64_t msec)
 {
@@ -159,73 +178,301 @@ void __async_msleep(int64_t msec)
 	__asm_co_task_yield(task, &task->rip, &task->rsp, task->rsp0);
 }
 
-static void _async_test(int n0, int n1, int n2, int n3)
+static size_t _co_read_from_bufs(scf_co_task_t* task, void* buf, size_t count)
 {
-	scf_logd("n0: %d, %d, %d, %d\n", n0, n1, n2, n3);
+	scf_co_buf_t** pp = &task->read_bufs;
 
-	scf_co_task_t* task = co_thread->current;
+	size_t pos = 0;
 
-	scf_loge("task->rip: %#lx, task->rsp: %#lx\n", task->rip, task->rsp);
-#if 1
-	int i = 0;
-	while (i < n0) {
-		scf_loge("i: %d, n: %d\n", i, n0);
+	while (*pp) {
+		scf_co_buf_t* b = *pp;
 
-		__async_msleep(500);
+		size_t len = b->len - b->pos;
 
-		printf("\n");
-		i++;
-	}
-#endif
-}
+		if (len > count - pos)
+			len = count - pos;
 
-uintptr_t __asm_co_task_run(uintptr_t* task_rsp, void* stack_data,
-		uintptr_t task_rip, intptr_t stack_len, uintptr_t* task_rsp0);
+		memcpy(buf + pos, b->data + b->pos, len);
 
-int __scf_co_task_run(scf_co_task_t* task)
-{
-	task->thread->current = task;
+		pos    += len;
+		b->pos += len;
 
-	task->ret = 0;
+		if (b->pos == b->len) {
 
-	uintptr_t rsp1 = 0;
-	scf_loge("task %p, rsp0: %#lx, rsp1: %#lx\n", task, task->rsp0, rsp1);
+			*pp = b->next;
 
-	rsp1 = __asm_co_task_run(&task->rsp, task->stack_data, task->rip,
-			task->stack_len, &task->rsp0);
-
-#if 1
-	if (task->rsp0 == rsp1) {
-		scf_loge("task %p run ok, rsp0: %#lx, rsp1: %#lx\n", task, task->rsp0, rsp1);
-
-		if (task->time > 0) {
-			scf_rbtree_delete(&task->thread->timers, &task->timer);
-			task->time = 0;
+			free(b);
+			b = NULL;
 		}
 
-		scf_list_del(&task->list);
-		task->thread->nb_tasks--;
-
-		scf_co_task_free(task);
-		task = NULL;
-
-	} else {
-		scf_loge("task %p running, rsp0: %#lx, rsp1: %#lx\n", task, task->rsp0, rsp1);
+		if (pos == count)
+			break;
 	}
-#endif
+
+	return pos;
+}
+
+static int _co_read_to_bufs(scf_co_task_t* task)
+{
+	scf_co_buf_t*  b = NULL;
+
+	while (1) {
+		if (!b) {
+			b = malloc(sizeof(scf_co_buf_t) + 4096);
+			if (!b) {
+				scf_loge("\n");
+				return -ENOMEM;
+			}
+
+			b->len = 0;
+			b->pos = 0;
+
+			scf_co_buf_t** pp = &task->read_bufs;
+
+			while (*pp)
+				pp = &(*pp)->next;
+			*pp = b;
+		}
+
+		int ret = read(task->fd, b->data + b->len, 4096 - b->len);
+		if (ret < 0) {
+			if (EINTR == errno)
+				continue;
+			else if (EAGAIN == errno)
+				break;
+			else {
+				scf_loge("\n");
+				return -errno;
+			}
+		}
+
+		b->len += ret;
+		if (4096 == b->len)
+			b = NULL;
+	}
+
 	return 0;
 }
+
+static int _co_add_event(int fd, uint32_t events)
+{
+	scf_co_thread_t*   thread = co_thread;
+	scf_co_task_t*     task   = thread->current;
+
+	struct epoll_event ev;
+	ev.events   = events | EPOLLET | EPOLLRDHUP;
+	ev.data.ptr = task;
+
+	if (epoll_ctl(thread->epfd, EPOLL_CTL_ADD, fd, &ev) < 0) {
+
+		if (EEXIST != errno) {
+			scf_loge("\n");
+			return -errno;
+		}
+
+		if (epoll_ctl(thread->epfd, EPOLL_CTL_MOD, fd, &ev) < 0) {
+			scf_loge("\n");
+			return -errno;
+		}
+	}
+
+	task->fd     = fd;
+	task->events = 0;
+	return 0;
+}
+
+int __async_connect(int fd, const struct sockaddr *addr, socklen_t addrlen, int64_t msec)
+{
+	scf_co_thread_t*   thread = co_thread;
+	scf_co_task_t*     task   = thread->current;
+
+	int flags = fcntl(fd, F_GETFL);
+	flags |= O_NONBLOCK;
+	fcntl(fd, F_SETFL, flags);
+
+	while (1) {
+		int ret = connect(fd, addr, addrlen);
+		if (ret < 0) {
+			if (EINTR == errno)
+				continue;
+			else if (EINPROGRESS == errno)
+				break;
+			else {
+				scf_loge("\n");
+				return -errno;
+			}
+		} else
+			return 0;
+	}
+
+	if (task->time > 0)
+		scf_rbtree_delete(&thread->timers, &task->timer);
+
+	int64_t time = scf_gettime() + msec * 1000LL;
+	task->time   = time;
+
+	scf_rbtree_insert(&thread->timers, &task->timer, _co_timer_cmp);
+
+	int ret = _co_add_event(fd, EPOLLOUT);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	__asm_co_task_yield(task, &task->rip, &task->rsp, task->rsp0);
+
+	int err = -ETIMEDOUT;
+
+	if (task->events & EPOLLOUT) {
+
+		socklen_t errlen = sizeof(err);
+
+		ret = getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &errlen);
+		if (ret < 0) {
+			scf_loge("ret: %d, errno: %d\n", ret, errno);
+			err = ret;
+		} else {
+			err = -err;
+		}
+
+		scf_loge("err: %d\n", err);
+	}
+
+	if (epoll_ctl(thread->epfd, EPOLL_CTL_DEL, fd, NULL) < 0) {
+		scf_loge("EPOLL_CTL_DEL fd: %d, errno: %d\n", fd, errno);
+		return -errno;
+	}
+
+	if (task->time > 0) {
+		scf_loge("\n");
+		scf_rbtree_delete(&thread->timers, &task->timer);
+		task->time = 0;
+	}
+
+	return err;
+}
+
+int __async_read(int fd, void* buf, size_t count, int64_t msec)
+{
+	scf_co_thread_t*   thread = co_thread;
+	scf_co_task_t*     task   = thread->current;
+
+	int ret = _co_add_event(fd, EPOLLIN);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	if (task->time > 0)
+		scf_rbtree_delete(&thread->timers, &task->timer);
+
+	int64_t time = scf_gettime() + msec * 1000LL;
+	task->time   = time;
+
+	scf_rbtree_insert(&thread->timers, &task->timer, _co_timer_cmp);
+
+	size_t pos = 0;
+
+	while (1) {
+		int ret = _co_read_to_bufs(task);
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
+
+		size_t len = _co_read_from_bufs(task, buf + pos, count - pos);
+		pos += len;
+
+		if (pos == count)
+			break;
+
+		if (time < scf_gettime())
+			break;
+
+		__asm_co_task_yield(task, &task->rip, &task->rsp, task->rsp0);
+	}
+
+	if (epoll_ctl(thread->epfd, EPOLL_CTL_DEL, fd, NULL) < 0) {
+		scf_loge("EPOLL_CTL_DEL fd: %d, errno: %d\n", fd, errno);
+		return -errno;
+	}
+
+	return pos;
+}
+
+int __async_write(int fd, void* buf, size_t count)
+{
+	scf_co_thread_t*   thread = co_thread;
+	scf_co_task_t*     task   = thread->current;
+
+	int ret = _co_add_event(fd, EPOLLOUT);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	size_t pos = 0;
+
+	while (pos < count) {
+		int ret = write(task->fd, buf + pos, count - pos);
+		if (ret < 0) {
+			if (EINTR == errno)
+				continue;
+			else if (EAGAIN == errno)
+				__asm_co_task_yield(task, &task->rip, &task->rsp, task->rsp0);
+			else {
+				scf_loge("\n");
+				return -errno;
+			}
+		} else
+			pos += ret;
+	}
+
+	if (epoll_ctl(thread->epfd, EPOLL_CTL_DEL, fd, NULL) < 0) {
+		scf_loge("EPOLL_CTL_DEL fd: %d, errno: %d\n", fd, errno);
+		return -errno;
+	}
+
+	return pos;
+}
+
+void __async_exit()
+{
+	if (co_thread)
+		co_thread->exit_flag = 1;
+}
+
+int __async_loop()
+{
+	return scf_co_thread_run(co_thread);
+}
+
+#define SCF_CO_TASK_DELETE(task) \
+	do { \
+		if (task->time > 0) { \
+			scf_rbtree_delete(&thread->timers, &task->timer); \
+			task->time = 0; \
+		} \
+		\
+		scf_list_del(&task->list); \
+		thread->nb_tasks--; \
+		\
+		scf_co_task_free(task); \
+		task = NULL; \
+	} while (0)
 
 int scf_co_thread_run(scf_co_thread_t* thread)
 {
 	if (!thread)
 		return -EINVAL;
 
-	scf_loge("thread: %p\n", thread);
+	while (!thread->exit_flag) {
 
-	while (1) {
+		assert(thread->nb_tasks >= 0);
 
-#if 1
+		if (0 == thread->nb_tasks)
+			break;
+
 		struct epoll_event* events = calloc(thread->nb_tasks + 1, sizeof(struct epoll_event));
 		if (!events)
 			return -ENOMEM;
@@ -237,6 +484,7 @@ int scf_co_thread_run(scf_co_thread_t* thread)
 			free(events);
 			return -1;
 		}
+
 		int i;
 		for (i = 0; i < ret; i++) {
 
@@ -246,22 +494,13 @@ int scf_co_thread_run(scf_co_thread_t* thread)
 			task->events = events[i].events;
 
 			int ret2 = __scf_co_task_run(task);
-			if (ret2 < 0) {
+
+			if (ret2 < 0 || SCF_CO_OK == ret2) {
 				scf_loge("ret2: %d, thread: %p, task: %p\n", ret2, thread, task);
 
-				if (task->time > 0) {
-					scf_rbtree_delete(&thread->timers, &task->timer);
-					task->time = 0;
-				}
-
-				scf_list_del(&task->list);
-				thread->nb_tasks--;
-
-				scf_co_task_free(task);
-				task = NULL;
+				SCF_CO_TASK_DELETE(task);
 			}
 		}
-#endif
 
 		while (1) {
 			scf_co_task_t* task = (scf_co_task_t*) scf_rbtree_min(&thread->timers, thread->timers.root);
@@ -271,59 +510,27 @@ int scf_co_thread_run(scf_co_thread_t* thread)
 			}
 
 			if (task->time > scf_gettime()) {
-				scf_loge("\n");
 				break;
 			}
 
 			scf_rbtree_delete(&thread->timers, &task->timer);
 			task->time = 0;
 
-			__scf_co_task_run(task);
+			int ret2 = __scf_co_task_run(task);
+
+			if (ret2 < 0 || SCF_CO_OK == ret2) {
+				scf_loge("ret2: %d, thread: %p, task: %p\n", ret2, thread, task);
+
+				SCF_CO_TASK_DELETE(task);
+			}
 		}
-#if 1
-		scf_loge("\n");
 
 		free(events);
 		events = NULL;
-#endif
 	}
+
+	scf_loge("async exit\n");
 
 	return 0;
 }
-
-#if 1
-int main()
-{
-	scf_co_thread_t* thread = NULL;
-	scf_co_task_t*   task   = NULL;
-
-	int ret = scf_co_thread_open(&thread);
-	if (ret < 0) {
-		scf_loge("\n");
-		return -1;
-	}
-
-	ret = scf_co_task_alloc(&task, 5, 4, 3, 2);
-	if (ret < 0) {
-		scf_loge("\n");
-		return -1;
-	}
-
-	ret = scf_co_thread_add_task(thread, task);
-	if (ret < 0) {
-		scf_loge("\n");
-		return -1;
-	}
-
-	scf_loge("thread: %p\n", thread);
-
-	ret = scf_co_thread_run(thread);
-	if (ret < 0) {
-		scf_loge("\n");
-		return -1;
-	}
-
-	return 0;
-}
-#endif
 

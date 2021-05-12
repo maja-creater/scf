@@ -249,11 +249,14 @@ int scf_variable_type_like(scf_variable_t* v0, scf_variable_t* v1)
 			return 0;
 
 		if (SCF_FUNCTION_PTR == v0->type) {
-			assert(v0->func_ptr);
-			assert(v1->func_ptr);
 
-			if (!scf_function_same_type(v0->func_ptr, v1->func_ptr))
-				return 0;
+			if (v0->func_ptr && v1->func_ptr) {
+
+				if (!scf_function_same_type(v0->func_ptr, v1->func_ptr))
+					return 0;
+			} else {
+				scf_logw("common function ptr!\n");
+			}
 		}
 	} else {
 		if (v1)

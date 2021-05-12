@@ -69,6 +69,7 @@ extern scf_dfa_module_t  dfa_module_return;
 extern scf_dfa_module_t  dfa_module_goto;
 extern scf_dfa_module_t  dfa_module_label;
 extern scf_dfa_module_t  dfa_module_error;
+extern scf_dfa_module_t  dfa_module_async;
 #endif
 extern scf_dfa_module_t  dfa_module_block;
 
@@ -103,6 +104,7 @@ scf_dfa_module_t* dfa_modules[] =
 	&dfa_module_return,
 	&dfa_module_label,
 	&dfa_module_error,
+	&dfa_module_async,
 #endif
 	&dfa_module_block,
 };

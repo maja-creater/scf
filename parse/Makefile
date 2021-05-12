@@ -118,6 +118,7 @@ CFILES += scf_dfa_goto.c
 CFILES += scf_dfa_return.c
 CFILES += scf_dfa_error.c
 CFILES += scf_dfa_label.c
+CFILES += scf_dfa_async.c
 
 CFILES += scf_dfa_block.c
 
