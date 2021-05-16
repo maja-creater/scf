@@ -65,11 +65,18 @@ static int _optimize_generate_loads_saves(scf_ast_t* ast, scf_function_t* f, scf
 		if (bb->generate_flag) {
 			for (i = 0; i < bb->dn_loads->size; i++) {
 				dn = bb->dn_loads->data[i];
+
+				if (scf_vector_find(bb->dn_reloads, dn))
+					continue;
+
 				SCF_OPTIMIZER_LOAD(SCF_OP_3AC_LOAD);
 			}
 
 			for (i = 0; i < bb->dn_saves->size; i++) {
 				dn = bb->dn_saves->data[i];
+
+				if (scf_vector_find(bb->dn_resaves, dn))
+					continue;
 
 				if (bb->group_flag)
 					SCF_OPTIMIZER_SAVE(SCF_OP_3AC_SAVE, &bb->save_list_head);

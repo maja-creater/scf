@@ -15,13 +15,14 @@ scf_function_t* scf_function_alloc(scf_lex_word_t* w)
 
 	f->scope = scf_scope_alloc(w, "function");
 
-	f->argv           = scf_vector_alloc();
-	f->jmps           = scf_vector_alloc();
-	f->dfs_tree       = scf_vector_alloc();
-	f->bb_loops       = scf_vector_alloc();
+	f->argv             = scf_vector_alloc();
+	f->callee_functions = scf_vector_alloc();
+	f->jmps             = scf_vector_alloc();
+	f->dfs_tree         = scf_vector_alloc();
+	f->bb_loops         = scf_vector_alloc();
 
-	f->text_relas     = scf_vector_alloc();
-	f->data_relas     = scf_vector_alloc();
+	f->text_relas       = scf_vector_alloc();
+	f->data_relas       = scf_vector_alloc();
 
 	f->op_type = -1;
 
@@ -67,6 +68,9 @@ void scf_function_free(scf_function_t* f)
 		scf_vector_free(f->argv);
 		f->argv = NULL;
 	}
+
+	if (f->callee_functions)
+		scf_vector_free(f->callee_functions);
 
 	if (f->jmps) {
 		scf_vector_free(f->jmps);

@@ -4,7 +4,8 @@
 #include"scf_calculate.h"
 
 typedef struct {
-	scf_variable_t**	pret;
+	scf_variable_t**  pret;
+	scf_function_t*   f;
 
 } scf_handler_data_t;
 
@@ -427,6 +428,7 @@ int scf_function_const_opt(scf_ast_t* ast, scf_function_t* f)
 	scf_logi("f: %p\n", f);
 
 	scf_handler_data_t d = {0};
+	d.f = f;
 
 	int ret = __scf_op_const_call(ast, f, &d);
 
@@ -441,6 +443,24 @@ int scf_function_const_opt(scf_ast_t* ast, scf_function_t* f)
 
 static int _scf_op_const_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
+	assert(nb_nodes > 0);
+
+	scf_handler_data_t* d  = data;
+
+	scf_variable_t*     v0 = _scf_operand_get(nodes[0]);
+
+	assert(SCF_FUNCTION_PTR == v0->type && v0->func_ptr);
+
+	scf_function_t* f = v0->func_ptr;
+
+	if (f != d->f && f->node.define_flag) {
+
+		if (scf_vector_add_unique(d->f->callee_functions, f) < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+	}
+
 	return 0;
 }
 

@@ -351,7 +351,7 @@ int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_resul
 			result = NULL;
 
 			opcode -= lm->prologue->opcode_base;
-			scf_loge("opcode: %u, address: %#lx, line: %u\n", opcode, lm->address, lm->line);
+			scf_logd("opcode: %u, address: %#lx, line: %u\n", opcode, lm->address, lm->line);
 
 		} else if (opcode > 0) {
 			size_t len;
@@ -373,7 +373,7 @@ int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_resul
 					if (ret < 0)
 						return ret;
 
-					scf_loge("opcode: %u, address: %#lx, line: %u\n", opcode, lm->address, lm->line);
+					scf_logd("opcode: %u, address: %#lx, line: %u\n", opcode, lm->address, lm->line);
 
 					lm->basic_block = 0;
 					result = NULL;
@@ -385,7 +385,7 @@ int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_resul
 					address_advance *= lm->prologue->minimum_instruction_length;
 					lm->address     += address_advance;
 
-					scf_loge("opcode: %u, address: %#lx, line: %u, address_advance: %u\n",
+					scf_logd("opcode: %u, address: %#lx, line: %u, address_advance: %u\n",
 							opcode, lm->address, lm->line, address_advance);
 
 					assert(len > 0);
@@ -397,8 +397,6 @@ int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_resul
 					line_advance  = scf_leb128_decode_int32(debug_line + i, &len);
 					lm->line     += line_advance;
 
-					scf_loge("opcode: %u, address: %#lx, line: %u\n", opcode, lm->address, lm->line);
-
 					assert(len > 0);
 					i += len;
 					break;
@@ -407,8 +405,6 @@ int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_resul
 					len = 0;
 					lm->file = scf_leb128_decode_uint32(debug_line + i, &len);
 
-					scf_loge("opcode: %u, address: %#lx, line: %u\n", opcode, lm->address, lm->line);
-
 					assert(len > 0);
 					i += len;
 					break;
@@ -416,8 +412,6 @@ int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_resul
 				case DW_LNS_set_column:
 					len = 0;
 					lm->column = scf_leb128_decode_uint32(debug_line + i, &len);
-
-					scf_loge("opcode: %u, address: %#lx, line: %u\n", opcode, lm->address, lm->line);
 
 					assert(len > 0);
 					i += len;
@@ -434,7 +428,6 @@ int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_resul
 				case DW_LNS_const_add_pc:
 					_decode_special_opcode(lm->prologue, 255, &address_advance, &line_advance);
 					lm->address += address_advance;
-					scf_loge("opcode: %u, address: %#lx, line: %u\n", opcode, lm->address, lm->line);
 					break;
 
 				case DW_LNS_fixed_advance_pc:
@@ -447,7 +440,6 @@ int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_resul
 
 					lm->address += uhalf;
 					i += 2;
-					scf_loge("opcode: %u, address: %#lx, line: %u\n", opcode, lm->address, lm->line);
 					break;
 				default:
 					scf_loge("\n");
@@ -485,7 +477,7 @@ int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_resul
 				if (ret < 0)
 					return ret;
 
-				scf_loge("opcode: %u, address: %#lx, line: %u\n", opcode, lm->address, lm->line);
+				scf_logd("opcode: %u, address: %#lx, line: %u\n", opcode, lm->address, lm->line);
 
 				lm->address = 0;
 				lm->file    = 1;
@@ -509,8 +501,6 @@ int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_resul
 
 				lm->address = address;
 				i += num;
-
-				scf_loge("opcode: %u, address: %#lx, line: %u\n", opcode, lm->address, lm->line);
 
 			} else if (DW_LNE_define_file == opcode) {
 				int j = i + 1;
@@ -539,8 +529,6 @@ int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_resul
 				scf_loge("dir_index:     %u\n", dir_index);
 				scf_loge("time_modified: %u\n", time_modified);
 				scf_loge("file_length:   %u\n", file_length);
-
-				scf_loge("opcode: %u, address: %#lx, line: %u\n", opcode, lm->address, lm->line);
 
 				i += num;
 				assert(j == i);
@@ -712,7 +700,7 @@ int scf_dwarf_line_encode(scf_dwarf_debug_t* debug, scf_dwarf_line_machine_t* lm
 		assert(address_advance % lm->prologue->minimum_instruction_length == 0);
 
 		address_advance /= lm->prologue->minimum_instruction_length;
-		scf_loge("i: %d, line_advance: %d, address_advance: %u\n", i, line_advance, address_advance);
+		scf_logd("i: %d, line_advance: %d, address_advance: %u\n", i, line_advance, address_advance);
 
 		while (1) {
 			opcode = (line_advance - lm->prologue->line_base)
@@ -720,7 +708,6 @@ int scf_dwarf_line_encode(scf_dwarf_debug_t* debug, scf_dwarf_line_machine_t* lm
 				+ lm->prologue->opcode_base;
 
 			if (opcode <= 255) {
-			scf_loge("i: %d, line_advance: %d, address_advance: %u, opcode: %u\n", i, line_advance, address_advance, opcode);
 
 				DWARF_DEBUG_LINE_FILL2(&opcode, 1);
 				break;
@@ -733,7 +720,7 @@ int scf_dwarf_line_encode(scf_dwarf_debug_t* debug, scf_dwarf_line_machine_t* lm
 				DWARF_DEBUG_LINE_FILL2(&opcode, 1);
 				DWARF_DEBUG_LINE_FILL2(buf,     len);
 
-			scf_loge("i: %d, line_advance: %d, address_advance: %u, opcode: %u\n", i, line_advance, address_advance, opcode);
+			scf_logd("i: %d, line_advance: %d, address_advance: %u, opcode: %u\n", i, line_advance, address_advance, opcode);
 				line_advance = 0;
 				continue;
 			}
@@ -745,7 +732,6 @@ int scf_dwarf_line_encode(scf_dwarf_debug_t* debug, scf_dwarf_line_machine_t* lm
 				DWARF_DEBUG_LINE_FILL2(&opcode, 1);
 				DWARF_DEBUG_LINE_FILL2(buf,     len);
 
-			scf_loge("i: %d, line_advance: %d, address_advance: %u, opcode: %u\n", i, line_advance, address_advance, opcode);
 				address_advance = 0;
 			}
 		}

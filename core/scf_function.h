@@ -21,6 +21,8 @@ struct scf_function_s {
 
 	int               op_type; // overloaded operator type
 
+	scf_vector_t*     callee_functions;
+
 	scf_list_t        basic_block_list_head;
 	int               nb_basic_blocks;
 
@@ -41,7 +43,8 @@ struct scf_function_s {
 	int               local_vars_size;
 	int               code_bytes;
 
-	uint32_t          vargs_flag:1;
+	uint32_t          vargs_flag  :1;
+	uint32_t          visited_flag:1;
 };
 
 scf_function_t*	scf_function_alloc(scf_lex_word_t* w);

@@ -350,7 +350,7 @@ int scf_dwarf_info_encode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string
 
 		ie->cu_byte_offset = debug_info->len;
 
-		scf_loge("i: %d, ie->code: %u, len: %lu\n", i, ie->code, debug_info->len);
+		scf_logd("i: %d, ie->code: %u, len: %lu\n", i, ie->code, debug_info->len);
 
 		uint8_t buf[64];
 		size_t  len;
@@ -493,7 +493,7 @@ int scf_dwarf_info_encode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string
 	scf_vector_free(refs);
 	refs = NULL;
 
-	scf_loge("origin_len: %lu, debug_info->len: %lu\n", origin_len, debug_info->len);
+	scf_logd("origin_len: %lu, debug_info->len: %lu\n", origin_len, debug_info->len);
 
 	*(scf_dwarf_uword_t*)(debug_info->data + origin_len) = debug_info->len - origin_len - sizeof(scf_dwarf_uword_t);
 	return 0;
@@ -583,7 +583,7 @@ int scf_dwarf_info_fill_attr(scf_dwarf_info_attr_t* iattr, uint8_t* data, size_t
 				return -ENOMEM;
 			break;
 		case DW_FORM_strp:
-			assert(len >= sizeof(scf_dwarf_uword_t));
+//			assert(len >= sizeof(scf_dwarf_uword_t));
 
 			iattr->data = scf_string_cstr_len(data, len);
 			if (!iattr->data)
