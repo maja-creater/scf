@@ -17,6 +17,7 @@ scf_function_t* scf_function_alloc(scf_lex_word_t* w)
 
 	f->argv             = scf_vector_alloc();
 	f->callee_functions = scf_vector_alloc();
+	f->caller_functions = scf_vector_alloc();
 	f->jmps             = scf_vector_alloc();
 	f->dfs_tree         = scf_vector_alloc();
 	f->bb_loops         = scf_vector_alloc();
@@ -71,6 +72,9 @@ void scf_function_free(scf_function_t* f)
 
 	if (f->callee_functions)
 		scf_vector_free(f->callee_functions);
+
+	if (f->caller_functions)
+		scf_vector_free(f->caller_functions);
 
 	if (f->jmps) {
 		scf_vector_free(f->jmps);

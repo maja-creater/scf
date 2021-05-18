@@ -1398,7 +1398,7 @@ static int _fill_function_inst(scf_string_t* code, scf_function_t* f, int64_t of
 
 static int _find_function(scf_node_t* node, void* arg, scf_vector_t* vec)
 {
-	if (SCF_FUNCTION == node->type && node->define_flag) {
+	if (SCF_FUNCTION == node->type) {
 
 		scf_function_t* f = (scf_function_t*)node;
 
@@ -1435,84 +1435,6 @@ static int _find_global_var(scf_node_t* node, void* arg, scf_vector_t* vec)
 	return 0;
 }
 
-static void _scf_loops_print(scf_vector_t* loops)
-{
-	int i;
-	int j;
-	int k;
-
-	for (i = 0; i < loops->size; i++) {
-		scf_bb_group_t* loop = loops->data[i];
-
-		printf("loop:  %p\n", loop);
-		printf("entry: %p\n", loop->entry);
-		printf("exit:  %p\n", loop->exit);
-		printf("body: ");
-		for (j = 0; j < loop->body->size; j++)
-			printf("%p ", loop->body->data[j]);
-		printf("\n");
-
-		if (loop->loop_childs) {
-			printf("childs: ");
-			for (k = 0; k < loop->loop_childs->size; k++)
-				printf("%p ", loop->loop_childs->data[k]);
-			printf("\n");
-		}
-		if (loop->loop_parent)
-			printf("parent: %p\n", loop->loop_parent);
-		printf("loop_layers: %d\n\n", loop->loop_layers);
-	}
-}
-
-int scf_parse_compile_function(scf_parse_t* parse, scf_native_t* native, scf_function_t* f)
-{
-	int ret = 0;
-
-	scf_list_t*    l;
-	scf_list_t     code_list_head;
-
-	scf_list_init(&code_list_head);
-	ret = scf_function_to_3ac(parse->ast, f, &code_list_head);
-	if (ret < 0) {
-		scf_loge("\n");
-		goto error;
-	}
-
-	ret = scf_3ac_split_basic_blocks(&code_list_head, f);
-	if (ret < 0) {
-		scf_loge("\n");
-		goto error;
-	}
-	assert(scf_list_empty(&code_list_head));
-	scf_basic_block_print_list(&f->basic_block_list_head);
-
-#if 1
-	ret = scf_optimize(parse->ast, f, &f->basic_block_list_head);
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-	scf_basic_block_print_list(&f->basic_block_list_head);
-	_scf_loops_print(f->bb_loops);
-#endif
-	return 0;
-	return scf_native_select_inst(native, f);
-
-error:
-	for (l = scf_list_head(&code_list_head); l != scf_list_sentinel(&code_list_head);) {
-
-		scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
-
-		l = scf_list_next(l);
-
-		scf_list_del(&c->list);
-
-		scf_3ac_code_free(c);
-		c = NULL;
-	}
-
-	return ret;
-}
 
 static int _scf_parse_add_rela(scf_parse_t* parse, scf_elf_context_t* elf, scf_rela_t* r, const char* name, uint16_t st_shndx)
 {
@@ -1752,26 +1674,69 @@ static int _add_debug_sections(scf_parse_t* parse, scf_elf_context_t* elf)
 	return ret;
 }
 
-static int _sort_functions(scf_function_t* f, scf_vector_t* functions)
+int scf_parse_compile_functions(scf_parse_t* parse, scf_native_t* native, scf_vector_t* functions)
 {
+	scf_function_t* f;
+
 	int i;
-	int ret;
+	for (i = 0; i < functions->size; i++) {
+		f  =        functions->data[i];
 
-	f->visited_flag = 1;
+		scf_logi("i: %d, f: %p, fname: %s, f->argv->size: %d, f->node.define_flag: %d\n",
+				i, f, f->node.w->text->data, f->argv->size, f->node.define_flag);
 
-	for (i = 0; i < f->callee_functions->size; ++i) {
-
-		scf_function_t* callee = f->callee_functions->data[i];
-
-		if (callee->visited_flag)
+		if (!f->node.define_flag)
 			continue;
 
-		ret = _sort_functions(callee, functions);
-		if ( ret < 0)
+		int ret = scf_function_semantic_analysis(parse->ast, f);
+		if (ret < 0)
 			return ret;
+
+		ret = scf_function_const_opt(parse->ast, f);
+		if (ret < 0)
+			return ret;
+
+		scf_list_t     h;
+		scf_list_init(&h);
+
+		ret = scf_function_to_3ac(parse->ast, f, &h);
+		if (ret < 0) {
+			scf_list_clear(&h, scf_3ac_code_t, list, scf_3ac_code_free);
+			return ret;
+		}
+
+		ret = scf_3ac_split_basic_blocks(&h, f);
+		if (ret < 0) {
+			scf_list_clear(&h, scf_3ac_code_t, list, scf_3ac_code_free);
+			return ret;
+		}
+
+		assert(scf_list_empty(&h));
+//		scf_basic_block_print_list(&f->basic_block_list_head);
 	}
 
-	return scf_vector_add(functions, f);
+	int ret = scf_optimize(parse->ast, functions);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+#if 0
+	for (i = 0; i < functions->size; i++) {
+		f  =        functions->data[i];
+
+		if (!f->node.define_flag)
+			continue;
+
+		int ret = scf_native_select_inst(native, f);
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
+	}
+#endif
+
+	return 0;
 }
 
 int scf_parse_compile(scf_parse_t* parse, const char* path)
@@ -1845,52 +1810,20 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 		return ret;
 	}
 
-	scf_function_t* main = NULL;
+	ret = scf_parse_compile_functions(parse, native, functions);
+	if (ret < 0) {
+		scf_loge("\n");
+		goto error;
+	}
+
+	int64_t offset  = 0;
 	int i;
 	for (i = 0; i < functions->size; i++) {
 
 		scf_function_t* f = functions->data[i];
 
-		scf_logi("i: %d, f: %p, fname: %s, f->argv->size: %d, f->node.define_flag: %d\n",
-				i, f, f->node.w->text->data, f->argv->size, f->node.define_flag);
-
-		if (!main) {
-			if (!strcmp(f->node.w->text->data, "main"))
-				main = f;
-		}
-
-		ret = scf_function_semantic_analysis(parse->ast, f);
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
-		}
-
-		ret = scf_function_const_opt(parse->ast, f);
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
-		}
-
-		f->visited_flag = 0;
-	}
-
-	functions->size = 0;
-
-	if (_sort_functions(main, functions) < 0) {
-		scf_loge("\n");
-		return -1;
-	}
-
-	int64_t offset  = 0;
-	for (i = 0; i < functions->size; i++) {
-
-		scf_function_t* f = functions->data[i];
-
-		ret = scf_parse_compile_function(parse, native, f);
-		if (ret < 0) {
-			scf_loge("\n");
-			goto error;
-		}
+		if (!f->node.define_flag)
+			continue;
 
 		ret = _fill_function_inst(code, f, offset, parse);
 		if (ret < 0) {

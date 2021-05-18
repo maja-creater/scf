@@ -22,6 +22,7 @@ struct scf_function_s {
 	int               op_type; // overloaded operator type
 
 	scf_vector_t*     callee_functions;
+	scf_vector_t*     caller_functions;
 
 	scf_list_t        basic_block_list_head;
 	int               nb_basic_blocks;

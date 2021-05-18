@@ -453,9 +453,14 @@ static int _scf_op_const_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, 
 
 	scf_function_t* f = v0->func_ptr;
 
-	if (f != d->f && f->node.define_flag) {
+	if (f != d->f) {
 
 		if (scf_vector_add_unique(d->f->callee_functions, f) < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+
+		if (scf_vector_add_unique(f->caller_functions, d->f) < 0) {
 			scf_loge("\n");
 			return -1;
 		}

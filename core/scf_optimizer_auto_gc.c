@@ -344,12 +344,16 @@ static int _auto_gc_bb_find(scf_basic_block_t* bb)
 					else
 						break;
 				}
-				assert(SCF_OP_ADDRESS_OF == dn->type);
-				dn = dn->childs->data[0];
 
 				ds_obj  = NULL;
 
-				int ret = _ds_for_dn(&ds_obj, dn);
+				int ret;
+				if (SCF_OP_ADDRESS_OF == dn->type)
+
+					ret = _ds_for_dn(&ds_obj, dn->childs->data[0]);
+				else
+					ret = _ds_for_assign_dereference(&ds_obj, dn);
+
 				if (ret < 0)
 					return ret;
 

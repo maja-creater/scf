@@ -15,7 +15,7 @@ struct scf_optimizer_s
 };
 
 
-int scf_optimize(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head);
+int scf_optimize(scf_ast_t* ast, scf_vector_t* functions);
 
 #endif
 
