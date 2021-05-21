@@ -77,6 +77,7 @@ CFILES += ../core/scf_optimizer_pointer_alias.c
 CFILES += ../core/scf_optimizer_active_vars.c
 CFILES += ../core/scf_optimizer_pointer_aliases.c
 CFILES += ../core/scf_optimizer_loads_saves.c
+CFILES += ../core/scf_optimizer_auto_gc_find.c
 CFILES += ../core/scf_optimizer_auto_gc.c
 CFILES += ../core/scf_optimizer_dominators.c
 CFILES += ../core/scf_optimizer_basic_block.c

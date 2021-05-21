@@ -13,7 +13,7 @@ static int _bb_index_cmp(const void* p0, const void* p1)
 	return 0;
 }
 
-static int _optimize_generate_loads_saves(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head)
+static int _optimize_generate_loads_saves(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head, scf_vector_t* functions)
 {
 	if (!f || !bb_list_head)
 		return -EINVAL;

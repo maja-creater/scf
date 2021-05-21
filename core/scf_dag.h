@@ -67,6 +67,7 @@ struct scf_dn_status_s {
 	uint32_t            active :1;
 	uint32_t            inited :1;
 	uint32_t            updated:1;
+	uint32_t            ret    :1;
 };
 
 scf_dn_index_t*   scf_dn_index_alloc();

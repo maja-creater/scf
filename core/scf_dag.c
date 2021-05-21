@@ -206,6 +206,7 @@ scf_dn_status_t* scf_dn_status_clone(scf_dn_status_t* v)
 	v2->active       = v->active;
 	v2->inited       = v->inited;
 	v2->updated      = v->updated;
+	v2->ret          = v->ret;
 	return v2;
 }
 

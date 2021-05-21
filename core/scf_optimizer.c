@@ -11,6 +11,7 @@ extern scf_optimizer_t   scf_optimizer_loads_saves;
 
 extern scf_optimizer_t   scf_optimizer_dominators;
 
+extern scf_optimizer_t   scf_optimizer_auto_gc_find;
 extern scf_optimizer_t   scf_optimizer_auto_gc;
 
 extern scf_optimizer_t   scf_optimizer_basic_block;
@@ -18,10 +19,10 @@ extern scf_optimizer_t   scf_optimizer_loop;
 
 extern scf_optimizer_t   scf_optimizer_generate_loads_saves;
 
-static scf_optimizer_t*  scf_optimizers_0[] =
+static scf_optimizer_t*  scf_optimizers_local0[] =
 {
 	&scf_optimizer_dag,
-#if 1
+
 	&scf_optimizer_call,
 	&scf_optimizer_pointer_alias,
 	&scf_optimizer_active_vars,
@@ -30,19 +31,23 @@ static scf_optimizer_t*  scf_optimizers_0[] =
 	&scf_optimizer_loads_saves,
 
 	&scf_optimizer_dominators,
-#endif
 };
 
-static scf_optimizer_t*  scf_optimizers_1[] =
+static scf_optimizer_t*  scf_optimizers_global0[] =
 {
-#if 1
+	&scf_optimizer_auto_gc_find,
+};
+
+static scf_optimizer_t*  scf_optimizers_local1[] =
+{
+	&scf_optimizer_auto_gc,
+
 	&scf_optimizer_basic_block,
 
 	&scf_optimizer_dominators,
 	&scf_optimizer_loop,
 
 	&scf_optimizer_generate_loads_saves,
-#endif
 };
 
 static void _scf_loops_print(scf_vector_t* loops)
@@ -74,7 +79,7 @@ static void _scf_loops_print(scf_vector_t* loops)
 	}
 }
 
-static int __scf_optimize(scf_ast_t* ast, scf_vector_t* functions, scf_optimizer_t** optimizers, int nb_optimizers)
+static int __scf_optimize_local(scf_ast_t* ast, scf_vector_t* functions, scf_optimizer_t** optimizers, int nb_optimizers)
 {
 	scf_optimizer_t* opt;
 	scf_function_t*  f;
@@ -94,17 +99,34 @@ static int __scf_optimize(scf_ast_t* ast, scf_vector_t* functions, scf_optimizer
 			if (!opt)
 				continue;
 
-			int ret = opt->optimize(ast, f, &f->basic_block_list_head);
+			int ret = opt->optimize(ast, f, &f->basic_block_list_head, NULL);
 			if (ret < 0) {
 				scf_loge("optimizer: %s\n", opt->name);
 				return ret;
 			}
 		}
+	}
 
-#if 1
-		scf_basic_block_print_list(&f->basic_block_list_head);
-		_scf_loops_print(f->bb_loops);
-#endif
+	return 0;
+}
+
+static int __scf_optimize_global(scf_ast_t* ast, scf_vector_t* functions, scf_optimizer_t** optimizers, int nb_optimizers)
+{
+	scf_optimizer_t* opt;
+
+	int j;
+	for (j  = 0; j < nb_optimizers; j++) {
+
+		opt = optimizers[j];
+
+		if (!opt)
+			continue;
+
+		int ret = opt->optimize(ast, NULL, NULL, functions);
+		if (ret < 0) {
+			scf_loge("optimizer: %s\n", opt->name);
+			return ret;
+		}
 	}
 
 	return 0;
@@ -112,17 +134,35 @@ static int __scf_optimize(scf_ast_t* ast, scf_vector_t* functions, scf_optimizer
 
 int scf_optimize(scf_ast_t* ast, scf_vector_t* functions)
 {
-	int nb_optimizers0 = sizeof(scf_optimizers_0) / sizeof(scf_optimizers_0[0]);
-	int nb_optimizers1 = sizeof(scf_optimizers_1) / sizeof(scf_optimizers_1[0]);
+	int nb_local0  = sizeof(scf_optimizers_local0)  / sizeof(scf_optimizers_local0[0]);
+	int nb_local1  = sizeof(scf_optimizers_local1)  / sizeof(scf_optimizers_local1[0]);
+	int nb_global0 = sizeof(scf_optimizers_global0) / sizeof(scf_optimizers_global0[0]);
 
-	int ret = __scf_optimize(ast, functions, scf_optimizers_0, nb_optimizers0);
+	int ret = __scf_optimize_local(ast, functions, scf_optimizers_local0, nb_local0);
+	if (ret < 0)
+		return ret;
+#if 1
+	ret = __scf_optimize_global(ast, functions, scf_optimizers_global0, nb_global0);
+	if (ret < 0)
+		return ret;
+#endif
+	ret = __scf_optimize_local(ast, functions, scf_optimizers_local1, nb_local1);
 	if (ret < 0)
 		return ret;
 
-	ret = __scf_optimize(ast, functions, scf_optimizers_1, nb_optimizers1);
-	if (ret < 0)
-		return ret;
+#if 1
+	int i;
+	for (i = 0; i < functions->size; i++) {
 
+		scf_function_t* f = functions->data[i];
+
+		if (!f->node.define_flag)
+			continue;
+
+		scf_basic_block_print_list(&f->basic_block_list_head);
+		_scf_loops_print(f->bb_loops);
+	}
+#endif
 	return 0;
 }
 

@@ -300,7 +300,7 @@ static int __optimize_basic_block(scf_basic_block_t* bb, scf_function_t* f)
 	return 0;
 }
 
-static int _optimize_basic_block(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head)
+static int _optimize_basic_block(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head, scf_vector_t* functions)
 {
 	if (!f || !bb_list_head)
 		return -EINVAL;

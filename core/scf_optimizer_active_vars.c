@@ -112,7 +112,7 @@ failed:
 	return ret;
 }
 
-static int _optimize_active_vars(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head)
+static int _optimize_active_vars(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head, scf_vector_t* functions)
 {
 	if (!f || !bb_list_head)
 		return -EINVAL;

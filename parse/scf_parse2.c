@@ -492,6 +492,8 @@ static int __debug_add_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev_decla
 				return -1;
 			}
 
+			scf_loge("abbrevs->size: %d\n", parse->debug->abbrevs->size);
+
 			d = parse->debug->abbrevs->data[parse->debug->abbrevs->size - 1];
 		}
 	} else {
@@ -1373,15 +1375,6 @@ static int _fill_function_inst(scf_string_t* code, scf_function_t* f, int64_t of
 	DEBUG_UPDATE_HIGH_PC(cu);
 	DEBUG_UPDATE_HIGH_PC(subp);
 
-	abbrev0 = scf_dwarf_abbrev_declaration_alloc();
-	if (!abbrev0)
-		return -ENOMEM;
-	abbrev0->code = 0;
-
-	if (scf_vector_add(parse->debug->abbrevs, abbrev0) < 0) {
-		scf_dwarf_abbrev_declaration_free(abbrev0);
-		return -ENOMEM;
-	}
 #if 1
 	ie0 = scf_dwarf_info_entry_alloc();
 	if (!ie0)
@@ -1825,6 +1818,8 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 		if (!f->node.define_flag)
 			continue;
 
+		scf_logw("f: %s, code_bytes: %d\n", f->node.w->text->data, f->code_bytes);
+
 		ret = _fill_function_inst(code, f, offset, parse);
 		if (ret < 0) {
 			scf_loge("\n");
@@ -1877,6 +1872,20 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 
 		offset += f->code_bytes;
 	}
+
+#if 1
+	scf_dwarf_abbrev_declaration_t* abbrev0 = NULL;
+
+	abbrev0 = scf_dwarf_abbrev_declaration_alloc();
+	if (!abbrev0)
+		return -ENOMEM;
+	abbrev0->code = 0;
+
+	if (scf_vector_add(parse->debug->abbrevs, abbrev0) < 0) {
+		scf_dwarf_abbrev_declaration_free(abbrev0);
+		return -ENOMEM;
+	}
+#endif
 
 	cs.name         = ".text";
 	cs.sh_type      = SHT_PROGBITS;

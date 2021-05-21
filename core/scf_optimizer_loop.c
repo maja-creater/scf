@@ -409,7 +409,7 @@ static void _scf_loops_print(scf_vector_t* loops)
 	}
 }
 
-static int _optimize_loop(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head)
+static int _optimize_loop(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head, scf_vector_t* functions)
 {
 	if (!f || !bb_list_head)
 		return -EINVAL;
