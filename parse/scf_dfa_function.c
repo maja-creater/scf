@@ -14,47 +14,65 @@ typedef struct {
 
 int _function_add_function(scf_dfa_t* dfa, dfa_parse_data_t* d)
 {
-	if (d->current_identities->size != 2) {
-		scf_loge("\n");
+	if (d->current_identities->size < 2) {
+		scf_loge("d->current_identities->size: %d\n", d->current_identities->size);
 		return SCF_DFA_ERROR;
 	}
 
 	scf_parse_t*    parse = dfa->priv;
-	dfa_identity_t* id1   = scf_stack_pop(d->current_identities);
-	dfa_identity_t* id0   = scf_stack_pop(d->current_identities);
+	dfa_identity_t* id    = scf_stack_pop(d->current_identities);
+	scf_function_t* f;
+	scf_variable_t* v;
 
-	if (!id0 || !id0->type) {
-		scf_loge("function ret type not found\n");
-		return SCF_DFA_ERROR;
-	}
-
-	if (!id1 || !id1->identity) {
+	if (!id || !id->identity) {
 		scf_loge("function identity not found\n");
 		return SCF_DFA_ERROR;
 	}
 
-	scf_function_t* f = scf_function_alloc(id1->identity);
-	if (!f) {
-		scf_loge("function alloc failed\n");
+	f = scf_function_alloc(id->identity);
+	if (!f)
 		return SCF_DFA_ERROR;
-	}
+
+	free(id);
+	id = NULL;
 
 	scf_logi("function: %s,line:%d,pos:%d\n",
 			f->node.w->text->data, f->node.w->line, f->node.w->pos);
 
-	d->current_function = f;
+	while (d->current_identities->size > 0) {
 
-	f->ret = SCF_VAR_ALLOC_BY_TYPE(id1->identity, id0->type, id0->const_flag, id0->nb_pointers, NULL);
-	if (!f->ret) {
-		scf_loge("function return value alloc failed\n");
+		id = scf_stack_pop(d->current_identities);
 
-		scf_function_free(f);
-		f = NULL;
+		if (!id || !id->type || !id->type_w) {
+			scf_loge("function return value type NOT found\n");
+			return SCF_DFA_ERROR;
+		}
+
+		v  = SCF_VAR_ALLOC_BY_TYPE(id->type_w, id->type, id->const_flag, id->nb_pointers, NULL);
+		free(id);
+		id = NULL;
+
+		if (!v) {
+			scf_function_free(f);
+			return SCF_DFA_ERROR;
+		}
+
+		if (scf_vector_add(f->rets, v) < 0) {
+			scf_variable_free(v);
+			scf_function_free(f);
+			return SCF_DFA_ERROR;
+		}
+	}
+
+	assert(f->rets->size > 0);
+
+	if (f->rets->size > 4) {
+		scf_loge("function return values must NOT more than 4!\n");
 		return SCF_DFA_ERROR;
 	}
 
-	free(id0);
-	free(id1);
+	d->current_function = f;
+
 	return SCF_DFA_NEXT_WORD;
 }
 

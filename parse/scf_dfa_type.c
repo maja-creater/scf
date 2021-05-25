@@ -145,6 +145,24 @@ static int _type_action_star(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	return SCF_DFA_NEXT_WORD;
 }
 
+static int _type_action_comma(scf_dfa_t* dfa, scf_vector_t* words, void* data)
+{
+	dfa_parse_data_t* d  = data;
+	dfa_identity_t*   id = scf_stack_top(d->current_identities);
+
+	assert(id);
+
+	if (!id->type) {
+		int ret = _type_find_type(dfa, id);
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
+	}
+
+	return SCF_DFA_NEXT_WORD;
+}
+
 static int _dfa_init_module_type(scf_dfa_t* dfa)
 {
 	SCF_DFA_MODULE_ENTRY(dfa, type);
@@ -153,6 +171,7 @@ static int _dfa_init_module_type(scf_dfa_t* dfa)
 	SCF_DFA_MODULE_NODE(dfa, type, base_type, scf_dfa_is_base_type, _type_action_base_type);
 	SCF_DFA_MODULE_NODE(dfa, type, identity,  scf_dfa_is_identity,  _type_action_identity);
 	SCF_DFA_MODULE_NODE(dfa, type, star,      scf_dfa_is_star,      _type_action_star);
+	SCF_DFA_MODULE_NODE(dfa, type, comma,     scf_dfa_is_comma,     _type_action_comma);
 
 	return SCF_DFA_OK;
 }
@@ -165,6 +184,7 @@ static int _dfa_init_syntax_type(scf_dfa_t* dfa)
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     base_type, base_type);
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     identity,  var_name);
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     star,      star);
+	SCF_DFA_GET_MODULE_NODE(dfa, type,     comma,     comma);
 
 	SCF_DFA_GET_MODULE_NODE(dfa, identity, identity,  type_name);
 
@@ -186,6 +206,14 @@ static int _dfa_init_syntax_type(scf_dfa_t* dfa)
 
 	scf_dfa_node_add_child(base_type, var_name);
 	scf_dfa_node_add_child(type_name, var_name);
+
+	// multi-return-value function
+	scf_dfa_node_add_child(base_type, comma);
+	scf_dfa_node_add_child(star,      comma);
+	scf_dfa_node_add_child(comma,     _struct);
+	scf_dfa_node_add_child(comma,     base_type);
+	scf_dfa_node_add_child(comma,     type_name);
+
 
 	scf_logi("\n");
 	return SCF_DFA_OK;

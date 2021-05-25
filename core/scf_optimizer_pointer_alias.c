@@ -55,7 +55,7 @@ static int _3ac_pointer_alias(scf_dag_node_t* alias, scf_3ac_code_t* c, scf_basi
 #endif
 
 	pointer->dag_node = alias;
-	SCF_XCHG(c->dst, pointer);
+	SCF_XCHG(c->dsts->data[0], pointer);
 	scf_3ac_operand_free(pointer);
 	pointer = NULL;
 
@@ -159,6 +159,7 @@ static int __optimize_alias_bb(scf_list_t** pend, scf_list_t* start, scf_basic_b
 	scf_list_t*        l;
 	scf_3ac_code_t*    c;
 	scf_3ac_operand_t* pointer;
+	scf_3ac_operand_t* dst;
 	scf_dag_node_t*    dn_pointer;
 	scf_dag_node_t*    dn_dereference;
 	scf_vector_t*      aliases;
@@ -187,8 +188,9 @@ static int __optimize_alias_bb(scf_list_t** pend, scf_list_t* start, scf_basic_b
 
 		if (SCF_OP_DEREFERENCE == c->op->type) {
 
-			assert(c->dst && c->dst->dag_node);
-			dn_dereference = c->dst->dag_node;
+			assert(c->dsts && 1 == c->dsts->size);
+			dst = c->dsts->data[0];
+			dn_dereference = dst->dag_node;
 
 			ret = _alias_dereference(&aliases, dn_pointer, c, bb, bb_list_head);
 		} else {

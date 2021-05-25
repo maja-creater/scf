@@ -30,8 +30,14 @@ static int _scf_3ac_code_N(scf_list_t* h, int op_type, scf_dag_node_t* d, scf_da
 	c->srcs	= srcs;
 
 	if (d) {
-		c->dst = scf_3ac_operand_alloc();
-		c->dst->dag_node = d;
+		scf_3ac_operand_t* dst = scf_3ac_operand_alloc();
+
+		dst->dag_node = d;
+
+		c->dsts = scf_vector_alloc();
+
+		if (scf_vector_add(c->dsts, dst) < 0)
+			return -ENOMEM;
 	}
 
 	scf_list_add_tail(h, &c->list);
@@ -61,8 +67,14 @@ static int _scf_3ac_code_3(scf_list_t* h, int op_type, scf_dag_node_t* d, scf_da
 	c->srcs	= srcs;
 
 	if (d) {
-		c->dst = scf_3ac_operand_alloc();
-		c->dst->dag_node = d;
+		scf_3ac_operand_t* dst = scf_3ac_operand_alloc();
+
+		dst->dag_node = d;
+
+		c->dsts = scf_vector_alloc();
+
+		if (scf_vector_add(c->dsts, dst) < 0)
+			return -ENOMEM;
 	}
 
 	scf_list_add_tail(h, &c->list);
@@ -89,8 +101,14 @@ static int _scf_3ac_code_2(scf_list_t* h, int op_type, scf_dag_node_t* d, scf_da
 	c->srcs	= srcs;
 
 	if (d) {
-		c->dst = scf_3ac_operand_alloc();
-		c->dst->dag_node = d;
+		scf_3ac_operand_t* dst = scf_3ac_operand_alloc();
+
+		dst->dag_node = d;
+
+		c->dsts = scf_vector_alloc();
+
+		if (scf_vector_add(c->dsts, dst) < 0)
+			return -ENOMEM;
 	}
 
 	scf_list_add_tail(h, &c->list);
@@ -109,8 +127,14 @@ static int _scf_3ac_code_dst(scf_list_t* h, int op_type, scf_dag_node_t* d)
 	c->op = _3ac_op;
 
 	if (d) {
-		c->dst = scf_3ac_operand_alloc();
-		c->dst->dag_node = d;
+		scf_3ac_operand_t* dst = scf_3ac_operand_alloc();
+
+		dst->dag_node = d;
+
+		c->dsts = scf_vector_alloc();
+
+		if (scf_vector_add(c->dsts, dst) < 0)
+			return -ENOMEM;
 	}
 
 	scf_list_add_tail(h, &c->list);

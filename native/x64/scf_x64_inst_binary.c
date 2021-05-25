@@ -148,7 +148,7 @@ static int _binary_assign_sib(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_t
 
 static int _binary_SIB2G(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type, int nb_srcs, x64_sib_fill_pt fill)
 {
-	if (!c->dst || !c->dst->dag_node)
+	if (!c->dsts || c->dsts->size != 1)
 		return -EINVAL;
 
 	if (!c->srcs || c->srcs->size != nb_srcs)
@@ -157,6 +157,7 @@ static int _binary_SIB2G(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type, 
 	scf_x64_context_t*  x64    = ctx->priv;
 	scf_function_t*     f      = x64->f;
 
+	scf_3ac_operand_t*  dst    = c->dsts->data[0];
 	scf_3ac_operand_t*  base   = c->srcs->data[0];
 	scf_3ac_operand_t*  index  = c->srcs->data[c->srcs->size - 1];
 
@@ -172,9 +173,9 @@ static int _binary_SIB2G(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type, 
 			return -ENOMEM;
 	}
 
-	scf_variable_t*     vd  = c->dst->dag_node->var;
-	scf_variable_t*     vb  = base  ->dag_node->var;
-	scf_variable_t*     vi  = index ->dag_node->var;
+	scf_variable_t*     vd  = dst  ->dag_node->var;
+	scf_variable_t*     vb  = base ->dag_node->var;
+	scf_variable_t*     vi  = index->dag_node->var;
 
 	scf_register_x64_t* rd  = NULL;
 	x64_sib_t           sib = {0};
@@ -183,7 +184,7 @@ static int _binary_SIB2G(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type, 
 	scf_x64_OpCode_t*   mov;
 	scf_instruction_t*  inst;
 
-	int ret = x64_select_reg(&rd, c->dst->dag_node, c, f, 0);
+	int ret = x64_select_reg(&rd, dst->dag_node, c, f, 0);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -216,7 +217,7 @@ static int _binary_SIB2G(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type, 
 
 int x64_binary_assign(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 {
-	if (!c->dst || !c->dst->dag_node)
+	if (!c->dsts || c->dsts->size != 1)
 		return -EINVAL;
 
 	if (!c->srcs || c->srcs->size != 1)
@@ -225,8 +226,12 @@ int x64_binary_assign(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 	scf_x64_context_t* x64 = ctx->priv;
 	scf_function_t*    f   = x64->f;
 	scf_3ac_operand_t* src = c->srcs->data[0];
+	scf_3ac_operand_t* dst = c->dsts->data[0];
 
 	if (!src || !src->dag_node)
+		return -EINVAL;
+
+	if (!dst || !dst->dag_node)
 		return -EINVAL;
 
 	if (!c->instructions) {
@@ -241,7 +246,7 @@ int x64_binary_assign(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 	if (is_float)
 		OpCode_type = x64_float_OpCode_type(OpCode_type, v->type);
 
-	return x64_inst_op2(OpCode_type, c->dst->dag_node, src->dag_node, c, f);
+	return x64_inst_op2(OpCode_type, dst->dag_node, src->dag_node, c, f);
 }
 
 int x64_binary_assign_dereference(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
@@ -261,7 +266,7 @@ int x64_binary_assign_pointer(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_t
 
 int x64_inst_pointer(scf_native_t* ctx, scf_3ac_code_t* c, int lea_flag)
 {
-	if (!c->dst || !c->dst->dag_node)
+	if (!c->dsts || c->dsts->size != 1)
 		return -EINVAL;
 
 	if (!c->srcs || c->srcs->size != 2)
@@ -270,6 +275,7 @@ int x64_inst_pointer(scf_native_t* ctx, scf_3ac_code_t* c, int lea_flag)
 	scf_x64_context_t*  x64    = ctx->priv;
 	scf_function_t*     f      = x64->f;
 
+	scf_3ac_operand_t*  dst    = c->dsts->data[0];
 	scf_3ac_operand_t*  base   = c->srcs->data[0];
 	scf_3ac_operand_t*  member = c->srcs->data[1];
 
@@ -285,7 +291,7 @@ int x64_inst_pointer(scf_native_t* ctx, scf_3ac_code_t* c, int lea_flag)
 			return -ENOMEM;
 	}
 
-	scf_variable_t*     vd  = c->dst->dag_node->var;
+	scf_variable_t*     vd  = dst->dag_node->var;
 	scf_variable_t*     vb  = base  ->dag_node->var;
 	scf_variable_t*     vm  = member->dag_node->var;
 
@@ -296,7 +302,7 @@ int x64_inst_pointer(scf_native_t* ctx, scf_3ac_code_t* c, int lea_flag)
 	scf_x64_OpCode_t*   mov;
 	scf_instruction_t*  inst;
 
-	int ret = x64_select_reg(&rd, c->dst->dag_node, c, f, 0);
+	int ret = x64_select_reg(&rd, dst->dag_node, c, f, 0);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;

@@ -485,8 +485,9 @@ static void _x64_set_offset_for_jmps(scf_native_t* ctx, scf_function_t* f)
 		for (i = 0; i < f->jmps->size; i++) {
 			scf_3ac_code_t*    c      = f->jmps->data[i];
 
+			scf_3ac_operand_t* dst    = c->dsts->data[0];
 			scf_basic_block_t* cur_bb = c->basic_block;
-			scf_basic_block_t* dst_bb = c->dst->bb;
+			scf_basic_block_t* dst_bb = dst->bb;
 
 			scf_basic_block_t* bb     = NULL;
 			scf_list_t*        l      = NULL;
@@ -784,6 +785,7 @@ static void _x64_bbg_fix_loads(scf_bb_group_t* bbg)
 
 	scf_basic_block_t* pre;
 	scf_basic_block_t* bb;
+	scf_3ac_operand_t* dst;
 	scf_dn_status_t*   ds;
 	scf_dag_node_t*    dn;
 	scf_3ac_code_t*    c;
@@ -814,7 +816,9 @@ static void _x64_bbg_fix_loads(scf_bb_group_t* bbg)
 			c  = scf_list_data(l, scf_3ac_code_t, list);
 			l  = scf_list_next(l);
 
-			if (c->dst->dag_node == dn) {
+			dst = c->dsts->data[0];
+
+			if (dst->dag_node == dn) {
 				scf_list_del(&c->list);
 				scf_list_add_front(&bb->code_list_head, &c->list);
 

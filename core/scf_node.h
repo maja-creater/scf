@@ -31,6 +31,7 @@ struct scf_node_s {
 	scf_operator_t*		op;
 
 	scf_variable_t*		result;
+	scf_vector_t*       result_nodes;
 
 	uint32_t            root_flag   :1; // set when node is root block
 	uint32_t            file_flag   :1; // set when node is a file block
@@ -38,6 +39,7 @@ struct scf_node_s {
 	uint32_t            union_flag  :1; // set when node is a union type
 	uint32_t            define_flag :1; // set when node is a function & is defined not only declared
 	uint32_t            const_flag  :1; // set when node is a const type
+	uint32_t            split_flag  :1; // set when node is a split node of its parent
 	uint32_t            _3ac_done   :1; // set when node's 3ac code is made
 };
 

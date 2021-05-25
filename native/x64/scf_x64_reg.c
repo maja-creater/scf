@@ -2,72 +2,72 @@
 
 scf_register_x64_t	x64_registers[] = {
 
-	{0, 1, "al",     X64_COLOR(0, 0, 0x1),  NULL},
-	{0, 2, "ax",     X64_COLOR(0, 0, 0x3),  NULL},
-	{0, 4, "eax",    X64_COLOR(0, 0, 0xf),  NULL},
-	{0, 8, "rax",    X64_COLOR(0, 0, 0xff), NULL},
+	{0, 1, "al",     X64_COLOR(0, 0, 0x1),  NULL, 0},
+	{0, 2, "ax",     X64_COLOR(0, 0, 0x3),  NULL, 0},
+	{0, 4, "eax",    X64_COLOR(0, 0, 0xf),  NULL, 0},
+	{0, 8, "rax",    X64_COLOR(0, 0, 0xff), NULL, 0},
 
-	{1, 1, "cl",     X64_COLOR(0, 1, 0x1),  NULL},
-	{1, 2, "cx",     X64_COLOR(0, 1, 0x3),  NULL},
-	{1, 4, "ecx",    X64_COLOR(0, 1, 0xf),  NULL},
-	{1, 8, "rcx",    X64_COLOR(0, 1, 0xff), NULL},
+	{1, 1, "cl",     X64_COLOR(0, 1, 0x1),  NULL, 0},
+	{1, 2, "cx",     X64_COLOR(0, 1, 0x3),  NULL, 0},
+	{1, 4, "ecx",    X64_COLOR(0, 1, 0xf),  NULL, 0},
+	{1, 8, "rcx",    X64_COLOR(0, 1, 0xff), NULL, 0},
 
-	{2, 1, "dl",     X64_COLOR(0, 2, 0x1),  NULL},
-	{2, 2, "dx",     X64_COLOR(0, 2, 0x3),  NULL},
-	{2, 4, "edx",    X64_COLOR(0, 2, 0xf),  NULL},
-	{2, 8, "rdx",    X64_COLOR(0, 2, 0xff), NULL},
+	{2, 1, "dl",     X64_COLOR(0, 2, 0x1),  NULL, 0},
+	{2, 2, "dx",     X64_COLOR(0, 2, 0x3),  NULL, 0},
+	{2, 4, "edx",    X64_COLOR(0, 2, 0xf),  NULL, 0},
+	{2, 8, "rdx",    X64_COLOR(0, 2, 0xff), NULL, 0},
 
-	{3, 1, "bl",     X64_COLOR(0, 3, 0x1),  NULL},
-	{3, 2, "bx",     X64_COLOR(0, 3, 0x3),  NULL},
-	{3, 4, "ebx",    X64_COLOR(0, 3, 0xf),  NULL},
-	{3, 8, "rbx",    X64_COLOR(0, 3, 0xff), NULL},
+	{3, 1, "bl",     X64_COLOR(0, 3, 0x1),  NULL, 0},
+	{3, 2, "bx",     X64_COLOR(0, 3, 0x3),  NULL, 0},
+	{3, 4, "ebx",    X64_COLOR(0, 3, 0xf),  NULL, 0},
+	{3, 8, "rbx",    X64_COLOR(0, 3, 0xff), NULL, 0},
 
-	{4, 2, "sp",     X64_COLOR(0, 4, 0x3),  NULL},
-	{4, 4, "esp",    X64_COLOR(0, 4, 0xf),  NULL},
-	{4, 8, "rsp",    X64_COLOR(0, 4, 0xff), NULL},
+	{4, 2, "sp",     X64_COLOR(0, 4, 0x3),  NULL, 0},
+	{4, 4, "esp",    X64_COLOR(0, 4, 0xf),  NULL, 0},
+	{4, 8, "rsp",    X64_COLOR(0, 4, 0xff), NULL, 0},
 
-	{5, 2, "bp",     X64_COLOR(0, 5, 0x3),  NULL},
-	{5, 4, "ebp",    X64_COLOR(0, 5, 0xf),  NULL},
-	{5, 8, "rbp",    X64_COLOR(0, 5, 0xff), NULL},
+	{5, 2, "bp",     X64_COLOR(0, 5, 0x3),  NULL, 0},
+	{5, 4, "ebp",    X64_COLOR(0, 5, 0xf),  NULL, 0},
+	{5, 8, "rbp",    X64_COLOR(0, 5, 0xff), NULL, 0},
 
-	{6, 1, "sil",    X64_COLOR(0, 6, 0x1),  NULL},
-	{6, 2, "si",     X64_COLOR(0, 6, 0x3),  NULL},
-	{6, 4, "esi",    X64_COLOR(0, 6, 0xf),  NULL},
-	{6, 8, "rsi",    X64_COLOR(0, 6, 0xff), NULL},
+	{6, 1, "sil",    X64_COLOR(0, 6, 0x1),  NULL, 0},
+	{6, 2, "si",     X64_COLOR(0, 6, 0x3),  NULL, 0},
+	{6, 4, "esi",    X64_COLOR(0, 6, 0xf),  NULL, 0},
+	{6, 8, "rsi",    X64_COLOR(0, 6, 0xff), NULL, 0},
 
-	{7, 1, "dil",    X64_COLOR(0, 7, 0x1),  NULL},
-	{7, 2, "di",     X64_COLOR(0, 7, 0x3),  NULL},
-	{7, 4, "edi",    X64_COLOR(0, 7, 0xf),  NULL},
-	{7, 8, "rdi",    X64_COLOR(0, 7, 0xff), NULL},
+	{7, 1, "dil",    X64_COLOR(0, 7, 0x1),  NULL, 0},
+	{7, 2, "di",     X64_COLOR(0, 7, 0x3),  NULL, 0},
+	{7, 4, "edi",    X64_COLOR(0, 7, 0xf),  NULL, 0},
+	{7, 8, "rdi",    X64_COLOR(0, 7, 0xff), NULL, 0},
 
-	{4, 1, "ah",     X64_COLOR(0, 0, 0x2),  NULL},
-	{5, 1, "ch",     X64_COLOR(0, 1, 0x2),  NULL},
-	{6, 1, "dh",     X64_COLOR(0, 2, 0x2),  NULL},
-	{7, 1, "bh",     X64_COLOR(0, 3, 0x2),  NULL},
+	{4, 1, "ah",     X64_COLOR(0, 0, 0x2),  NULL, 0},
+	{5, 1, "ch",     X64_COLOR(0, 1, 0x2),  NULL, 0},
+	{6, 1, "dh",     X64_COLOR(0, 2, 0x2),  NULL, 0},
+	{7, 1, "bh",     X64_COLOR(0, 3, 0x2),  NULL, 0},
 
-	{0, 4, "mm0",    X64_COLOR(1, 0, 0xf),  NULL},
-	{0, 8, "xmm0",   X64_COLOR(1, 0, 0xff), NULL},
+	{0, 4, "mm0",    X64_COLOR(1, 0, 0xf),  NULL, 0},
+	{0, 8, "xmm0",   X64_COLOR(1, 0, 0xff), NULL, 0},
 
-	{1, 4, "mm1",    X64_COLOR(1, 1, 0xf),  NULL},
-	{1, 8, "xmm1",   X64_COLOR(1, 1, 0xff), NULL},
+	{1, 4, "mm1",    X64_COLOR(1, 1, 0xf),  NULL, 0},
+	{1, 8, "xmm1",   X64_COLOR(1, 1, 0xff), NULL, 0},
 
-	{2, 4, "mm2",    X64_COLOR(1, 2, 0xf),  NULL},
-	{2, 8, "xmm2",   X64_COLOR(1, 2, 0xff), NULL},
+	{2, 4, "mm2",    X64_COLOR(1, 2, 0xf),  NULL, 0},
+	{2, 8, "xmm2",   X64_COLOR(1, 2, 0xff), NULL, 0},
 
-	{3, 4, "mm3",    X64_COLOR(1, 3, 0xf),  NULL},
-	{3, 8, "xmm3",   X64_COLOR(1, 3, 0xff), NULL},
+	{3, 4, "mm3",    X64_COLOR(1, 3, 0xf),  NULL, 0},
+	{3, 8, "xmm3",   X64_COLOR(1, 3, 0xff), NULL, 0},
 
-	{4, 4, "mm4",    X64_COLOR(1, 4, 0xf),  NULL},
-	{4, 8, "xmm4",   X64_COLOR(1, 4, 0xff), NULL},
+	{4, 4, "mm4",    X64_COLOR(1, 4, 0xf),  NULL, 0},
+	{4, 8, "xmm4",   X64_COLOR(1, 4, 0xff), NULL, 0},
 
-	{5, 4, "mm5",    X64_COLOR(1, 5, 0xf),  NULL},
-	{5, 8, "xmm5",   X64_COLOR(1, 5, 0xff), NULL},
+	{5, 4, "mm5",    X64_COLOR(1, 5, 0xf),  NULL, 0},
+	{5, 8, "xmm5",   X64_COLOR(1, 5, 0xff), NULL, 0},
 
-	{6, 4, "mm6",    X64_COLOR(1, 6, 0xf),  NULL},
-	{6, 8, "xmm6",   X64_COLOR(1, 6, 0xff), NULL},
+	{6, 4, "mm6",    X64_COLOR(1, 6, 0xf),  NULL, 0},
+	{6, 8, "xmm6",   X64_COLOR(1, 6, 0xff), NULL, 0},
 
-	{7, 4, "mm7",    X64_COLOR(1, 7, 0xf),  NULL},
-	{7, 8, "xmm7",   X64_COLOR(1, 7, 0xff), NULL},
+	{7, 4, "mm7",    X64_COLOR(1, 7, 0xf),  NULL, 0},
+	{7, 8, "xmm7",   X64_COLOR(1, 7, 0xff), NULL, 0},
 };
 
 static int _x64_reg_cached_vars(scf_register_x64_t* r)
@@ -704,14 +704,26 @@ scf_register_x64_t* x64_select_overflowed_reg(scf_dag_node_t* dn, scf_3ac_code_t
 		if (r->bytes < bytes || X64_COLOR_TYPE(r->color) != is_float)
 			continue;
 
-		if (c->dst && c->dst->dag_node
-				&& c->dst->dag_node->color > 0
-				&& X64_COLOR_CONFLICT(r->color, c->dst->dag_node->color))
-			continue;
+		if (c->dsts) {
+			scf_3ac_operand_t* dst;
+
+			for (j  = 0; j < c->dsts->size; j++) {
+				dst =        c->dsts->data[j];
+
+				if (dst->dag_node && dst->dag_node->color > 0 
+						&& X64_COLOR_CONFLICT(r->color, dst->dag_node->color))
+					break;
+			}
+
+			if (j < c->dsts->size)
+				continue;
+		}
 
 		if (c->srcs) {
-			for (j = 0; j < c->srcs->size; j++) {
-				scf_3ac_operand_t* src = c->srcs->data[j];
+			scf_3ac_operand_t* src;
+
+			for (j  = 0; j < c->srcs->size; j++) {
+				src =        c->srcs->data[j];
 
 				if (src->dag_node && src->dag_node->color > 0
 						&& X64_COLOR_CONFLICT(r->color, src->dag_node->color))

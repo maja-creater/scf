@@ -288,6 +288,8 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 		scf_logd("bbg: %p, entry: %p, exit: %p\n", bbg, bbg->entry, bbg->exit);
 
 		if (bbg->body->size > 0) {
+
+			scf_3ac_operand_t* dst;
 			scf_basic_block_t* jcc;
 			scf_3ac_code_t*    c;
 			scf_list_t*        l;
@@ -318,10 +320,11 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 						if (!jcc->jmp_flag)
 							break;
 
-						l = scf_list_head(&jcc->code_list_head);
-						c = scf_list_data(l, scf_3ac_code_t, list);
-						if (c->dst->bb == first)
-							c->dst->bb =  pre;
+						l   = scf_list_head(&jcc->code_list_head);
+						c   = scf_list_data(l, scf_3ac_code_t, list);
+						dst = c->dsts->data[0];
+						if (dst->bb == first)
+							dst->bb =  pre;
 					}
 				}
 			}
@@ -332,6 +335,7 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 
 			for (k = 0; k < bb->nexts->size; k++) {
 
+				scf_3ac_operand_t* dst;
 				scf_basic_block_t* jcc;
 				scf_3ac_code_t*    c;
 				scf_list_t*        l;
@@ -349,10 +353,11 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 					if (!jcc->jmp_flag)
 						break;
 
-					l2 = scf_list_head(&jcc->code_list_head);
-					c  = scf_list_data(l2, scf_3ac_code_t, list);
-					if (c->dst->bb == bbg->exit)
-						c->dst->bb =  bbg->post;
+					l2  = scf_list_head(&jcc->code_list_head);
+					c   = scf_list_data(l2, scf_3ac_code_t, list);
+					dst = c->dsts->data[0];
+					if (dst->bb == bbg->exit)
+						dst->bb =  bbg->post;
 				}
 			}
 #if 1

@@ -288,7 +288,12 @@ int x64_inst_float_cast(scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t
 
 int x64_inst_jmp(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 {
-	if (!c->dst || !c->dst->bb)
+	if (!c->dsts || c->dsts->size != 1)
+		return -EINVAL;
+
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	if (!dst->bb)
 		return -EINVAL;
 
 	if (!c->instructions) {

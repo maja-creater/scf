@@ -584,6 +584,81 @@ static int _expr_action_rs(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	return SCF_DFA_NEXT_WORD;
 }
 
+static int _expr_multi_rets(scf_expr_t* e)
+{
+	if (SCF_OP_ASSIGN != e->nodes[0]->type)
+		return 0;
+
+	scf_node_t* parent = e->parent;
+	scf_node_t* assign = e->nodes[0];
+	scf_node_t* call   = assign->nodes[1];
+
+	while (call) {
+		if (SCF_OP_EXPR == call->type)
+			call = call->nodes[0];
+		else
+			break;
+	}
+
+	if (!call || SCF_OP_CALL != call->type)
+		return 0;
+
+	scf_loge("parent->nb_nodes: %d\n", parent->nb_nodes);
+
+	assert(call->nb_nodes > 0);
+
+	scf_variable_t* v_pf = _scf_operand_get(call->nodes[0]);
+	scf_function_t* f    = v_pf->func_ptr;
+	scf_node_t*     ret;
+	scf_block_t*    b;
+
+	if (f->rets->size <= 1)
+		return 0;
+
+	b = scf_block_alloc_cstr("multi_rets");
+	if (!b)
+		return -ENOMEM;
+
+	int i;
+	int j;
+	int k;
+
+	for (i  = parent->nb_nodes - 2; i >= 0; i--) {
+		ret = parent->nodes[i];
+
+		if (b->node.nb_nodes >= f->rets->size - 1)
+			break;
+
+		scf_node_add_child((scf_node_t*)b, ret);
+		parent->nodes[i] = NULL;
+	}
+
+	if (0 == b->node.nb_nodes) {
+		scf_block_free(b);
+		return 0;
+	}
+
+	j = 0;
+	k = b->node.nb_nodes - 1;
+	while (j < k) {
+		SCF_XCHG(b->node.nodes[j++], b->node.nodes[k--]);
+	}
+
+	scf_node_add_child((scf_node_t*)b, assign->nodes[0]);
+	assign->nodes[0] = (scf_node_t*)b;
+	b->node.parent   = assign;
+
+	i++;
+	assert(i >= 0);
+
+	parent->nodes[i] = e;
+	parent->nb_nodes = i + 1;
+
+	scf_loge("parent->nb_nodes: %d\n", parent->nb_nodes);
+
+	return 0;
+}
+
 static int _expr_fini_expr(scf_parse_t* parse, dfa_parse_data_t* d)
 {
 	expr_module_data_t* md = d->module_datas[dfa_module_expr.index];
@@ -615,6 +690,14 @@ static int _expr_fini_expr(scf_parse_t* parse, dfa_parse_data_t* d)
 				scf_node_add_child(d->current_node, d->expr);
 			else
 				scf_node_add_child((scf_node_t*)parse->ast->current_block, d->expr);
+
+			scf_loge("d->expr->parent->type: %d\n", d->expr->parent->type);
+
+			if (_expr_multi_rets(d->expr) < 0) {
+				scf_loge("\n");
+				return SCF_DFA_ERROR;
+			}
+
 			d->expr = NULL;
 		}
 	}

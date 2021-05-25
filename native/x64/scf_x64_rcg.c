@@ -96,16 +96,151 @@ static int _x64_rcg_make_edge(scf_graph_node_t* gn0, scf_graph_node_t* gn1)
 	return 0;
 }
 
-static int _x64_rcg_make(scf_3ac_code_t* c, scf_graph_t* g, scf_dag_node_t* dn,
-		scf_register_x64_t* reg, scf_x64_OpCode_t* OpCode)
+static int _x64_rcg_active_vars(scf_graph_t* g, scf_vector_t* active_vars)
 {
+	scf_graph_node_t* gn0;
+	scf_graph_node_t* gn1;
+
+	scf_dn_status_t*  ds0;
+	scf_dn_status_t*  ds1;
+
+	scf_dag_node_t*   dn0;
+	scf_dag_node_t*   dn1;
+
 	int ret;
 	int i;
 	int j;
-	scf_graph_node_t* gn_dst = NULL;
+
+	for (i  = 0; i < active_vars->size; i++) {
+
+		ds0 =        active_vars->data[i];
+		dn0 =        ds0->dag_node;
+
+		if (!ds0->active)
+			continue;
+
+		ret = _x64_rcg_make_node(&gn0, g, dn0, NULL, NULL);
+		if (ret < 0)
+			return ret;
+
+		for (j  = 0; j < i; j++) {
+
+			ds1 = active_vars->data[j];
+			dn1 = ds1->dag_node;
+
+			if (!ds1->active)
+				continue;
+
+			ret = _x64_rcg_make_node(&gn1, g, dn1, NULL, NULL);
+			if (ret < 0)
+				return ret;
+
+			assert(gn0 != gn1);
+
+			ret = _x64_rcg_make_edge(gn0, gn1);
+			if (ret < 0)
+				return ret;
+		}
+	}
+
+	return 0;
+}
+
+static int _x64_rcg_operands(scf_graph_t* g, scf_vector_t* operands)
+{
+	scf_3ac_operand_t*  operand0;
+	scf_3ac_operand_t*  operand1;
+
+	scf_graph_node_t*   gn0;
+	scf_graph_node_t*   gn1;
+
+	scf_dag_node_t*     dn0;
+	scf_dag_node_t*     dn1;
+
+	int i;
+	int j;
+
+	for (i = 0; i < operands->size; i++) {
+
+		operand0  = operands->data[i];
+		dn0       = operand0->dag_node;
+
+		if (scf_variable_const(dn0->var))
+			continue;
+
+		int ret = _x64_rcg_make_node(&gn0, g, dn0, NULL, NULL);
+		if (ret < 0)
+			return ret;
+
+		for (j = 0; j < i; j++) {
+
+			operand1  = operands->data[j];
+			dn1       = operand1->dag_node;
+
+			if (scf_variable_const(dn1->var))
+				continue;
+
+			ret = _x64_rcg_make_node(&gn1, g, dn1, NULL, NULL);
+			if (ret < 0)
+				return ret;
+
+			if (gn1 == gn0)
+				continue;
+
+			ret = _x64_rcg_make_edge(gn0, gn1);
+			if (ret < 0)
+				return ret;
+		}
+	}
+
+	return 0;
+}
+
+static int _x64_rcg_to_active_vars(scf_graph_t* g, scf_graph_node_t* gn0, scf_vector_t* active_vars)
+{
+	scf_graph_node_t* gn1;
+	scf_dn_status_t*  ds1;
+	scf_dag_node_t*   dn1;
+
+	int ret;
+	int i;
+
+	for (i  = 0; i < active_vars->size; i++) {
+
+		ds1 =        active_vars->data[i];
+		dn1 =        ds1->dag_node;
+
+		if (!ds1->active)
+			continue;
+
+		ret = _x64_rcg_make_node(&gn1, g, dn1, NULL, NULL);
+		if (ret < 0)
+			return ret;
+
+		if (gn0 == gn1)
+			continue;
+
+		ret = _x64_rcg_make_edge(gn0, gn1);
+		if (ret < 0)
+			return ret;
+	}
+
+	return 0;
+}
+
+static int _x64_rcg_make(scf_3ac_code_t* c, scf_graph_t* g, scf_dag_node_t* dn,
+		scf_register_x64_t* reg, scf_x64_OpCode_t* OpCode)
+{
+	scf_graph_node_t* gn0 = NULL;
+	scf_graph_node_t* gn1;
+	scf_dag_node_t*   dn1;
+	scf_dn_status_t*  ds1;
+
+	int ret;
+	int i;
 
 	if (dn || reg) {
-		ret = _x64_rcg_make_node(&gn_dst, g, dn, reg, OpCode);
+		ret = _x64_rcg_make_node(&gn0, g, dn, reg, OpCode);
 		if (ret < 0) {
 			scf_loge("\n");
 			return ret;
@@ -114,50 +249,14 @@ static int _x64_rcg_make(scf_3ac_code_t* c, scf_graph_t* g, scf_dag_node_t* dn,
 
 	scf_logd("g->nodes->size: %d, active_vars: %d\n", g->nodes->size, c->active_vars->size);
 
-	for (i = 0; i < c->active_vars->size; i++) {
-		scf_dn_status_t*  active    = c->active_vars->data[i];
-		scf_dag_node_t*   dn_active = active->dag_node;
-		scf_graph_node_t* gn_active = NULL;
-
-		if (!active->active)
-			continue;
-
-		ret = _x64_rcg_make_node(&gn_active, g, dn_active, NULL, NULL);
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
-		}
-
-		if (gn_dst) {
-			if (gn_active == gn_dst)
-				continue;
-
-			ret = _x64_rcg_make_edge(gn_dst, gn_active);
-			if (ret < 0)
-				return ret;
-		}
-
-		for (j = i + 1; j < c->active_vars->size; j++) {
-			scf_dn_status_t*  active2    = c->active_vars->data[j];
-			scf_dag_node_t*   dn_active2 = active2->dag_node;
-			scf_graph_node_t* gn_active2 = NULL;
-
-			if (!active2->active)
-				continue;
-
-			ret = _x64_rcg_make_node(&gn_active2, g, dn_active2, NULL, NULL);
-			if (ret < 0) {
-				scf_loge("\n");
-				return ret;
-			}
-
-			assert(gn_active != gn_active2);
-
-			ret = _x64_rcg_make_edge(gn_active, gn_active2);
-			if (ret < 0)
-				return ret;
-		}
+	ret = _x64_rcg_active_vars(g, c->active_vars);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
 	}
+
+	if (gn0)
+		return _x64_rcg_to_active_vars(g, gn0, c->active_vars);
 
 	return 0;
 }
@@ -181,99 +280,113 @@ static int _x64_rcg_call(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 	scf_dag_node_t*     dn  = NULL;
 	scf_register_x64_t* r   = NULL;
 	scf_3ac_operand_t*  src = NULL;
+	scf_3ac_operand_t*  dst = NULL;
+	scf_graph_node_t*   gn  = NULL;
 
-	if (c->srcs->size < 1) {
-		scf_loge("\n");
+	int i;
+	int ret;
+
+	if (c->srcs->size < 1)
 		return -EINVAL;
-	}
 
-	if (c->dst) {
-		if (!c->dst->dag_node) {
-			scf_loge("\n");
-			return -EINVAL;
-		}
-
-		dn = c->dst->dag_node;
-
-		int is_float = scf_variable_float(dn->var);
-		int size     = x64_variable_size(dn->var);
-
-		r = x64_find_register_type_id_bytes(is_float, SCF_X64_REG_AX, size);
-	}
-
-	int ret = _x64_rcg_make(c, g, dn, r, NULL);
+	ret = _x64_rcg_active_vars(g, c->active_vars);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
 	}
 
-	int i;
-	int j;
-	int nb_ints   = 0;
-	int nb_floats = 0;
-
-	for (i = 1; i < c->srcs->size; i++) {
-		scf_3ac_operand_t* src = c->srcs->data[i];
-
-		int is_float = scf_variable_float(src->dag_node->var);
-		int size     = x64_variable_size(src->dag_node->var);
-
-		if (is_float) {
-			if (nb_floats < X64_ABI_NB)
-				src->dag_node->rabi2 = x64_find_register_type_id_bytes(is_float, x64_abi_float_regs[nb_floats++], size);
-			else
-				src->dag_node->rabi2 = NULL;
-		} else {
-			if (nb_ints < X64_ABI_NB)
-				src->dag_node->rabi2 = x64_find_register_type_id_bytes(is_float, x64_abi_regs[nb_ints++], size);
-			else
-				src->dag_node->rabi2 = NULL;
-		}
+	ret = _x64_rcg_operands(g, c->srcs);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
 	}
 
-	for (i = 1; i < c->srcs->size - 1; i++) {
-		scf_3ac_operand_t*  src0 = c->srcs->data[i];
-		scf_graph_node_t*   gn0  = NULL;
-		scf_register_x64_t* r0   = src0->dag_node->rabi2;
+	if (c->dsts) {
 
-		if (scf_variable_const(src0->dag_node->var))
-			continue;
+		if (c->dsts->size > X64_ABI_RET_NB) {
+			scf_loge("\n");
+			return -EINVAL;
+		}
 
-		ret = _x64_rcg_make_node(&gn0, g, src0->dag_node, r0, NULL);
+		ret = _x64_rcg_operands(g, c->dsts);
 		if (ret < 0) {
 			scf_loge("\n");
 			return ret;
 		}
 
-		for (j = i + 1; j < c->srcs->size; j++) {
-			scf_3ac_operand_t*  src1 = c->srcs->data[j];
-			scf_graph_node_t*   gn1  = NULL;
-			scf_register_x64_t* r1   = src1->dag_node->rabi2;
+		for (i  = 0; i < c->dsts->size; i++) {
+			dst =        c->dsts->data[i];
+			dn  =        dst->dag_node;
 
-			if (scf_variable_const(src1->dag_node->var))
-				continue;
+			int is_float = scf_variable_float(dn->var);
+			int size     = x64_variable_size (dn->var);
 
-			ret = _x64_rcg_make_node(&gn1, g, src1->dag_node, r1, NULL);
+			if (0 == i)
+				r =  x64_find_register_type_id_bytes(is_float, SCF_X64_REG_AX, size);
+
+			else if (!is_float)
+				r =  x64_find_register_type_id_bytes(is_float, x64_abi_ret_regs[i], size);
+			else
+				r = NULL;
+
+			gn  = NULL;
+			ret = _x64_rcg_make_node(&gn, g, dn, r, NULL);
 			if (ret < 0) {
 				scf_loge("\n");
 				return ret;
 			}
 
-			if (gn0 == gn1)
-				continue;
-
-			ret = _x64_rcg_make_edge(gn0, gn1);
-			if (ret < 0)
+			ret = _x64_rcg_to_active_vars(g, gn, c->active_vars);
+			if (ret < 0) {
+				scf_loge("\n");
 				return ret;
+			}
+		}
+	}
+
+	int nb_ints   = 0;
+	int nb_floats = 0;
+
+	for (i  = 1; i < c->srcs->size; i++) {
+		src =        c->srcs->data[i];
+		dn  =        src->dag_node;
+
+		int is_float = scf_variable_float(dn->var);
+		int size     = x64_variable_size (dn->var);
+
+		if (is_float) {
+			if (nb_floats < X64_ABI_NB)
+				dn->rabi2 = x64_find_register_type_id_bytes(is_float, x64_abi_float_regs[nb_floats++], size);
+			else
+				dn->rabi2 = NULL;
+		} else {
+			if (nb_ints < X64_ABI_NB)
+				dn->rabi2 = x64_find_register_type_id_bytes(is_float, x64_abi_regs[nb_ints++], size);
+			else
+				dn->rabi2 = NULL;
+		}
+	}
+
+	for (i  = 1; i < c->srcs->size; i++) {
+		src =        c->srcs->data[i];
+		dn  =        src->dag_node;
+
+		if (scf_variable_const(dn->var))
+			continue;
+
+		gn  = NULL;
+		ret = _x64_rcg_make_node(&gn, g, dn, dn->rabi2, NULL);
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
 		}
 	}
 
 	scf_3ac_operand_t*  src_pf = c->srcs->data[0];
+	scf_graph_node_t*   gn_pf  = NULL;
 	scf_dag_node_t*     dn_pf  = src_pf->dag_node;
 
 	if (!dn_pf->var->const_literal_flag) {
-
-		scf_graph_node_t* gn_pf = NULL;
 
 		ret = _x64_rcg_make_node(&gn_pf, g, dn_pf, NULL, NULL);
 		if (ret < 0) {
@@ -323,11 +436,13 @@ static int _x64_rcg_call_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph
 
 static int _x64_rcg_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_assign_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
@@ -341,11 +456,13 @@ static int _x64_rcg_assign_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* c,
 
 static int _x64_rcg_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_assign_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
@@ -359,38 +476,46 @@ static int _x64_rcg_assign_array_index_handler(scf_native_t* ctx, scf_3ac_code_t
 
 static int _x64_rcg_bit_not_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_logic_not_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_neg_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_dereference_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_assign_dereference_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
@@ -404,20 +529,24 @@ static int _x64_rcg_assign_dereference_handler(scf_native_t* ctx, scf_3ac_code_t
 
 static int _x64_rcg_address_of_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_cast_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_mul_div_mod(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
@@ -428,12 +557,15 @@ static int _x64_rcg_mul_div_mod(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_
 	scf_dag_node_t*    dn   = NULL;
 	scf_3ac_operand_t* src  = c->srcs->data[c->srcs->size - 1];
 	scf_x64_context_t* x64  = ctx->priv;
+	scf_3ac_operand_t* dst;
 
 	if (!src || !src->dag_node)
 		return -EINVAL;
 
-	if (c->dst && c->dst->dag_node)
-		dn = c->dst->dag_node;
+	if (c->dsts) {
+		dst = c->dsts->data[0];
+		dn  = dst->dag_node;
+	}
 
 	if (scf_variable_float(src->dag_node->var))
 		return _x64_rcg_make(c, g, dn, NULL, NULL);
@@ -449,17 +581,18 @@ static int _x64_rcg_mul_div_mod(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_
 	else
 		rh = x64_find_register_type_id_bytes(0, SCF_X64_REG_DX, size);
 
+	dst = c->dsts->data[0];
 	switch (c->op->type) {
 		case SCF_OP_MUL:
 		case SCF_OP_DIV:
 		case SCF_OP_MUL_ASSIGN:
 		case SCF_OP_DIV_ASSIGN:
-			ret = _x64_rcg_make(c, g, c->dst->dag_node, rl, NULL);
+			ret = _x64_rcg_make(c, g, dst->dag_node, rl, NULL);
 			break;
 
 		case SCF_OP_MOD:
 		case SCF_OP_MOD_ASSIGN:
-			ret = _x64_rcg_make(c, g, c->dst->dag_node, rh, NULL);
+			ret = _x64_rcg_make(c, g, dst->dag_node, rh, NULL);
 			break;
 
 		default:
@@ -513,20 +646,24 @@ static int _x64_rcg_mod_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_
 
 static int _x64_rcg_add_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_sub_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_shift(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
@@ -543,8 +680,11 @@ static int _x64_rcg_shift(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 	if (!count || !count->dag_node)
 		return -EINVAL;
 
-	if (c->dst && c->dst->dag_node)
-		dn = c->dst->dag_node;
+	if (c->dsts) {
+		scf_3ac_operand_t* dst = c->dsts->data[0];
+
+		dn = dst->dag_node;
+	}
 
 	if (scf_variable_const(count->dag_node->var))
 		return _x64_rcg_make(c, g, dn, NULL, NULL);
@@ -616,20 +756,24 @@ static int _x64_rcg_shr_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_
 
 static int _x64_rcg_bit_and_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_bit_or_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_cmp_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
@@ -653,10 +797,12 @@ static int _x64_rcg_teq_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_
 #define X64_RCG_SET(setcc) \
 static int _x64_rcg_##setcc##_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
 { \
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL); \
+	scf_3ac_operand_t* dst = c->dsts->data[0]; \
+	\
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL); \
 	if (ret < 0) \
 		return ret; \
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL); \
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL); \
 }
 X64_RCG_SET(setz)
 X64_RCG_SET(setnz)
@@ -667,65 +813,79 @@ X64_RCG_SET(setle)
 
 static int _x64_rcg_eq_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_ne_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_gt_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_lt_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_assign_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_add_assign_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_sub_assign_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_mul_assign_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
@@ -755,29 +915,71 @@ static int _x64_rcg_shr_assign_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf
 
 static int _x64_rcg_and_assign_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_or_assign_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_return_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
+	int i;
+
+	scf_register_x64_t* r;
+	scf_3ac_operand_t*  src;
+	scf_graph_node_t*   gn;
+	scf_dag_node_t*     dn;
+
 	int ret = _x64_rcg_make2(c, NULL, NULL, NULL);
 	if (ret < 0)
 		return ret;
 
-	return _x64_rcg_make(c, g, NULL, NULL, NULL);
+	ret = _x64_rcg_make(c, g, NULL, NULL, NULL);
+	if (ret < 0)
+		return ret;
+
+	if (!c->srcs)
+		return 0;
+
+	for (i  = 0; i < c->srcs->size; i++) {
+		src =        c->srcs->data[i];
+		dn  =        src->dag_node;
+
+		int is_float = scf_variable_float(dn->var);
+		int size     = x64_variable_size (dn->var);
+
+		size = size > 4 ? 8 : 4;
+
+		if (is_float) {
+			if (i > 0) {
+				scf_loge("\n");
+				return -1;
+			}
+
+			r = x64_find_register_type_id_bytes(is_float, 0, size);
+		} else
+			r = x64_find_register_type_id_bytes(is_float, x64_abi_ret_regs[i], size);
+
+		ret = _x64_rcg_make_node(&gn, g, dn, r, NULL);
+		if (ret < 0)
+			return ret;
+	}
+
+	return 0;
 }
 
 static int _x64_rcg_goto_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
@@ -916,49 +1118,61 @@ X64_RCG_UNARY_ASSIGN(dec)
 #define X64_RCG_UNARY_POST_ASSIGN(name) \
 static int _x64_rcg_##name##_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
 { \
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL); \
+	scf_3ac_operand_t* dst = c->dsts->data[0]; \
+	\
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL); \
 	if (ret < 0) \
 		return ret; \
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL); \
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL); \
 } \
 static int _x64_rcg_##name##_dereference_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
 { \
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL); \
+	scf_3ac_operand_t* dst = c->dsts->data[0]; \
+	\
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL); \
 	if (ret < 0) \
 		return ret; \
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL); \
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL); \
 } \
 static int _x64_rcg_##name##_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
 { \
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL); \
+	scf_3ac_operand_t* dst = c->dsts->data[0]; \
+	\
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL); \
 	if (ret < 0) \
 		return ret; \
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL); \
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL); \
 } \
 static int _x64_rcg_##name##_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
 { \
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL); \
+	scf_3ac_operand_t* dst = c->dsts->data[0]; \
+	\
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL); \
 	if (ret < 0) \
 		return ret; \
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL); \
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL); \
 }
 X64_RCG_UNARY_POST_ASSIGN(inc_post)
 X64_RCG_UNARY_POST_ASSIGN(dec_post)
 
 static int _x64_rcg_address_of_array_index_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_address_of_pointer_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
-	int ret = _x64_rcg_make2(c, c->dst->dag_node, NULL, NULL);
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
 	if (ret < 0)
 		return ret;
-	return _x64_rcg_make(c, g, c->dst->dag_node, NULL, NULL);
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
 }
 
 static int _x64_rcg_push_rax_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)

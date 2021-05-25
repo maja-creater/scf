@@ -170,6 +170,7 @@ static int _auto_gc_bb_find(scf_basic_block_t* bb)
 		c  = scf_list_data(l, scf_3ac_code_t, list);
 		l  = scf_list_next(l);
 
+		scf_3ac_operand_t* dst;
 		scf_3ac_operand_t* src;
 		scf_dn_status_t*   ds_obj;
 		scf_dn_status_t*   ds;
@@ -179,12 +180,13 @@ static int _auto_gc_bb_find(scf_basic_block_t* bb)
 
 		if (SCF_OP_ASSIGN == c->op->type) {
 
-			v0 = c->dst->dag_node->var;
+			dst = c->dsts->data[0];
+			v0  = dst->dag_node->var;
 
 			if (!scf_variable_is_struct_pointer(v0))
 				continue;
 
-			ds_obj = scf_dn_status_alloc(c->dst->dag_node);
+			ds_obj = scf_dn_status_alloc(dst->dag_node);
 			if (!ds_obj)
 				return -ENOMEM;
 
@@ -311,8 +313,9 @@ ref:
 
 			scf_dag_node_t* dn_pf = dn->childs->data[0];
 			scf_function_t* f2    = dn_pf->var->func_ptr;
+			scf_variable_t* ret   = f2->rets->data[0];
 
-			if (!strcmp(f2->node.w->text->data, "scf_malloc") || f2->ret->auto_gc_flag) {
+			if (!strcmp(f2->node.w->text->data, "scf_malloc") || ret->auto_gc_flag) {
 
 				_bb_add_ds(bb, ds_obj);
 				count++;
@@ -483,8 +486,10 @@ static int _auto_gc_function_find(scf_ast_t* ast, scf_function_t* f, scf_list_t*
 
 		if (ds->dag_node->var->arg_flag)
 			ds->dag_node->var->auto_gc_flag = 1;
-		else
-			f->ret->auto_gc_flag = 1;
+		else {
+			scf_variable_t* ret = f->rets->data[0];
+			ret->auto_gc_flag = 1;
+		}
 	}
 
 	return total;

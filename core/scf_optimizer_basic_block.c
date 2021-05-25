@@ -250,14 +250,16 @@ static int __optimize_basic_block(scf_basic_block_t* bb, scf_function_t* f)
 
 //		scf_3ac_code_print(c, NULL);
 
-		if (c->dst) {
-			dn_func = _func_dag_find_dn(&f->dag_list_head, c->dst->dag_node);
+		if (c->dsts) {
+			scf_3ac_operand_t* dst = c->dsts->data[0];
+
+			dn_func = _func_dag_find_dn(&f->dag_list_head, dst->dag_node);
 			if (!dn_func) {
 				scf_loge("\n");
 				return -1;
 			}
 
-			c->dst->dag_node = dn_func;
+			dst->dag_node = dn_func;
 		}
 
 		if (c->srcs) {

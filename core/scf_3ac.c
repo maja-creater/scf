@@ -174,19 +174,28 @@ int scf_3ac_code_same(scf_3ac_code_t* c0, scf_3ac_code_t* c1)
 	if (c0->op != c1->op)
 		return 0;
 
-	if (c0->dst) {
-		if (!c1->dst)
+	if (c0->dsts) {
+		if (!c1->dsts)
 			return 0;
 
-		if (c0->dst->dag_node) {
-			if (!c1->dst->dag_node)
-				return 0;
-
-			if (!scf_dag_dn_same(c0->dst->dag_node, c1->dst->dag_node))
-				return 0;
-		} else if (c1->dst->dag_node)
+		if (c0->dsts->size != c1->dsts->size)
 			return 0;
-	} else if (c1->dst)
+
+		int i;
+		for (i = 0; i < c0->dsts->size; i++) {
+			scf_3ac_operand_t* dst0 = c0->dsts->data[i];
+			scf_3ac_operand_t* dst1 = c1->dsts->data[i];
+
+			if (dst0->dag_node) {
+				if (!dst1->dag_node)
+					return 0;
+
+				if (!scf_dag_dn_same(dst0->dag_node, dst1->dag_node))
+					return 0;
+			} else if (dst1->dag_node)
+				return 0;
+		}
+	} else if (c1->dsts)
 		return 0;
 
 	if (c0->srcs) {
@@ -223,16 +232,32 @@ scf_3ac_code_t* scf_3ac_code_clone(scf_3ac_code_t* c)
 
 	c2->op = c->op;
 
-	if (c->dst) {
-		c2->dst = scf_3ac_operand_alloc();
-		if (!c2->dst) {
-			free(c2);
+	if (c->dsts) {
+		c2->dsts = scf_vector_alloc();
+		if (!c2->dsts) {
+			scf_3ac_code_free(c2);
 			return NULL;
 		}
 
-		c2->dst->node     = c->dst->node;
-		c2->dst->dag_node = c->dst->dag_node;
-		c2->dst->code     = c->dst->code;
+		int i;
+		for (i = 0; i < c->dsts->size; i++) {
+			scf_3ac_operand_t* dst  = c->dsts->data[i];
+			scf_3ac_operand_t* dst2 = scf_3ac_operand_alloc();
+
+			if (!dst2) {
+				scf_3ac_code_free(c2);
+				return NULL;
+			}
+
+			if (scf_vector_add(c2->dsts, dst2) < 0) {
+				scf_3ac_code_free(c2);
+				return NULL;
+			}
+
+			dst2->node     = dst->node;
+			dst2->dag_node = dst->dag_node;
+			dst2->code     = dst->code;
+		}
 	}
 
 	if (c->srcs) {
@@ -266,33 +291,26 @@ scf_3ac_code_t* scf_3ac_code_clone(scf_3ac_code_t* c)
 	c2->label = c->label;
 	c2->error = c->error;
 
-	if (c->extern_fname) {
-		c2->extern_fname = scf_string_clone(c->extern_fname);
-		if (!c2->extern_fname) {
-			scf_3ac_code_free(c2);
-			return NULL;
-		}
-	}
-
 	c2->origin = c;
 	return c2;
 }
 
 void scf_3ac_code_free(scf_3ac_code_t* c)
 {
+	int i;
+
 	if (c) {
-		if (c->dst)
-			scf_3ac_operand_free(c->dst);
+		if (c->dsts) {
+			for (i = 0; i < c->dsts->size; i++)
+				scf_3ac_operand_free(c->dsts->data[i]);
+			scf_vector_free(c->dsts);
+		}
 
 		if (c->srcs) {
-			int i;
 			for (i = 0; i < c->srcs->size; i++)
 				scf_3ac_operand_free(c->srcs->data[i]);
 			scf_vector_free(c->srcs);
 		}
-
-		if (c->extern_fname)
-			scf_string_free(c->extern_fname);
 
 		if (c->active_vars) {
 			int i;
@@ -342,37 +360,77 @@ error1:
 
 scf_3ac_code_t* scf_3ac_alloc_by_dst(int op_type, scf_dag_node_t* dst)
 {
-	scf_3ac_operator_t* _3ac_op = scf_3ac_find_operator(op_type);
-	if (!_3ac_op) {
+	scf_3ac_operator_t* op;
+	scf_3ac_operand_t*  d;
+	scf_3ac_code_t*     c;
+
+	op = scf_3ac_find_operator(op_type);
+	if (!op) {
 		scf_loge("3ac operator not found\n");
 		return NULL;
 	}
 
-	scf_3ac_operand_t* d = scf_3ac_operand_alloc();
+	d = scf_3ac_operand_alloc();
 	if (!d)
 		return NULL;
 	d->dag_node = dst;
 
-	scf_3ac_code_t* c= scf_3ac_code_alloc();
+	c = scf_3ac_code_alloc();
 	if (!c) {
 		scf_3ac_operand_free(d);
 		return NULL;
 	}
 
-	c->op	= _3ac_op;
-	c->dst	= d;
+	c->dsts = scf_vector_alloc();
+	if (!c->dsts) {
+		scf_3ac_operand_free(d);
+		scf_3ac_code_free(c);
+		return NULL;
+	}
+
+	if (scf_vector_add(c->dsts, d) < 0) {
+		scf_3ac_operand_free(d);
+		scf_3ac_code_free(c);
+		return NULL;
+	}
+
+	c->op = op;
 	return c;
 }
 
-static scf_3ac_code_t* _scf_branch_ops_code(int type, scf_label_t* l, scf_node_t* err)
+scf_3ac_code_t* scf_branch_ops_code(int type, scf_label_t* l, scf_node_t* err)
 {
-	scf_3ac_code_t* branch = scf_3ac_code_alloc();
+	scf_3ac_operand_t* dst;
+	scf_3ac_code_t*    c;
 
-	branch->label	= l;
-	branch->error   = err;
-	branch->dst		= scf_3ac_operand_alloc();
-	branch->op		= scf_3ac_find_operator(type);
+	c = scf_3ac_code_alloc();
+	if (!c)
+		return NULL;
 
+	c->op    = scf_3ac_find_operator(type);
+	c->label = l;
+	c->error = err;
+
+	c->dsts  = scf_vector_alloc();
+	if (!c->dsts) {
+		scf_3ac_code_free(c);
+		return NULL;
+	}
+
+	dst = scf_3ac_operand_alloc();
+	if (!dst) {
+		scf_3ac_code_free(c);
+		return NULL;
+	}
+
+	if (scf_vector_add(c->dsts, dst) < 0) {
+
+		scf_3ac_operand_free(dst);
+		scf_3ac_code_free(c);
+		return NULL;
+	}
+
+	return c;
 }
 
 static void _3ac_print_node(scf_node_t* node)
@@ -406,7 +464,7 @@ static void _3ac_print_dag_node(scf_dag_node_t* dn)
 {
 	if (scf_type_is_var(dn->type)) {
 		if (dn->var->w) {
-			printf("v_%d_%d/%s, ",
+			printf("v_%d_%d/%s ",
 					dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
 		} else {
 			printf("v_%#lx", 0xffff & (uintptr_t)dn->var);
@@ -414,9 +472,9 @@ static void _3ac_print_dag_node(scf_dag_node_t* dn)
 	} else if (scf_type_is_operator(dn->type)) {
 		scf_3ac_operator_t* op = scf_3ac_find_operator(dn->type);
 		if (dn->var && dn->var->w)
-			printf("v_%d_%d/%s, ", dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
+			printf("v_%d_%d/%s ", dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
 		else
-			printf("v_/%s, ", op->name);
+			printf("v_/%s ", op->name);
 	} else {
 		//printf("type: %d, v_%#lx\n", dn->type, 0xffff & (uintptr_t)dn->var);
 		//assert(0);
@@ -425,50 +483,56 @@ static void _3ac_print_dag_node(scf_dag_node_t* dn)
 
 void scf_3ac_code_print(scf_3ac_code_t* c, scf_list_t* sentinel)
 {
+	scf_3ac_operand_t* src;
+	scf_3ac_operand_t* dst;
+
+	int i;
+
 	printf("%s  ", c->op->name);
-	if (SCF_OP_3AC_CALL_EXTERN == c->op->type)
-		printf("%s ", c->extern_fname->data);
 
-	if (c->dst) {
-		if (c->dst->dag_node) {
-			_3ac_print_dag_node(c->dst->dag_node);
+	if (c->dsts) {
 
-		} else if (c->dst->node) {
-			_3ac_print_node(c->dst->node);
+		for (i  = 0; i < c->dsts->size; i++) {
+			dst =        c->dsts->data[i];
 
-		} else if (c->dst->code) {
-			if (&c->dst->code->list != sentinel) {
-				printf(": ");
-				scf_3ac_code_print(c->dst->code, sentinel);
-			} else {
-				//printf(": end");
-			}
-		} else if (c->dst->bb) {
-			printf(" bb: %p ", c->dst->bb);
+			if (dst->dag_node)
+				_3ac_print_dag_node(dst->dag_node);
+
+			else if (dst->node)
+				_3ac_print_node(dst->node);
+
+			else if (dst->code) {
+				if (&dst->code->list != sentinel) {
+					printf(": ");
+					scf_3ac_code_print(dst->code, sentinel);
+				}
+			} else if (dst->bb)
+				printf(" bb: %p ", dst->bb);
+
+			if (i < c->dsts->size - 1)
+				printf(", ");
 		}
 	}
 
 	if (c->srcs) {
-		int i;
-		for (i = 0; i < c->srcs->size; i++) {
-			if (0 == i && c->dst && c->dst->node)
-				printf(", ");
+	
+		for (i  = 0; i < c->srcs->size; i++) {
+			src =        c->srcs->data[i];
 
-			scf_3ac_operand_t* src = c->srcs->data[i];
+			if (0 == i && c->dsts && c->dsts->size > 0)
+				printf("; ");
 
-			if (src->dag_node) {
+			if (src->dag_node)
 				_3ac_print_dag_node(src->dag_node);
 
-			} else if (src->node) {
+			else if (src->node)
 				_3ac_print_node(src->node);
 
-			} else if (src->code) {
+			else if (src->code)
 				assert(0);
-			}
 
-			if (i < c->srcs->size - 1) {
+			if (i < c->srcs->size - 1)
 				printf(", ");
-			}
 		}
 	}
 
@@ -477,25 +541,34 @@ void scf_3ac_code_print(scf_3ac_code_t* c, scf_list_t* sentinel)
 
 static int _3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag, int nb_operands0, int nb_operands1)
 {
-	scf_dag_node_t* dag_dst = NULL;
+	scf_3ac_operand_t* dst;
+	scf_3ac_operand_t* src;
+	scf_dag_node_t*    dn;
 
 	int ret;
 	int i;
+	int j;
 
-	if (c->dst && c->dst->node) {
-		ret = scf_dag_get_node(dag, c->dst->node, &c->dst->dag_node);
-		if (ret < 0)
-			return ret;
+	if (c->dsts) {
 
-		dag_dst = c->dst->dag_node;
+		for (j  = 0; j < c->dsts->size; j++) {
+			dst =        c->dsts->data[j];
+
+			if (!dst || !dst->node)
+				continue;
+
+			ret = scf_dag_get_node(dag, dst->node, &dst->dag_node);
+			if (ret < 0)
+				return ret;
+		}
 	}
 
 	if (!c->srcs)
 		return 0;
 
-	for (i = 0; i < c->srcs->size; i++) {
+	for (i  = 0; i < c->srcs->size; i++) {
+		src =        c->srcs->data[i];
 
-		scf_3ac_operand_t* src = c->srcs->data[i];
 		if (!src || !src->node)
 			continue;
 
@@ -503,25 +576,36 @@ static int _3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag, int nb_operands0
 		if (ret < 0)
 			return ret;
 
-		if (!dag_dst)
+		if (!c->dsts)
 			continue;
 
-		if (!dag_dst->childs || dag_dst->childs->size < nb_operands0) {
+		for (j  = 0; j < c->dsts->size; j++) {
+			dst =        c->dsts->data[j];
 
-			ret = scf_dag_node_add_child(dag_dst, src->dag_node);
-			if (ret < 0)
-				return ret;
-		} else {
-			int j;
-			for (j = 0; j < dag_dst->childs->size && j < nb_operands1; j++) {
-				if (src->dag_node == dag_dst->childs->data[j])
-					break;
-			}
-			if (j == dag_dst->childs->size) {
-				scf_loge("i: %d, c->op: %s, dag_dst->childs->size: %d, c->srcs->size: %d\n",
-						i, c->op->name, dag_dst->childs->size, c->srcs->size);
-				scf_3ac_code_print(c, NULL);
-				return -1;
+			if (!dst || !dst->dag_node)
+				continue;
+
+			dn = dst->dag_node;
+
+			if (!dn->childs || dn->childs->size < nb_operands0) {
+
+				ret = scf_dag_node_add_child(dn, src->dag_node);
+				if (ret < 0)
+					return ret;
+			} else {
+				int k;
+				for (k = 0; k < dn->childs->size && k < nb_operands1; k++) {
+
+					if (src->dag_node == dn->childs->data[j])
+						break;
+				}
+
+				if (k == dn->childs->size) {
+					scf_loge("i: %d, c->op: %s, dag_dst->childs->size: %d, c->srcs->size: %d\n",
+							i, c->op->name, dn->childs->size, c->srcs->size);
+					scf_3ac_code_print(c, NULL);
+					return -1;
+				}
 			}
 		}
 	}
@@ -535,22 +619,24 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 	if (scf_type_is_assign(c->op->type)) {
 
 		scf_3ac_operand_t* src = c->srcs->data[0];
+		scf_3ac_operand_t* dst = c->dsts->data[0];
 
 		ret = scf_dag_get_node(dag, src->node, &src->dag_node);
 		if (ret < 0)
 			return ret;
 
-		ret = scf_dag_get_node(dag, c->dst->node, &c->dst->dag_node);
+		ret = scf_dag_get_node(dag, dst->node, &dst->dag_node);
 		if (ret < 0)
 			return ret;
 
-		assert(c->dst->node->parent);
-		scf_variable_t* var_assign = _scf_operand_get(c->dst->node->parent);
+		assert(dst->node->parent);
+
+		scf_variable_t* var_assign = _scf_operand_get(dst->node->parent);
 
 		scf_dag_node_t* dag_assign = scf_dag_node_alloc(c->op->type, var_assign, NULL);
 		scf_list_add_tail(dag, &dag_assign->list);
 
-		ret = scf_dag_node_add_child(dag_assign, c->dst->dag_node);
+		ret = scf_dag_node_add_child(dag_assign, dst->dag_node);
 		if (ret < 0)
 			return ret;
 
@@ -613,16 +699,18 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 			|| SCF_OP_3AC_SETGT == c->op->type
 			|| SCF_OP_3AC_SETGE == c->op->type) {
 
-		assert(c->dst->node);
+		assert(c->dsts && 1 == c->dsts->size);
 
-		scf_dag_node_t* dn_setcc = scf_dag_node_alloc(c->op->type, NULL, NULL);
+		scf_3ac_operand_t* dst      = c->dsts->data[0];
+
+		scf_dag_node_t*    dn_setcc = scf_dag_node_alloc(c->op->type, NULL, NULL);
 		scf_list_add_tail(dag, &dn_setcc->list);
 
-		ret = scf_dag_get_node(dag, c->dst->node, &c->dst->dag_node);
+		ret = scf_dag_get_node(dag, dst->node, &dst->dag_node);
 		if (ret < 0)
 			return ret;
 
-		ret = scf_dag_node_add_child(dn_setcc, c->dst->dag_node);
+		ret = scf_dag_node_add_child(dn_setcc, dst->dag_node);
 		if (ret < 0)
 			return ret;
 
@@ -648,18 +736,24 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 		if (ret < 0)
 			return ret;
 
-		if (c->dst) {
-			assert(c->dst->node);
-			c->dst->dag_node = dn_parent;
+		if (c->dsts) {
+			scf_3ac_operand_t* dst = c->dsts->data[0];
+			assert(dst->node);
+			dst->dag_node = dn_parent;
 		}
 	} else if (SCF_OP_RETURN == c->op->type) {
 
-		scf_3ac_operand_t* src = c->srcs->data[0];
+		if (c->srcs) {
+			scf_3ac_operand_t* src;
 
-		if (src->node) {
-			ret = scf_dag_get_node(dag, src->node, &src->dag_node);
-			if (ret < 0)
-				return ret;
+			int i;
+			for (i  = 0; i < c->srcs->size; i++) {
+				src =        c->srcs->data[i];
+
+				ret = scf_dag_get_node(dag, src->node, &src->dag_node);
+				if (ret < 0)
+					return ret;
+			}
 		}
 	} else if (scf_type_is_jmp(c->op->type)) {
 
@@ -669,10 +763,14 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 		int nb_operands0   = -1;
 		int nb_operands1   = -1;
 
-		if (c->dst && c->dst->node) {
-			assert(c->dst->node->op);
+		if (c->dsts) {
+			scf_3ac_operand_t* dst0 = c->dsts->data[0];
 
-			nb_operands0 = c->dst->node->op->nb_operands;
+			scf_3ac_code_print(c, NULL);
+
+			assert(dst0->node->op);
+
+			nb_operands0 = dst0->node->op->nb_operands;
 			nb_operands1 = nb_operands0;
 
 			switch (c->op->type) {
@@ -703,15 +801,18 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 
 static void _3ac_filter_jmp(scf_list_t* h, scf_3ac_code_t* c)
 {
-	scf_list_t*		l2 = NULL;
-	scf_3ac_code_t*	c2 = NULL;
+	scf_list_t*        l2   = NULL;
+	scf_3ac_code_t*    c2   = NULL;
+	scf_3ac_operand_t* dst0 = c->dsts->data[0];
+	scf_3ac_operand_t* dst1 = NULL;
 
-	for (l2 = &c->dst->code->list; l2 != scf_list_sentinel(h); ) {
+	for (l2 = &dst0->code->list; l2 != scf_list_sentinel(h); ) {
 
 		c2 = scf_list_data(l2, scf_3ac_code_t, list);
 
 		if (SCF_OP_GOTO == c2->op->type) {
-			l2 = &c2->dst->code->list;
+			dst0 = c2->dsts->data[0];
+			l2   = &dst0->code->list;
 			continue;
 		}
 
@@ -721,7 +822,10 @@ static void _3ac_filter_jmp(scf_list_t* h, scf_3ac_code_t* c)
 		}
 
 		if (!scf_type_is_jmp(c2->op->type)) {
-			c->dst->code          = c2;
+
+			dst0       = c->dsts->data[0];
+			dst0->code = c2;
+
 			c2->basic_block_start = 1;
 			c2->jmp_dst_flag      = 1;
 			break;
@@ -729,14 +833,19 @@ static void _3ac_filter_jmp(scf_list_t* h, scf_3ac_code_t* c)
 
 		if (SCF_OP_GOTO == c->op->type) {
 			c->op        = c2->op;
-			c->dst->code = c2->dst->code;
 
-			l2 = &c2->dst->code->list;
+			dst0 = c ->dsts->data[0];
+			dst1 = c2->dsts->data[0];
+
+			dst0->code = dst1->code;
+
+			l2 = &dst1->code->list;
 			continue;
 		}
 
 		scf_logw("c: %s, c2: %s\n", c->op->name, c2->op->name);
-		c->dst->code = c2;
+		dst0       = c->dsts->data[0];
+		dst0->code = c2;
 		c2->basic_block_start = 1;
 		c2->jmp_dst_flag      = 1;
 		break;
@@ -752,10 +861,12 @@ static void _3ac_filter_jmp(scf_list_t* h, scf_3ac_code_t* c)
 
 static void _3ac_filter_dst_teq(scf_list_t* h, scf_3ac_code_t* c)
 {
-	scf_3ac_code_t*	setcc = NULL;
-	scf_3ac_code_t*	jcc   = NULL;
-	scf_3ac_code_t* teq   = c->dst->code;
-	scf_list_t*     l;
+	scf_3ac_code_t*	   setcc = NULL;
+	scf_3ac_code_t*	   jcc   = NULL;
+	scf_3ac_operand_t* dst0  = c->dsts->data[0];
+	scf_3ac_operand_t* dst1  = NULL;
+	scf_3ac_code_t*    teq   = dst0->code;
+	scf_list_t*        l;
 
 	if (scf_list_prev(&c->list) == scf_list_sentinel(h))
 		return;
@@ -773,25 +884,32 @@ static void _3ac_filter_dst_teq(scf_list_t* h, scf_3ac_code_t* c)
 			|| (SCF_OP_3AC_JLT == c->op->type && SCF_OP_3AC_SETGE == setcc->op->type)
 			|| (SCF_OP_3AC_JLE == c->op->type && SCF_OP_3AC_SETGT == setcc->op->type)) {
 
-		assert(setcc->dst && setcc->dst->node);
-		assert(teq->srcs  && 1 == teq->srcs->size);
+		assert(setcc->dsts && 1 == setcc->dsts->size);
+		assert(teq->srcs   && 1 == teq  ->srcs->size);
 
-		scf_3ac_operand_t* src   = teq->srcs->data[0];
+		scf_3ac_operand_t* src   = teq  ->srcs->data[0];
+		scf_3ac_operand_t* dst   = setcc->dsts->data[0];
 		scf_variable_t*    v_teq = _scf_operand_get(src->node);
-		scf_variable_t*    v_set = _scf_operand_get(setcc->dst->node);
+		scf_variable_t*    v_set = _scf_operand_get(dst->node);
 
 		if (v_teq != v_set)
 			return;
 
 		if (SCF_OP_3AC_JZ == jcc->op ->type) {
-			c->dst->code  =  jcc->dst->code;
+
+			dst0 = c  ->dsts->data[0];
+			dst1 = jcc->dsts->data[0];
+
+			dst0->code = dst1->code;
 
 		} else if (SCF_OP_3AC_JNZ == jcc->op->type) {
 
 			l = scf_list_next(&jcc->list);
 			if (l == scf_list_sentinel(h))
 				return;
-			c->dst->code = scf_list_data(l, scf_3ac_code_t, list);
+
+			dst0       = c->dsts->data[0];
+			dst0->code = scf_list_data(l, scf_3ac_code_t, list);
 		}
 	} else if ((SCF_OP_3AC_JNZ == c->op->type && SCF_OP_3AC_SETNZ == setcc->op->type)
 			|| (SCF_OP_3AC_JZ  == c->op->type && SCF_OP_3AC_SETZ  == setcc->op->type)
@@ -800,25 +918,32 @@ static void _3ac_filter_dst_teq(scf_list_t* h, scf_3ac_code_t* c)
 			|| (SCF_OP_3AC_JLT == c->op->type && SCF_OP_3AC_SETLT == setcc->op->type)
 			|| (SCF_OP_3AC_JLE == c->op->type && SCF_OP_3AC_SETLE == setcc->op->type)) {
 
-		assert(setcc->dst && setcc->dst->node);
-		assert(teq->srcs  && 1 == teq->srcs->size);
+		assert(setcc->dsts && 1 == setcc->dsts->size);
+		assert(teq->srcs   && 1 == teq  ->srcs->size);
 
-		scf_3ac_operand_t* src   = teq->srcs->data[0];
+		scf_3ac_operand_t* src   = teq  ->srcs->data[0];
+		scf_3ac_operand_t* dst   = setcc->dsts->data[0];
 		scf_variable_t*    v_teq = _scf_operand_get(src->node);
-		scf_variable_t*    v_set = _scf_operand_get(setcc->dst->node);
+		scf_variable_t*    v_set = _scf_operand_get(dst->node);
 
 		if (v_teq != v_set)
 			return;
 
 		if (SCF_OP_3AC_JNZ == jcc-> op->type) {
-			c->dst->code   =  jcc->dst->code;
+
+			dst0 = c  ->dsts->data[0];
+			dst1 = jcc->dsts->data[0];
+
+			dst0->code = dst1->code;
 
 		} else if (SCF_OP_3AC_JZ == jcc->op->type) {
 
 			l = scf_list_next(&jcc->list);
 			if (l == scf_list_sentinel(h))
 				return;
-			c->dst->code = scf_list_data(l, scf_3ac_code_t, list);
+
+			dst0       = c->dsts->data[0];
+			dst0->code = scf_list_data(l, scf_3ac_code_t, list);
 		}
 	}
 }
@@ -901,12 +1026,14 @@ static int _3ac_filter_prev_teq(scf_list_t* h, scf_3ac_code_t* c, scf_3ac_code_t
 	} else
 		return 0;
 
-	assert(setcc->dst && setcc->dst->node);
-	assert(teq->srcs  && 1 == teq->srcs->size);
+	assert(setcc->dsts && 1 == setcc->dsts->size);
+	assert(teq->srcs   && 1 == teq  ->srcs->size);
 
-	scf_3ac_operand_t* src   = teq->srcs->data[0];
-	scf_variable_t*    v_teq = _scf_operand_get(src->node);
-	scf_variable_t*    v_set = _scf_operand_get(setcc->dst->node);
+	scf_3ac_operand_t* src   = teq  ->srcs->data[0];
+	scf_3ac_operand_t* dst0  = setcc->dsts->data[0];
+	scf_3ac_operand_t* dst1  = NULL;
+	scf_variable_t*    v_teq = _scf_operand_get(src ->node);
+	scf_variable_t*    v_set = _scf_operand_get(dst0->node);
 
 	if (v_teq != v_set)
 		return 0;
@@ -916,9 +1043,22 @@ static int _3ac_filter_prev_teq(scf_list_t* h, scf_3ac_code_t* c, scf_3ac_code_t
 		j = scf_3ac_code_alloc(); \
 		if (!j) \
 			return -ENOMEM; \
-		j->dst = scf_3ac_operand_alloc(); \
-		if (!j->dst) { \
+		\
+		j->dsts = scf_vector_alloc(); \
+		if (!j->dsts) { \
 			scf_3ac_code_free(j); \
+			return -ENOMEM; \
+		} \
+		\
+		scf_3ac_operand_t* dst0 = scf_3ac_operand_alloc(); \
+		if (!dst0) { \
+			scf_3ac_code_free(j); \
+			return -ENOMEM; \
+		} \
+		\
+		if (scf_vector_add(j->dsts, dst0) < 0) { \
+			scf_3ac_code_free(j); \
+			scf_3ac_operand_free(dst0); \
 			return -ENOMEM; \
 		} \
 		j->op = scf_3ac_find_operator(cc); \
@@ -926,7 +1066,9 @@ static int _3ac_filter_prev_teq(scf_list_t* h, scf_3ac_code_t* c, scf_3ac_code_t
 	} while (0)
 
 	SCF_3AC_JCC_ALLOC(jcc, jcc_type);
-	jcc->dst->code = c->dst->code;
+	dst0 = jcc->dsts->data[0];
+	dst1 = c  ->dsts->data[0];
+	dst0->code = dst1->code;
 	scf_list_add_front(&setcc->list, &jcc->list);
 
 	l = scf_list_next(&c->list);
@@ -936,7 +1078,8 @@ static int _3ac_filter_prev_teq(scf_list_t* h, scf_3ac_code_t* c, scf_3ac_code_t
 	}
 #if 1
 	SCF_3AC_JCC_ALLOC(jmp, SCF_OP_GOTO);
-	jmp->dst->code = scf_list_data(l, scf_3ac_code_t, list);
+	dst0 = jmp->dsts->data[0];
+	dst0->code = scf_list_data(l, scf_3ac_code_t, list);
 	scf_list_add_front(&jcc->list, &jmp->list);
 #endif
 
@@ -1025,10 +1168,13 @@ static int _3ac_find_basic_block_start(scf_list_t* h)
 		}
 
 		if (scf_type_is_jmp(c->op->type)) {
-			assert(c->dst->code);
+
+			scf_3ac_operand_t* dst0 = c->dsts->data[0];
+
+			assert(dst0->code);
 
 			// filter 1st expr of logic op, such as '&&', '||'
-			if (SCF_OP_3AC_TEQ == c->dst->code->op->type)
+			if (SCF_OP_3AC_TEQ == dst0->code->op->type)
 				_3ac_filter_dst_teq(h, c);
 
 			l2 = scf_list_prev(&c->list);
@@ -1050,10 +1196,11 @@ static int _3ac_find_basic_block_start(scf_list_t* h)
 #if 1
 	for (l = scf_list_head(h); l != scf_list_sentinel(h); ) {
 
-		scf_3ac_code_t* c  = scf_list_data(l, scf_3ac_code_t, list);
+		scf_3ac_code_t*    c    = scf_list_data(l, scf_3ac_code_t, list);
 
-		scf_list_t*		l2 = NULL;
-		scf_3ac_code_t*	c2 = NULL;
+		scf_list_t*        l2   = NULL;
+		scf_3ac_code_t*    c2   = NULL;
+		scf_3ac_operand_t* dst0 = NULL;
 
 		if (SCF_OP_3AC_NOP == c->op->type) {
 			assert(!c->jmp_dst_flag);
@@ -1086,9 +1233,10 @@ static int _3ac_find_basic_block_start(scf_list_t* h)
 			c2 = NULL;
 		}
 
-		l = scf_list_next(l);
+		l    = scf_list_next(l);
+		dst0 = c->dsts->data[0];
 
-		if (l == &c->dst->code->list) {
+		if (l == &dst0->code->list) {
 			scf_list_del(&c->list);
 			scf_3ac_code_free(c);
 			c = NULL;
@@ -1245,16 +1393,17 @@ static int _3ac_connect_basic_blocks(scf_function_t* f)
 	}
 
 	for (i = 0; i < f->jmps->size; i++) {
-		scf_3ac_code_t* c   = f->jmps->data[i];
-		scf_3ac_code_t* dst = c->dst->code;
+		scf_3ac_code_t*    c    = f->jmps->data[i];
+		scf_3ac_operand_t* dst0 = c->dsts->data[0];
+		scf_3ac_code_t*    dst  = dst0->code;
 
 		scf_basic_block_t* current_bb = c->basic_block;
 		scf_basic_block_t* dst_bb     = dst->basic_block;
 		scf_basic_block_t* prev_bb    = NULL;
 		scf_basic_block_t* next_bb    = NULL;
 
-		c->dst->bb   = dst_bb;
-		c->dst->code = NULL;
+		dst0->bb   = dst_bb;
+		dst0->code = NULL;
 
 		for (l = scf_list_prev(&current_bb->list); l != sentinel; l = scf_list_prev(l)) {
 

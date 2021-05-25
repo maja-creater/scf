@@ -131,6 +131,11 @@ void scf_node_free_data(scf_node_t* node)
 		node->result = NULL;
 	}
 
+	if (node->result_nodes) {
+		scf_vector_clear(node->result_nodes, ( void (*)(void*) ) scf_node_free);
+		scf_vector_free(node->result_nodes);
+	}
+
 	int i;
 	for (i = 0; i < node->nb_nodes; i++) {
 		if (node->nodes[i]) {

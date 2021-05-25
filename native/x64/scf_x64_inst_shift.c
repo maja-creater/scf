@@ -104,7 +104,7 @@ static int _x64_shift(scf_native_t* ctx, scf_3ac_code_t* c, scf_dag_node_t* dst,
 
 int x64_shift(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 {
-	if (!c->dst || !c->dst->dag_node)
+	if (!c->dsts || c->dsts->size != 1)
 		return -EINVAL;
 
 	if (!c->srcs || c->srcs->size != 2)
@@ -114,12 +114,15 @@ int x64_shift(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 	scf_function_t*    f    = x64->f;
 	scf_3ac_operand_t* src0 = c->srcs->data[0];
 	scf_3ac_operand_t* src1 = c->srcs->data[1];
-	scf_3ac_operand_t* dst  = c->dst;
+	scf_3ac_operand_t* dst  = c->dsts->data[0];
 
 	if (!src0 || !src0->dag_node)
 		return -EINVAL;
 
 	if (!src1 || !src1->dag_node)
+		return -EINVAL;
+
+	if (!dst || !dst->dag_node)
 		return -EINVAL;
 
 	if (!c->instructions) {
@@ -128,22 +131,22 @@ int x64_shift(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 			return -ENOMEM;
 	}
 
-	int ret = x64_inst_op2(SCF_X64_MOV, c->dst->dag_node, src0->dag_node, c, f);
+	int ret = x64_inst_op2(SCF_X64_MOV, dst->dag_node, src0->dag_node, c, f);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
 	}
 
 	if (SCF_X64_SHR == OpCode_type
-			&& scf_type_is_signed(c->dst->dag_node->var->type))
+			&& scf_type_is_signed(dst->dag_node->var->type))
 		OpCode_type = SCF_X64_SAR;
 
-	return _x64_shift(ctx, c, c->dst->dag_node, src1->dag_node, OpCode_type);
+	return _x64_shift(ctx, c, dst->dag_node, src1->dag_node, OpCode_type);
 }
 
 int x64_shift_assign(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 {
-	if (!c->dst || !c->dst->dag_node)
+	if (!c->dsts || c->dsts->size != 1)
 		return -EINVAL;
 
 	if (!c->srcs || c->srcs->size != 1)
@@ -152,9 +155,12 @@ int x64_shift_assign(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 	scf_x64_context_t* x64   = ctx->priv;
 	scf_function_t*    f     = x64->f;
 	scf_3ac_operand_t* count = c->srcs->data[0];
-	scf_3ac_operand_t* dst   = c->dst;
+	scf_3ac_operand_t* dst   = c->dsts->data[0];
 
 	if (!count || !count->dag_node)
+		return -EINVAL;
+
+	if (!dst || !dst->dag_node)
 		return -EINVAL;
 
 	if (!c->instructions) {
@@ -164,9 +170,9 @@ int x64_shift_assign(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 	}
 
 	if (SCF_X64_SHR == OpCode_type
-			&& scf_type_is_signed(c->dst->dag_node->var->type))
+			&& scf_type_is_signed(dst->dag_node->var->type))
 		OpCode_type = SCF_X64_SAR;
 
-	return _x64_shift(ctx, c, c->dst->dag_node, count->dag_node, OpCode_type);
+	return _x64_shift(ctx, c, dst->dag_node, count->dag_node, OpCode_type);
 }
 

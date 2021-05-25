@@ -49,15 +49,28 @@ static uint32_t x64_abi_float_regs[] =
 };
 #define X64_ABI_NB (sizeof(x64_abi_regs) / sizeof(x64_abi_regs[0]))
 
+static uint32_t x64_abi_ret_regs[] =
+{
+	SCF_X64_REG_RAX,
+	SCF_X64_REG_RCX,
+};
+#define X64_ABI_RET_NB (sizeof(x64_abi_ret_regs) / sizeof(x64_abi_ret_regs[0]))
+
 static uint32_t x64_abi_caller_saves[] =
 {
-	SCF_X64_REG_RBX,
+	SCF_X64_REG_RAX,
 	SCF_X64_REG_RCX,
 	SCF_X64_REG_RDX,
 	SCF_X64_REG_RSI,
 	SCF_X64_REG_RDI,
 };
 #define X64_ABI_CALLER_SAVES_NB (sizeof(x64_abi_caller_saves) / sizeof(x64_abi_caller_saves[0]))
+
+static uint32_t x64_abi_callee_saves[] =
+{
+	SCF_X64_REG_RBX,
+};
+#define X64_ABI_CALLEE_SAVES_NB (sizeof(x64_abi_callee_saves) / sizeof(x64_abi_callee_saves[0]))
 
 typedef struct {
 	uint32_t		id;
@@ -67,6 +80,8 @@ typedef struct {
 	intptr_t        color;
 
 	scf_vector_t*	dag_nodes;
+
+	uint32_t        updated;
 
 } scf_register_x64_t;
 

@@ -187,10 +187,12 @@ int x64_inst_cmp(scf_native_t* ctx, scf_3ac_code_t* c)
 
 int x64_inst_set(scf_native_t* ctx, scf_3ac_code_t* c, int setcc_type)
 {
-	if (!c->dst || !c->dst->dag_node)
+	if (!c->dsts || c->dsts->size <= 0)
 		return -EINVAL;
 
-	if (0 == c->dst->dag_node->color)
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	if (0 == dst->dag_node->color)
 		return -EINVAL;
 
 	if (!c->instructions) {
@@ -202,7 +204,7 @@ int x64_inst_set(scf_native_t* ctx, scf_3ac_code_t* c, int setcc_type)
 	scf_x64_context_t* x64 = ctx->priv;
 	scf_function_t*    f   = x64->f;
 
-	int ret = _inst_set(setcc_type, c->dst->dag_node, c, f);
+	int ret = _inst_set(setcc_type, dst->dag_node, c, f);
 	if (ret < 0)
 		return ret;
 	return 0;

@@ -228,8 +228,10 @@ static int _scf_op_const_return(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 {
 	scf_handler_data_t* d = data;
 
-	if (1 == nb_nodes) {
-		scf_expr_t*     e = nodes[0];
+	int i;
+	for (i = 0; i < nb_nodes; i++) {
+
+		scf_expr_t*     e = nodes[i];
 		scf_variable_t* r = NULL;
 
 		if (_scf_expr_calculate_internal(ast, e, &r) < 0) {
@@ -406,8 +408,7 @@ static int _scf_op_const_for(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, v
 
 static int __scf_op_const_call(scf_ast_t* ast, scf_function_t* f, void* data)
 {
-	scf_logi("f: %p, f->node->w: %s, f->ret->type: %d\n",
-			f, f->node.w->text->data, f->ret->type);
+	scf_logi("f: %p, f->node->w: %s\n", f, f->node.w->text->data);
 
 	scf_handler_data_t* d = data;
 

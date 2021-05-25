@@ -27,14 +27,11 @@ struct scf_3ac_code_s {
 
 	scf_3ac_operator_t*	op; // for 3ac operator
 
-	scf_3ac_operand_t*	dst; // dst operand
-
+	scf_vector_t*		dsts; // dst operands, maybe only used for function return value
 	scf_vector_t*		srcs; // src operands, usually 2
 
 	scf_label_t*		label; // only for 'goto' to find the destination to go
 	scf_node_t*		    error; // only for 'error'
-
-	scf_string_t*       extern_fname; // only for call external function
 
 	scf_3ac_code_t*     origin;
 
@@ -59,6 +56,8 @@ scf_3ac_code_t*		scf_3ac_code_alloc();
 scf_3ac_code_t*		scf_3ac_code_clone(scf_3ac_code_t* c);
 void				scf_3ac_code_free(scf_3ac_code_t* code);
 void				scf_3ac_code_print(scf_3ac_code_t* c, scf_list_t* sentinel);
+
+scf_3ac_code_t*     scf_branch_ops_code(int type, scf_label_t* l, scf_node_t* err);
 
 scf_3ac_operator_t*	scf_3ac_find_operator(const int type);
 

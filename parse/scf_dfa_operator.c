@@ -34,6 +34,7 @@ int _operator_add_operator(scf_dfa_t* dfa, dfa_parse_data_t* d)
 	dfa_op_data_t*   opd   = d->module_datas[dfa_module_operator.index];
 	dfa_identity_t*  id;
 	scf_function_t*  f;
+	scf_variable_t*  v;
 
 	if (!opd->word_op) {
 		scf_loge("\n");
@@ -55,20 +56,34 @@ int _operator_add_operator(scf_dfa_t* dfa, dfa_parse_data_t* d)
 	scf_logi("operator: %s,line:%d,pos:%d\n",
 			f->node.w->text->data, f->node.w->line, f->node.w->pos);
 
-	d->current_function = f;
+	while (d->current_identities->size > 0) {
 
-	f->ret = SCF_VAR_ALLOC_BY_TYPE(opd->word_op, id->type, id->const_flag, id->nb_pointers, id->func_ptr);
+		id = scf_stack_pop(d->current_identities);
 
-	if (!f->ret) {
-		scf_loge("return value alloc failed\n");
+		if (!id || !id->type || !id->type_w) {
+			scf_loge("function return value type NOT found\n");
+			return SCF_DFA_ERROR;
+		}
 
-		scf_function_free(f);
-		f = NULL;
-		return SCF_DFA_ERROR;
+		v  = SCF_VAR_ALLOC_BY_TYPE(id->type_w, id->type, id->const_flag, id->nb_pointers, NULL);
+		free(id);
+		id = NULL;
+
+		if (!v) {
+			scf_function_free(f);
+			return SCF_DFA_ERROR;
+		}
+
+		if (scf_vector_add(f->rets, v) < 0) {
+			scf_variable_free(v);
+			scf_function_free(f);
+			return SCF_DFA_ERROR;
+		}
 	}
 
-	free(id);
 	opd->word_op = NULL;
+
+	d->current_function = f;
 
 	return SCF_DFA_NEXT_WORD;
 }

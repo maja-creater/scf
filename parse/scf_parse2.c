@@ -974,18 +974,27 @@ static int _fill_code_list_inst(scf_string_t* code, scf_list_t* h, int64_t offse
 				return ret;
 		}
 
-		if (c->dst && c->dst->dag_node && c->dst->dag_node->node) {
+		if (c->dsts) {
+			scf_3ac_operand_t* dst;
 
-			node = c->dst->dag_node->node;
+			for (i  = 0; i < c->dsts->size; i++) {
+				dst =        c->dsts->data[i];
 
-			if (node->debug_w) {
-				line2 = node->debug_w->line;
+				if (!dst->dag_node || !dst->dag_node->node)
+					continue;
 
-				if (scf_type_is_var(node->type) && node->var->local_flag) {
+				node = dst->dag_node->node;
 
-					ret = _debug_add_var(parse, node);
-					if (ret < 0)
-						return ret;
+				if (node->debug_w) {
+					if (line2 < node->debug_w->line)
+						line2 = node->debug_w->line;
+
+					if (scf_type_is_var(node->type) && node->var->local_flag) {
+
+						ret = _debug_add_var(parse, node);
+						if (ret < 0)
+							return ret;
+					}
 				}
 			}
 		}
@@ -1113,8 +1122,9 @@ static int _debug_add_subprogram(scf_dwarf_info_entry_t** pie, scf_parse_t* pars
 
 		} else if (DW_AT_type == iattr->name) {
 
-			uint32_t    type = 0;
-			scf_type_t* t    = scf_ast_find_type_type(parse->ast, f->ret->type);
+			uint32_t        type = 0;
+			scf_variable_t* v    = f->rets->data[0];
+			scf_type_t*     t    = scf_ast_find_type_type(parse->ast, v->type);
 
 			ie2 = _debug_find_type(parse, t);
 			if (!ie2) {
@@ -1714,7 +1724,7 @@ int scf_parse_compile_functions(scf_parse_t* parse, scf_native_t* native, scf_ve
 		return ret;
 	}
 
-#if 0
+#if 1
 	for (i = 0; i < functions->size; i++) {
 		f  =        functions->data[i];
 

@@ -417,20 +417,32 @@ static int _bb_vars(scf_basic_block_t* bb)
 		if (scf_type_is_jmp(c->op->type))
 			continue;
 
-		if (c->dst && c->dst->dag_node) {
-			dn     =  c->dst->dag_node;
+		if (c->dsts) {
+			scf_3ac_operand_t* dst;
+			int j;
 
-			if (scf_dn_through_bb(dn)) {
-				ret = scf_vector_add_unique(bb->var_dag_nodes, dn);
-				if (ret < 0)
-					return ret;
+			for (j  = 0; j < c->dsts->size; j++) {
+				dst =        c->dsts->data[j];
+
+				if (!dst->dag_node)
+					continue;
+			
+				dn  = dst->dag_node;
+
+				if (scf_dn_through_bb(dn)) {
+					ret = scf_vector_add_unique(bb->var_dag_nodes, dn);
+					if (ret < 0)
+						return ret;
+				}
 			}
 		}
 
 		if (c->srcs) {
+			scf_3ac_operand_t* src;
 			int j;
-			for (j = 0; j < c->srcs->size; j++) {
-				scf_3ac_operand_t* src = c->srcs->data[j];
+
+			for (j  = 0; j < c->srcs->size; j++) {
+				src =        c->srcs->data[j];
 
 				if (!src->dag_node)
 					continue;
@@ -733,11 +745,12 @@ int scf_basic_block_inited_vars(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 	int ret = 0;
 	int i;
 
-	scf_list_t*       l;
-	scf_3ac_code_t*   c;
-	scf_dag_node_t*   dn;
-	scf_dn_status_t*  status;
-	scf_dn_status_t*  status2;
+	scf_list_t*        l;
+	scf_3ac_code_t*    c;
+	scf_dag_node_t*    dn;
+	scf_dn_status_t*   status;
+	scf_dn_status_t*   status2;
+	scf_3ac_operand_t* dst;
 
 	for (l = scf_list_head(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head);
 			l = scf_list_next(l)) {
@@ -747,9 +760,10 @@ int scf_basic_block_inited_vars(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 		if (!c->active_vars)
 			continue;
 
-		if (c->dst && c->dst->dag_node && SCF_OP_ASSIGN == c->op->type) {
+		if (c->dsts && SCF_OP_ASSIGN == c->op->type) {
 
-			dn = c->dst->dag_node;
+			dst = c->dsts->data[0];
+			dn  = dst->dag_node;
 
 			if (scf_type_is_var(dn->type)
 					&& (dn->var->global_flag || dn->var->local_flag)) {
@@ -812,22 +826,29 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 		if (scf_type_is_jmp(c->op->type))
 			continue;
 
-		if (c->dst && c->dst->dag_node) {
+		if (c->dsts) {
+			scf_3ac_operand_t* dst;
 
-			if (scf_type_is_binary_assign(c->op->type))
-				c->dst->dag_node->active = 1;
-			else
-				c->dst->dag_node->active = 0;
+			for (j  = 0; j < c->dsts->size; j++) {
+				dst =        c->dsts->data[j];
+
+				if (scf_type_is_binary_assign(c->op->type))
+					dst->dag_node->active = 1;
+				else
+					dst->dag_node->active = 0;
 #if 1
-			if (SCF_OP_3AC_LOAD != c->op->type
-					&& SCF_OP_3AC_RELOAD != c->op->type)
+				if (SCF_OP_3AC_LOAD != c->op->type
+						&& SCF_OP_3AC_RELOAD != c->op->type)
 #endif
-				c->dst->dag_node->updated = 1;
+					dst->dag_node->updated = 1;
+			}
 		}
 
 		if (c->srcs) {
-			for (j = 0; j < c->srcs->size; j++) {
-				scf_3ac_operand_t* src = c->srcs->data[j];
+			scf_3ac_operand_t* src;
+
+			for (j  = 0; j < c->srcs->size; j++) {
+				src =        c->srcs->data[j];
 
 				if (!src->node)
 					continue;

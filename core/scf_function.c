@@ -15,6 +15,7 @@ scf_function_t* scf_function_alloc(scf_lex_word_t* w)
 
 	f->scope = scf_scope_alloc(w, "function");
 
+	f->rets             = scf_vector_alloc();
 	f->argv             = scf_vector_alloc();
 	f->callee_functions = scf_vector_alloc();
 	f->caller_functions = scf_vector_alloc();
@@ -55,18 +56,14 @@ void scf_function_free(scf_function_t* f)
 		f->w_end = NULL;
 	}
 
-	int i;
-	if (f->ret) {
-		scf_variable_free(f->ret);
-		f->ret = NULL;
+	if (f->rets) {
+		scf_vector_clear(f->rets, ( void (*)(void*) ) scf_variable_free);
+		scf_vector_free (f->rets);
 	}
 
 	if (f->argv) {
-		for (i = 0; i < f->argv->size; i++) {
-			scf_variable_free(f->argv->data[i]);
-			f->argv->data[i] = NULL;
-		}
-		scf_vector_free(f->argv);
+		scf_vector_clear(f->argv, ( void (*)(void*) ) scf_variable_free);
+		scf_vector_free (f->argv);
 		f->argv = NULL;
 	}
 
@@ -157,16 +154,20 @@ int scf_function_like_argv(scf_vector_t* argv0, scf_vector_t* argv1)
 
 int scf_function_same_type(scf_function_t* f0, scf_function_t* f1)
 {
-	if (f0->ret) {
-		if (!f1->ret)
+	if (f0->rets) {
+		if (!f1->rets)
 			return 0;
 
-		if (!scf_variable_type_like(f0->ret, f1->ret))
+		if (f0->rets->size != f1->rets->size)
 			return 0;
-	} else {
-		if (f1->ret)
-			return 0;
-	}
+
+		int i;
+		for (i = 0; i < f0->rets->size; i++) {
+			if (!scf_variable_type_like(f0->rets->data[i], f1->rets->data[i]))
+				return 0;
+		}
+	} else if (f1->rets)
+		return 0;
 
 	return scf_function_same_argv(f0->argv, f1->argv);
 }

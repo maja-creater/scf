@@ -40,7 +40,7 @@ static scf_3ac_code_t* _auto_gc_code_alloc_dn(scf_ast_t* ast, const char* fname,
 	src1->dag_node = dn;
 
 	c->op   = scf_3ac_find_operator(SCF_OP_CALL);
-	c->dst	= NULL;
+	c->dsts = NULL;
 	c->srcs = srcs;
 
 	return c;
@@ -52,6 +52,7 @@ static scf_3ac_code_t* _code_alloc_dereference(scf_ast_t* ast, scf_dag_node_t* d
 	scf_lex_word_t* w;
 	scf_3ac_code_t* c    = scf_3ac_code_alloc();
 	scf_vector_t*   srcs = scf_vector_alloc();
+	scf_vector_t*   dsts = scf_vector_alloc();
 
 	scf_3ac_operand_t*   src0  = scf_3ac_operand_alloc();
 	scf_vector_add(srcs, src0);
@@ -59,9 +60,12 @@ static scf_3ac_code_t* _code_alloc_dereference(scf_ast_t* ast, scf_dag_node_t* d
 	src0->node     = dn->node;
 	src0->dag_node = dn;
 
+	scf_3ac_operand_t*   dst0 = scf_3ac_operand_alloc();
+	scf_vector_add(dsts, dst0);
+
 	c->srcs = srcs;
+	c->dsts = dsts;
 	c->op   = scf_3ac_find_operator(SCF_OP_DEREFERENCE);
-	c->dst	= scf_3ac_operand_alloc();
 
 	w = scf_lex_word_alloc(dn->var->w->file, 0, 0, SCF_LEX_WORD_ID);
 	w->text = scf_string_cstr("*");
@@ -70,15 +74,16 @@ static scf_3ac_code_t* _code_alloc_dereference(scf_ast_t* ast, scf_dag_node_t* d
 	scf_variable_t* v   = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, dn->var->nb_pointers - 1, NULL);
 	scf_dag_node_t* dn2 = scf_dag_node_alloc(v->type, v, NULL);
 
-	c->dst->dag_node = dn2;
+	dst0->dag_node = dn2;
 
 	return c;
 }
 
 static int _auto_gc_code_list_for_ds(scf_list_t* h, scf_ast_t* ast, const char* fname, scf_dn_status_t* ds)
 {
-	scf_dag_node_t* dn = ds->dag_node;
-	scf_3ac_code_t* c;
+	scf_dag_node_t*    dn = ds->dag_node;
+	scf_3ac_code_t*    c;
+	scf_3ac_operand_t* dst;
 
 	if (ds->dn_indexes) {
 
@@ -92,11 +97,12 @@ static int _auto_gc_code_list_for_ds(scf_list_t* h, scf_ast_t* ast, const char* 
 
 			assert(0 == di->index);
 
-			scf_3ac_code_t* c = _code_alloc_dereference(ast, dn);
+			c = _code_alloc_dereference(ast, dn);
 
 			scf_list_add_tail(h, &c->list);
 
-			dn = c->dst->dag_node;
+			dst = c->dsts->data[0];
+			dn  = dst->dag_node;
 		}
 	}
 
@@ -467,8 +473,9 @@ static int _bb_split_prev_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_
 	for (j  = 0; j < bb->prevs->size; j++) {
 		bb2 =        bb->prevs->data[j];
 
-		scf_list_t*     l;
-		scf_3ac_code_t* c;
+		scf_list_t*        l;
+		scf_3ac_code_t*    c;
+		scf_3ac_operand_t* dst;
 
 		for (l  = scf_list_next(&bb2->list); l != scf_list_sentinel(bb_list_head);
 			 l  = scf_list_next(l)) {
@@ -487,10 +494,16 @@ static int _bb_split_prev_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_
 					return -ENOMEM;
 				bb3->jmp_flag = 1;
 
-				c      = scf_3ac_code_alloc();
-				c->dst = scf_3ac_operand_alloc();
-				c->op  = scf_3ac_find_operator(SCF_OP_GOTO);
-				c->dst->bb     = bb;
+				c       = scf_3ac_code_alloc();
+				c->op   = scf_3ac_find_operator(SCF_OP_GOTO);
+				c->dsts = scf_vector_alloc();
+
+				dst     = scf_3ac_operand_alloc();
+				dst->bb = bb;
+
+				if (scf_vector_add(c->dsts, dst) < 0)
+					return -ENOMEM;
+
 				c->basic_block = bb3;
 
 				assert(0 == scf_vector_add(f->jmps, c));
@@ -507,9 +520,10 @@ static int _bb_split_prev_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_
 	for (j  = 0; j < bb1->prevs->size; j++) {
 		bb2 =        bb1->prevs->data[j];
 
-		scf_list_t*     l;
-		scf_list_t*     l2;
-		scf_3ac_code_t* c;
+		scf_list_t*        l;
+		scf_list_t*        l2;
+		scf_3ac_code_t*    c;
+		scf_3ac_operand_t* dst;
 
 		for (l  = scf_list_next(&bb2->list); l != &bb1->list && l != scf_list_sentinel(bb_list_head);
 			 l  = scf_list_next(l)) {
@@ -523,9 +537,10 @@ static int _bb_split_prev_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_
 				 l2 = scf_list_next(l2)) {
 
 				c   = scf_list_data(l2, scf_3ac_code_t, list);
+				dst = c->dsts->data[0];
 
-				if (c->dst->bb == bb)
-					c->dst->bb = bb1;
+				if (dst->bb == bb)
+					dst->bb = bb1;
 			}
 		}
 
@@ -837,6 +852,7 @@ static int _optimize_auto_gc_bb(scf_ast_t* ast, scf_function_t* f, scf_basic_blo
 		c  = scf_list_data(l, scf_3ac_code_t, list);
 		l  = scf_list_next(l);
 
+		scf_3ac_operand_t* dst;
 		scf_3ac_operand_t* src;
 		scf_dag_node_t*    dn;
 		scf_dn_status_t*   ds_obj;
@@ -844,12 +860,13 @@ static int _optimize_auto_gc_bb(scf_ast_t* ast, scf_function_t* f, scf_basic_blo
 
 		if (SCF_OP_ASSIGN == c->op->type) {
 
-			v0 = c->dst->dag_node->var;
+			dst = c->dsts->data[0];
+			v0  = dst->dag_node->var;
 
 			if (!scf_variable_is_struct_pointer(v0))
 				goto _end;
 
-			ds_obj = scf_dn_status_alloc(c->dst->dag_node);
+			ds_obj = scf_dn_status_alloc(dst->dag_node);
 			if (!ds_obj)
 				return -ENOMEM;
 
@@ -952,11 +969,14 @@ _ref:
 
 			scf_dag_node_t* dn_pf = dn->childs->data[0];
 			scf_function_t* f2    = dn_pf->var->func_ptr;
+			scf_variable_t* ret   = f2->rets->data[0];
 
-			if (!strcmp(f2->node.w->text->data, "scf_malloc") || f2->ret->auto_gc_flag) {
+			if (!strcmp(f2->node.w->text->data, "scf_malloc") || ret->auto_gc_flag) {
 
-				if (SCF_OP_RETURN == c->op->type)
-					f->ret->auto_gc_flag = 1;
+				if (SCF_OP_RETURN == c->op->type) {
+					ret = f->rets->data[0];
+					ret->auto_gc_flag = 1;
+				}
 
 #if 0
 				else if (SCF_OP_3AC_ASSIGN_DEREFERENCE == c->op->type) {
@@ -988,8 +1008,10 @@ _ref:
 
 				scf_basic_block_t* bb2 = NULL;
 
-				if (SCF_OP_RETURN == c->op->type)
-					f->ret->auto_gc_flag = 1;
+				if (SCF_OP_RETURN == c->op->type) {
+					scf_variable_t* ret = f->rets->data[0];
+					ret->auto_gc_flag = 1;
+				}
 #if 0
 				else if (SCF_OP_3AC_ASSIGN_DEREFERENCE == c->op->type) {
 

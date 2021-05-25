@@ -15,9 +15,8 @@ struct scf_function_s {
 
 	scf_list_t        list; // for scope
 
-	scf_variable_t*   ret;  // return value
-
-	scf_vector_t*     argv; // args vector
+	scf_vector_t*     rets; // return values
+	scf_vector_t*     argv; // args   vector
 
 	int               op_type; // overloaded operator type
 
