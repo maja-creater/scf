@@ -589,9 +589,9 @@ static int _expr_multi_rets(scf_expr_t* e)
 	if (SCF_OP_ASSIGN != e->nodes[0]->type)
 		return 0;
 
-	scf_node_t* parent = e->parent;
-	scf_node_t* assign = e->nodes[0];
-	scf_node_t* call   = assign->nodes[1];
+	scf_node_t*  parent = e->parent;
+	scf_node_t*  assign = e->nodes[0];
+	scf_node_t*  call   = assign->nodes[1];
 
 	while (call) {
 		if (SCF_OP_EXPR == call->type)
@@ -600,42 +600,48 @@ static int _expr_multi_rets(scf_expr_t* e)
 			break;
 	}
 
-	if (!call || SCF_OP_CALL != call->type)
-		return 0;
+	int nb_rets;
 
-	scf_loge("parent->nb_nodes: %d\n", parent->nb_nodes);
+	if (!call)
+		return 0;
+	else if (SCF_OP_CALL == call->type) {
+
+		scf_variable_t* v_pf = _scf_operand_get(call->nodes[0]);
+		scf_function_t* f    = v_pf->func_ptr;
+
+		if (f->rets->size <= 1)
+			return 0;
+
+		nb_rets = f->rets->size;
+
+	} else if (SCF_OP_CREATE == call->type)
+		nb_rets = 2;
+	else
+		return 0;
 
 	assert(call->nb_nodes > 0);
 
-	scf_variable_t* v_pf = _scf_operand_get(call->nodes[0]);
-	scf_function_t* f    = v_pf->func_ptr;
-	scf_node_t*     ret;
-	scf_block_t*    b;
+	scf_loge("parent->nb_nodes: %d\n", parent->nb_nodes);
 
-	if (f->rets->size <= 1)
-		return 0;
-
-	b = scf_block_alloc_cstr("multi_rets");
-	if (!b)
-		return -ENOMEM;
+	scf_node_t*  ret;
+	scf_block_t* b;
 
 	int i;
 	int j;
 	int k;
 
+	b = scf_block_alloc_cstr("multi_rets");
+	if (!b)
+		return -ENOMEM;
+
 	for (i  = parent->nb_nodes - 2; i >= 0; i--) {
 		ret = parent->nodes[i];
 
-		if (b->node.nb_nodes >= f->rets->size - 1)
+		if (b->node.nb_nodes >= nb_rets - 1)
 			break;
 
 		scf_node_add_child((scf_node_t*)b, ret);
 		parent->nodes[i] = NULL;
-	}
-
-	if (0 == b->node.nb_nodes) {
-		scf_block_free(b);
-		return 0;
 	}
 
 	j = 0;
@@ -826,6 +832,10 @@ static int _dfa_init_syntax_expr(scf_dfa_t* dfa)
 	SCF_DFA_GET_MODULE_NODE(dfa, sizeof,   _sizeof,     _sizeof);
 	SCF_DFA_GET_MODULE_NODE(dfa, sizeof,   rp,          sizeof_rp);
 
+	SCF_DFA_GET_MODULE_NODE(dfa, create,   create,      create);
+	SCF_DFA_GET_MODULE_NODE(dfa, create,   identity,    create_id);
+	SCF_DFA_GET_MODULE_NODE(dfa, create,   rp,          create_rp);
+
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     entry,       type_entry);
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     base_type,   base_type);
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     star,        star);
@@ -907,6 +917,12 @@ static int _dfa_init_syntax_expr(scf_dfa_t* dfa)
 	scf_dfa_node_add_child(binary_op,  unary_op);
 	scf_dfa_node_add_child(binary_op,  number);
 	scf_dfa_node_add_child(binary_op,  identity);
+
+	// create class object
+	scf_dfa_node_add_child(binary_op,  create);
+	scf_dfa_node_add_child(create_id,  semicolon);
+	scf_dfa_node_add_child(create_rp,  semicolon);
+
 	scf_dfa_node_add_child(binary_op,  expr);
 
 	scf_dfa_node_add_child(unary_post, rp);

@@ -32,6 +32,7 @@ struct scf_node_s {
 
 	scf_variable_t*		result;
 	scf_vector_t*       result_nodes;
+	scf_node_t*         split_parent; // split from the parent
 
 	uint32_t            root_flag   :1; // set when node is root block
 	uint32_t            file_flag   :1; // set when node is a file block

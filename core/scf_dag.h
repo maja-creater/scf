@@ -125,7 +125,7 @@ void              scf_dn_status_vector_clear_by_dn(scf_vector_t* vec, scf_dag_no
 
 static int scf_dn_through_bb(scf_dag_node_t* dn)
 {
-	return (dn->var->global_flag || dn->var->local_flag)
+	return (dn->var->global_flag || dn->var->local_flag || dn->var->tmp_flag)
 		&& !scf_variable_const(dn->var);
 }
 

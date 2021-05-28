@@ -64,8 +64,8 @@ void scf_scope_free(scf_scope_t* scope)
 	scf_string_free(scope->name);
 	scope->name = NULL;
 
-	scf_lex_word_free(scope->w);
-	scope->w = NULL;
+	if (scope->w)
+		scf_lex_word_free(scope->w);
 
 	scf_vector_clear(scope->vars, (void (*)(void*))scf_variable_free);
 	scf_vector_free(scope->vars);

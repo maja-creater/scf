@@ -46,7 +46,8 @@ static int _create_action_create(scf_dfa_t* dfa, scf_vector_t* words, void* data
 	SCF_CHECK_ERROR(md->create, SCF_DFA_ERROR, "\n");
 
 	md->create = scf_node_alloc(w, SCF_OP_CREATE, NULL);
-	SCF_CHECK_ERROR(!md->create, SCF_DFA_ERROR, "node alloc failed\n");
+	if (!md->create)
+		return SCF_DFA_ERROR;
 
 	md->nb_lps      = 0;
 	md->nb_rps      = 0;
@@ -177,7 +178,7 @@ static int _create_action_comma(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 static int _dfa_init_module_create(scf_dfa_t* dfa)
 {
-	SCF_DFA_MODULE_NODE(dfa, create, create,       _create_is_create,          _create_action_create);
+	SCF_DFA_MODULE_NODE(dfa, create, create,    _create_is_create,    _create_action_create);
 
 	SCF_DFA_MODULE_NODE(dfa, create, identity,  scf_dfa_is_identity,  _create_action_identity);
 
@@ -222,18 +223,15 @@ static int _dfa_fini_module_create(scf_dfa_t* dfa)
 
 static int _dfa_init_syntax_create(scf_dfa_t* dfa)
 {
-	SCF_DFA_GET_MODULE_NODE(dfa, create,  create,       create);
-
+	SCF_DFA_GET_MODULE_NODE(dfa, create,  create,    create);
 	SCF_DFA_GET_MODULE_NODE(dfa, create,  identity,  identity);
-
 	SCF_DFA_GET_MODULE_NODE(dfa, create,  lp,        lp);
 	SCF_DFA_GET_MODULE_NODE(dfa, create,  rp,        rp);
-
 	SCF_DFA_GET_MODULE_NODE(dfa, create,  comma,     comma);
 
-	SCF_DFA_GET_MODULE_NODE(dfa, expr, entry,     expr);
+	SCF_DFA_GET_MODULE_NODE(dfa, expr,    entry,     expr);
 
-	scf_dfa_node_add_child(create,      identity);
+	scf_dfa_node_add_child(create,   identity);
 	scf_dfa_node_add_child(identity, lp);
 
 	scf_dfa_node_add_child(lp,       rp);

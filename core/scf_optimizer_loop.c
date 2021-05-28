@@ -184,7 +184,7 @@ static int _bb_loop_layers(scf_function_t* f)
 	int i;
 	int j;
 
-	for (i = 0; i < f->bb_loops->size - 1; i++) {
+	for (i = 0; i < f->bb_loops->size - 1; ) {
 
 		scf_bb_group_t* loop0 = f->bb_loops->data[i];
 
@@ -207,7 +207,7 @@ static int _bb_loop_layers(scf_function_t* f)
 				loop0->loop_parent = loop1;
 
 			if (loop1->loop_layers <= loop0->loop_layers + 1)
-				loop1->loop_layers = loop0->loop_layers + 1;
+				loop1->loop_layers =  loop0->loop_layers + 1;
 
 			if (!loop1->loop_childs) {
 				loop1->loop_childs = scf_vector_alloc();
@@ -219,11 +219,59 @@ static int _bb_loop_layers(scf_function_t* f)
 			if (ret < 0)
 				return ret;
 		}
+
+		if (loop0->loop_parent)
+			assert(0 == scf_vector_del(f->bb_loops, loop0));
+		else
+			i++;
+	}
+
+	return 0;
+}
+
+static int _optimize_peep_hole(scf_bb_group_t* bbg, scf_basic_block_t* bb)
+{
+	scf_basic_block_t* bb_prev;
+	scf_basic_block_t* bb_next;
+	scf_dag_node_t*    dn;
+
+	int i;
+	int j;
+
+	for (i = 0; i < bb->prevs->size; i++) {
+		bb_prev   = bb->prevs->data[i];
+
+		if (bb_prev->nexts->size != 1)
+			return 0;
+
+		if (!scf_vector_find(bbg->body, bb_prev))
+			return 0;
+
+		assert(bb_prev->nexts->data[0] == bb);
+	}
+
+	for (i = 0; i < bb->dn_reloads->size; ) {
+		dn =        bb->dn_reloads->data[i];
+
+		for (j = 0; j < bb->prevs->size; j++) {
+			bb_prev   = bb->prevs->data[j];
+
+			if (!scf_vector_find(bb_prev->dn_resaves, dn))
+				return 0;
+		}
+
+		for (j = 0; j < bb->prevs->size; j++) {
+			bb_prev   = bb->prevs->data[j];
+
+			assert(0 == scf_vector_del(bb_prev->dn_resaves, dn));
+		}
+
+		assert(0 == scf_vector_del(bb->dn_reloads, dn));
 	}
 	return 0;
 }
 
-static int _optimize_loop_loads_saves(scf_function_t* f)
+static int _bb_loop_add_pre_post(scf_function_t* f)
 {
 	scf_bb_group_t*    bbg;
 	scf_basic_block_t* bb;
@@ -242,8 +290,8 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 	for (i = 0; i < f->bb_loops->size; i++) {
 		bbg = f->bb_loops->data[i];
 
-		if (bbg->loop_layers > 1)
-			continue;
+//		if (bbg->loop_layers > 1)
+//			continue;
 
 		assert(bbg->body->size >= 1);
 
@@ -360,23 +408,8 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 						dst->bb =  bbg->post;
 				}
 			}
-#if 1
-			for (k = 0; k < bb->dn_loads->size; k++) {
-				if (scf_vector_add_unique(pre->dn_loads, bb->dn_loads->data[k]) < 0)
-					return -1;
-			}
 
-			for (k = 0; k < bb->dn_saves->size; k++) {
-				if (scf_vector_add_unique(post->dn_saves, bb->dn_saves->data[k]) < 0)
-					return -1;
-			}
-#endif
-			bb->group_flag    = 1;
-			scf_vector_clear(bb->dn_loads, NULL);
-#if 0
-			bb->generate_flag = 0;
-			scf_vector_clear(bb->dn_saves, NULL);
-#endif
+			bb->group_flag = 1;
 		}
 
 		assert(0 == scf_vector_add_unique(bbg->exit->prevs, bbg->post));
@@ -385,33 +418,62 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 	return 0;
 }
 
-static void _scf_loops_print(scf_vector_t* loops)
+static int _optimize_loop_loads_saves(scf_function_t* f)
 {
+	scf_bb_group_t*    bbg;
+	scf_basic_block_t* bb;
+	scf_basic_block_t* pre;
+	scf_basic_block_t* post;
+	scf_dag_node_t*    dn;
+
 	int i;
 	int j;
 	int k;
 
-	for (i = 0; i < loops->size; i++) {
-		scf_bb_group_t* loop = loops->data[i];
+	for (i = 0; i < f->bb_loops->size; i++) {
+		bbg = f->bb_loops->data[i];
 
-		printf("loop:  %p\n", loop);
-		printf("entry: %p\n", loop->entry);
-		printf("exit:  %p\n", loop->exit);
-		printf("body: ");
-		for (j = 0; j < loop->body->size; j++)
-			printf("%p ", loop->body->data[j]);
-		printf("\n");
+//		if (bbg->loop_layers > 1)
+//			continue;
 
-		if (loop->loop_childs) {
-			printf("childs: ");
-			for (k = 0; k < loop->loop_childs->size; k++)
-				printf("%p ", loop->loop_childs->data[k]);
-			printf("\n");
+		assert(bbg->body->size >= 1);
+
+		pre  = bbg->pre;
+		post = bbg->post;
+
+		for (j = 0; j < bbg->body->size; j++) {
+			bb =        bbg->body->data[j];
+
+			int ret = _optimize_peep_hole(bbg, bb);
+			if (ret < 0)
+				return ret;
 		}
-		if (loop->loop_parent)
-			printf("parent: %p\n", loop->loop_parent);
-		printf("loop_layers: %d\n\n", loop->loop_layers);
+
+		for (j = 0; j < bbg->body->size; j++) {
+			bb =        bbg->body->data[j];
+
+			for (k = 0; k < bb->dn_loads->size; ) {
+				dn =        bb->dn_loads->data[k];
+
+				if (dn->var->tmp_flag) {
+					k++;
+					continue;
+				}
+
+				if (scf_vector_add_unique(pre->dn_loads, dn) < 0)
+					return -1;
+
+				assert(0 == scf_vector_del(bb->dn_loads, dn));
+			}
+
+			for (k = 0; k < bb->dn_saves->size; k++) {
+				if (scf_vector_add_unique(post->dn_saves, bb->dn_saves->data[k]) < 0)
+					return -1;
+			}
+		}
 	}
+
+	return 0;
 }
 
 static int _optimize_loop(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head, scf_vector_t* functions)
@@ -447,9 +509,11 @@ static int _optimize_loop(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list
 		return ret;
 	}
 
-#if 0
-	_scf_loops_print(f->bb_loops);
-#endif
+	ret = _bb_loop_add_pre_post(f);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
 
 #if 1
 	ret = _optimize_loop_loads_saves(f);

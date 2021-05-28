@@ -53,6 +53,8 @@ static uint32_t x64_abi_ret_regs[] =
 {
 	SCF_X64_REG_RAX,
 	SCF_X64_REG_RCX,
+	SCF_X64_REG_RDX,
+	SCF_X64_REG_RDI,
 };
 #define X64_ABI_RET_NB (sizeof(x64_abi_ret_regs) / sizeof(x64_abi_ret_regs[0]))
 
@@ -124,12 +126,15 @@ scf_register_x64_t*	x64_find_abi_register(int index, int bytes);
 
 scf_register_x64_t* x64_select_overflowed_reg(scf_dag_node_t* dn, scf_3ac_code_t* c);
 
+int                 x64_reg_cached_vars(scf_register_x64_t* r);
+
 int                 x64_save_var(scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f);
 
 int                 x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f);
 
 int                 x64_push_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs);
-int                 x64_pop_regs (scf_vector_t* instructions, uint32_t* regs, int nb_regs);
+//int                 x64_pop_regs (scf_vector_t* instructions, uint32_t* regs, int nb_regs);
+int                 x64_pop_regs (scf_vector_t* instructions, uint32_t* regs, int nb_regs, scf_register_x64_t** updated_regs, int nb_updated);
 int                 x64_caller_save_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs, int stack_size);
 
 int                 x64_save_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f);

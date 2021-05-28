@@ -70,7 +70,7 @@ scf_register_x64_t	x64_registers[] = {
 	{7, 8, "xmm7",   X64_COLOR(1, 7, 0xff), NULL, 0},
 };
 
-static int _x64_reg_cached_vars(scf_register_x64_t* r)
+int x64_reg_cached_vars(scf_register_x64_t* r)
 {
 	int nb_vars = 0;
 	int i;
@@ -204,14 +204,19 @@ int x64_push_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs)
 	return 0;
 }
 
-int x64_pop_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs)
+int x64_pop_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs, scf_register_x64_t** updated_regs, int nb_updated)
 {
 	int i;
 	int j;
+
+	scf_register_x64_t* rsp = x64_find_register("rsp");
 	scf_register_x64_t* r;
 	scf_register_x64_t* r2;
 	scf_instruction_t*  inst;
-	scf_x64_OpCode_t*   pop = x64_find_OpCode(SCF_X64_POP, 8,8, SCF_X64_G);
+	scf_x64_OpCode_t*   pop = x64_find_OpCode(SCF_X64_POP, 8, 8, SCF_X64_G);
+	scf_x64_OpCode_t*   add = x64_find_OpCode(SCF_X64_ADD, 4, 4, SCF_X64_I2E);
+
+	uint32_t imm = 8;
 
 	for (j = nb_regs - 1; j >= 0; j--) {
 		r2 = x64_find_register_type_id_bytes(0, regs[j], 8);
@@ -232,8 +237,21 @@ int x64_pop_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs)
 		if (i == sizeof(x64_registers) / sizeof(x64_registers[0]))
 			continue;
 
-		inst = x64_make_inst_G(pop, r2);
-		X64_INST_ADD_CHECK(instructions, inst);
+		for (i = 0; i < nb_updated; i++) {
+
+			r  = updated_regs[i];
+
+			if (X64_COLOR_CONFLICT(r2->color, r->color))
+				break;
+		}
+
+		if (i == nb_updated) {
+			inst = x64_make_inst_G(pop, r2);
+			X64_INST_ADD_CHECK(instructions, inst);
+		} else {
+			inst = x64_make_inst_I2E(add, rsp, (uint8_t*)&imm, 4);
+			X64_INST_ADD_CHECK(instructions, inst);
+		}
 	}
 	return 0;
 }
@@ -254,16 +272,7 @@ int x64_registers_reset()
 		int j = 0;
 		while (j < r->dag_nodes->size) {
 			scf_dag_node_t* dn = r->dag_nodes->data[j];
-#if 0
-			if (!scf_variable_const(dn->var)
-				&& scf_type_is_var(dn->type)
-				&& (dn->var->global_flag || dn->var->local_flag)) {
 
-				scf_logw("keep: v_%d_%d/%s\n", dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
-				j++;
-				continue;
-			}
-#endif
 			if (dn->var->w)
 				scf_logw("drop: v_%d_%d/%s\n", dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
 			else
@@ -386,7 +395,6 @@ int x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf_3ac_code_t* c, 
 	}
 
 	// if temp var in register, alloc it in stack
-//	if (!v->global_flag && !v->local_flag) {
 	if (0 == v->bp_offset) {
 
 		int local_vars_size  = f->local_vars_size;
@@ -396,7 +404,7 @@ int x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf_3ac_code_t* c, 
 			local_vars_size = (local_vars_size + 7) >> 3 << 3;
 
 		v->bp_offset  = -local_vars_size;
-		v->local_flag = 1;
+		v->tmp_flag   = 1;
 
 		f->local_vars_size = local_vars_size;
 
@@ -620,7 +628,7 @@ static scf_register_x64_t* _x64_reg_cached_min_vars(scf_register_x64_t** regs, i
 	for (i = 0; i < nb_regs; i++) {
 		scf_register_x64_t*	r = regs[i];
 
-		int nb_vars = _x64_reg_cached_vars(r);
+		int nb_vars = x64_reg_cached_vars(r);
 
 		if (!r_min) {
 			r_min = r;
@@ -763,13 +771,14 @@ int x64_load_reg(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, s
 			return 0;
 		}
 
-		if (!dn->var->global_flag && !dn->var->local_flag)
+		if (!dn->var->global_flag && !dn->var->local_flag && !dn->var->tmp_flag)
 			return 0;
 
 		if (scf_variable_const_string(dn->var)) {
 
 			dn->var->global_flag = 1;
 			dn->var->local_flag  = 0;
+			dn->var->tmp_flag    = 0;
 
 			mov = x64_find_OpCode(SCF_X64_LEA, var_size, var_size, SCF_X64_E2G);
 
@@ -784,7 +793,7 @@ int x64_load_reg(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, s
 				mov  = x64_find_OpCode(SCF_X64_MOV, var_size, var_size, SCF_X64_E2G);
 		}
 	} else {
-		if (!dn->var->global_flag && !dn->var->local_flag)
+		if (!dn->var->global_flag && !dn->var->local_flag && !dn->var->tmp_flag)
 			return 0;
 
 		if (SCF_VAR_FLOAT == dn->var->type)
@@ -904,7 +913,7 @@ int x64_pointer_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* member
 			scf_loge("\n");
 			return ret;
 		}
-	} else if (vb->local_flag) {
+	} else if (vb->local_flag || vb->tmp_flag) {
 		rb   = x64_find_register("rbp");
 		disp = vb->bp_offset;
 
@@ -965,7 +974,7 @@ int x64_array_index_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* in
 			scf_loge("\n");
 			return ret;
 		}
-	} else if (vb->local_flag) {
+	} else if (vb->local_flag || vb->tmp_flag) {
 		rb   = x64_find_register("rbp");
 		disp = vb->bp_offset;
 

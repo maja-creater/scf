@@ -119,8 +119,8 @@ static int _optimize_generate_loads_saves(scf_ast_t* ast, scf_function_t* f, scf
 	for (i = 0; i < f->bb_loops->size; i++) {
 		bbg = f->bb_loops->data[i];
 
-		if (bbg->loop_layers > 1)
-			continue;
+//		if (bbg->loop_layers > 1)
+//			continue;
 
 		qsort(bbg->body->data, bbg->body->size, sizeof(void*), _bb_index_cmp);
 

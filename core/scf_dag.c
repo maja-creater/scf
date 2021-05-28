@@ -631,6 +631,7 @@ int scf_dag_get_node(scf_list_t* h, const scf_node_t* node, scf_dag_node_t** pp)
 		scf_list_add_tail(h, &dn->list);
 	} else {
 		dn->var->local_flag |= v->local_flag;
+		dn->var->tmp_flag   |= v->tmp_flag;
 	}
 
 	*pp = dn;

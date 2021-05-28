@@ -880,8 +880,8 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 	for (i = 0; i < f->bb_loops->size; i++) {
 		bbg = f->bb_loops->data[i];
 
-		if (bbg->loop_layers > 1)
-			continue;
+//		if (bbg->loop_layers > 1)
+//			continue;
 
 		ret = _x64_select_bb_group_regs(bbg, ctx);
 		if (ret < 0)

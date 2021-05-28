@@ -50,33 +50,41 @@ static scf_optimizer_t*  scf_optimizers_local1[] =
 	&scf_optimizer_generate_loads_saves,
 };
 
-static void _scf_loops_print(scf_vector_t* loops)
+static void __scf_loops_print(scf_bb_group_t* loop)
 {
-	int i;
 	int j;
 	int k;
 
-	for (i = 0; i < loops->size; i++) {
-		scf_bb_group_t* loop = loops->data[i];
+	if (loop->loop_childs) {
 
-		printf("loop:  %p\n", loop);
-		printf("entry: %p\n", loop->entry);
-		printf("exit:  %p\n", loop->exit);
-		printf("body: ");
-		for (j = 0; j < loop->body->size; j++)
-			printf("%p ", loop->body->data[j]);
-		printf("\n");
-
-		if (loop->loop_childs) {
-			printf("childs: ");
-			for (k = 0; k < loop->loop_childs->size; k++)
-				printf("%p ", loop->loop_childs->data[k]);
-			printf("\n");
-		}
-		if (loop->loop_parent)
-			printf("parent: %p\n", loop->loop_parent);
-		printf("loop_layers: %d\n\n", loop->loop_layers);
+		for (k = 0; k < loop->loop_childs->size; k++)
+			__scf_loops_print(loop->loop_childs->data[k]);
 	}
+
+	printf("loop:  %p\n", loop);
+	printf("entry: %p\n", loop->entry);
+	printf("exit:  %p\n", loop->exit);
+	printf("body: ");
+	for (j = 0; j < loop->body->size; j++)
+		printf("%p ", loop->body->data[j]);
+	printf("\n");
+
+	if (loop->loop_childs) {
+		printf("childs: ");
+		for (k = 0; k < loop->loop_childs->size; k++)
+			printf("%p ", loop->loop_childs->data[k]);
+		printf("\n");
+	}
+	if (loop->loop_parent)
+		printf("parent: %p\n", loop->loop_parent);
+	printf("loop_layers: %d\n\n", loop->loop_layers);
+}
+
+static void _scf_loops_print(scf_vector_t* loops)
+{
+	int i;
+	for (i = 0; i < loops->size; i++)
+		__scf_loops_print(loops->data[i]);
 }
 
 static int __scf_optimize_local(scf_ast_t* ast, scf_vector_t* functions, scf_optimizer_t** optimizers, int nb_optimizers)

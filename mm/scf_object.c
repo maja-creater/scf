@@ -16,7 +16,7 @@ void* scf_malloc(int size)
 	return obj->data;
 }
 
-void scf_free(void* data)
+void scf_free(void* data, void (*release)(void* objdata))
 {
 	if (!data)
 		return;
@@ -25,8 +25,13 @@ void scf_free(void* data)
 
 	scf_loge("obj: %p\n", obj);
 
-	if (scf_atomic_dec_and_test(&obj->refs))
+	if (scf_atomic_dec_and_test(&obj->refs)) {
+
+		if (release)
+			release(obj->data);
+
 		__sys_free(obj);
+	}
 }
 
 void scf_ref(void* data)

@@ -255,53 +255,9 @@ static int _scf_op_pointer(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, voi
 	scf_node_t* parent = nodes[0]->parent;
 
 	v = _scf_operand_get(parent);
-	v->local_flag = 1;
+	v->tmp_flag = 1;
 
 	return _scf_3ac_code_3(d->_3ac_list_head, SCF_OP_POINTER, parent, nodes[0], nodes[1]);
-}
-
-static int _scf_op_create(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
-{
-	printf("%s(),%d\n", __func__, __LINE__);
-	assert(nb_nodes >= 1);
-
-	scf_handler_data_t* d      = data;
-	scf_vector_t*       argv   = scf_vector_alloc();
-	scf_node_t*         parent = nodes[0]->parent;
-
-	int i;
-	int ret;
-
-	scf_variable_t* v0 = _scf_operand_get(nodes[0]);
-	assert(v0 && SCF_FUNCTION_PTR == v0->type);
-
-	scf_type_t* class  = scf_ast_find_type(ast, v0->w->text->data);
-	assert(class);
-
-	scf_type_t* t = scf_ast_find_type_type(ast, SCF_VAR_INT);
-	assert(t);
-
-	scf_variable_t* var_size = SCF_VAR_ALLOC_BY_TYPE(v0->w, t, 1, 0, NULL);
-	SCF_CHECK_ERROR(!var_size, -1, "node of obj size alloc failed");
-	var_size->const_literal_flag = 1;
-
-	scf_node_t* node_size = scf_node_alloc(NULL, var_size->type, var_size);
-	SCF_CHECK_ERROR(!node_size, -1, "node of obj size alloc failed");
-
-	scf_vector_add(argv, node_size);
-	scf_vector_add(argv, nodes[0]);
-
-	for (i = 1; i < nb_nodes; i++) {
-		ret = _scf_expr_calculate_internal(ast, nodes[i], d);
-		SCF_CHECK_ERROR(ret < 0, -1, "calculate expr error\n");
-		scf_vector_add(argv, nodes[i]);
-	}
-
-	ret = _scf_3ac_call_extern(d->_3ac_list_head, "scf_create", parent, (scf_node_t**)argv->data, argv->size);
-
-	scf_vector_free(argv);
-	argv = NULL;
-	return ret;
 }
 
 static int _scf_op_array_scale(scf_ast_t* ast, scf_node_t* parent, scf_node_t** pscale)
@@ -363,7 +319,7 @@ static int _scf_op_array_index(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 	srcs[2] = n_scale;
 
 	v = _scf_operand_get(parent);
-	v->local_flag = 1;
+	v->tmp_flag = 1;
 
 	return _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_ARRAY_INDEX, parent, srcs, 3);
 }
@@ -1261,6 +1217,95 @@ int scf_function_to_3ac(scf_ast_t* ast, scf_function_t* f, scf_list_t* _3ac_list
 	return 0;
 }
 
+static int _scf_op_create(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	assert(nb_nodes > 0);
+
+	scf_handler_data_t* d      = data;
+	scf_node_t*         parent = nodes[0]->parent;
+
+	scf_3ac_operand_t*  dst;
+	scf_3ac_code_t*     jz;
+	scf_3ac_code_t*     jmp;
+
+	scf_variable_t*     v;
+	scf_type_t*         t;
+	scf_node_t*         node;
+	scf_list_t*         l;
+
+	int ret;
+	int i;
+
+	for (i = 3; i < nb_nodes; i++) {
+
+		ret = _scf_expr_calculate_internal(ast, nodes[i], d);
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
+	}
+
+	v = _scf_operand_get(parent->result_nodes->data[0]);
+	v->tmp_flag = 1;
+
+	v = _scf_operand_get(parent->result_nodes->data[1]);
+	v->tmp_flag = 1;
+
+	ret = _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_CALL, parent->result_nodes->data[0], nodes, 2);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	ret = _scf_3ac_code_1(d->_3ac_list_head, SCF_OP_3AC_TEQ, parent->result_nodes->data[0]);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	jz  = scf_branch_ops_code(SCF_OP_3AC_JZ, NULL, NULL);
+	scf_list_add_tail(d->_3ac_list_head, &jz->list);
+
+	ret = _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_CALL, parent->result_nodes->data[1], nodes + 2, nb_nodes - 2);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	jmp = scf_branch_ops_code(SCF_OP_GOTO,   NULL, NULL);
+	scf_list_add_tail(d->_3ac_list_head, &jmp->list);
+
+	scf_vector_add(d->branch_ops->_breaks, jz);
+	scf_vector_add(d->branch_ops->_breaks, jmp);
+
+	dst = jz->dsts->data[0];
+	dst->code = jmp;
+
+	t = scf_ast_find_type_type(ast, SCF_VAR_INT);
+	v = SCF_VAR_ALLOC_BY_TYPE(NULL, t, 1, 0, NULL);
+	if (!v)
+		return -ENOMEM;
+
+	node = scf_node_alloc(NULL, v->type, v);
+	if (!node) {
+		scf_variable_free(v);
+		return -ENOMEM;
+	}
+	v->data.i64 = -ENOMEM;
+
+	ret = _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_ASSIGN, parent->result_nodes->data[1], &node, 1);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	l   = scf_list_tail(d->_3ac_list_head);
+	dst = jmp->dsts->data[0];
+	dst->code = scf_list_data(l, scf_3ac_code_t, list);
+
+	return 0;
+}
+
 static int _scf_op_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
 	scf_logw("\n\n");
@@ -1343,7 +1388,7 @@ static int _scf_op_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* 
 			node      = parent->result_nodes->data[i];
 
 			v = _scf_operand_get(node);
-			v->local_flag = 1;
+			v->tmp_flag = 1;
 		}
 
 		ret = _scf_3ac_code_NN(d->_3ac_list_head, SCF_OP_CALL,
@@ -1353,7 +1398,7 @@ static int _scf_op_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* 
 	} else {
 		v = _scf_operand_get(parent);
 		if (v)
-			v->local_flag = 1;
+			v->tmp_flag = 1;
 
 		ret = _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_CALL, parent, (scf_node_t**)argv->data, argv->size);
 	}
@@ -1517,7 +1562,7 @@ static int _scf_op_left_value_array_index(scf_ast_t* ast, int type, scf_node_t* 
 	if (right)
 		srcs[i++] = right;
 
-	if (_scf_3ac_code_N(d->_3ac_list_head, type, NULL, srcs, i) < 0) {
+	if (_scf_3ac_code_srcN(d->_3ac_list_head, type, srcs, i) < 0) {
 		scf_loge("\n");
 		return -1;
 	}
@@ -1545,7 +1590,7 @@ static int _scf_op_left_value(scf_ast_t* ast, int type, scf_node_t* left, scf_no
 
 	assert(i <= 3);
 
-	if (_scf_3ac_code_N(d->_3ac_list_head, type, NULL, srcs, i) < 0) {
+	if (_scf_3ac_code_srcN(d->_3ac_list_head, type, srcs, i) < 0) {
 		scf_loge("\n");
 		return -1;
 	}
@@ -1796,7 +1841,7 @@ static int _scf_op_##name0(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, voi
 		return -ENOMEM; \
 	} \
 	dst->node = parent; \
-	v->local_flag = 1; \
+	v->tmp_flag = 1; \
 	\
 	switch (c2->op->type) { \
 		case SCF_OP_3AC_##op_type##_DEREFERENCE: \
@@ -1940,7 +1985,7 @@ static int _scf_op_logic_and_jmp(scf_ast_t* ast, scf_node_t* node, scf_handler_d
 	}
 
 	scf_variable_t* v = _scf_operand_get(parent);
-	v->local_flag = 1;
+	v->tmp_flag = 1;
 	return jmp_op;
 }
 
@@ -2020,7 +2065,7 @@ static int _scf_op_logic_or_jmp(scf_ast_t* ast, scf_node_t* node, scf_handler_da
 	}
 
 	scf_variable_t* v = _scf_operand_get(parent);
-	v->local_flag = 1;
+	v->tmp_flag = 1;
 	return jmp_op;
 }
 
@@ -2064,10 +2109,10 @@ SCF_OP_LOGIC(or)
 scf_operator_handler_t _3ac_operator_handlers[] = {
 	{{NULL, NULL}, SCF_OP_EXPR,           -1,   -1, -1, _scf_op_expr},
 	{{NULL, NULL}, SCF_OP_CALL,           -1,   -1, -1, _scf_op_call},
+	{{NULL, NULL}, SCF_OP_CREATE,         -1,   -1, -1, _scf_op_create},
 
 	{{NULL, NULL}, SCF_OP_ARRAY_INDEX,    -1,   -1, -1, _scf_op_array_index},
 	{{NULL, NULL}, SCF_OP_POINTER,        -1,   -1, -1, _scf_op_pointer},
-	{{NULL, NULL}, SCF_OP_CREATE,         -1,   -1, -1, _scf_op_create},
 
 	{{NULL, NULL}, SCF_OP_TYPE_CAST,      -1,   -1, -1, _scf_op_type_cast},
 	{{NULL, NULL}, SCF_OP_LOGIC_NOT,      -1,   -1, -1, _scf_op_logic_not},

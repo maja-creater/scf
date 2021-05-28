@@ -88,25 +88,43 @@ _error:
 
 static int _scf_op_const_create(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
-	printf("%s(),%d, nb_nodes: %d\n", __func__, __LINE__, nb_nodes);
+	assert(nb_nodes > 3);
 
-	assert(nb_nodes >= 1);
+	scf_variable_t* v0     = _scf_operand_get(nodes[0]);
+	scf_variable_t* v2     = _scf_operand_get(nodes[2]);
+	scf_node_t*     parent = nodes[0]->parent;
 
-	scf_handler_data_t* d    = data;
+	assert(SCF_FUNCTION_PTR == v0->type && v0->func_ptr);
+	assert(SCF_FUNCTION_PTR == v2->type && v2->func_ptr);
 
-	int ret;
-	int i;
+	while (parent && SCF_FUNCTION != parent->type)
+		parent = parent->parent;
 
-	scf_variable_t* v0 = _scf_operand_get(nodes[0]);
-	assert(v0 && SCF_FUNCTION_PTR == v0->type);
+	if (!parent) {
+		scf_loge("\n");
+		return -1;
+	}
 
-	scf_type_t* class  = scf_ast_find_type(ast, v0->w->text->data);
-	assert(class);
+	scf_function_t* caller  = (scf_function_t*)parent;
+	scf_function_t* callee0 = v0->func_ptr;
+	scf_function_t* callee2 = v2->func_ptr;
 
-	for (i = 1; i < nb_nodes; i++) {
+	if (caller != callee0) {
 
-		ret     = _scf_expr_calculate_internal(ast, nodes[i], d);
-		SCF_CHECK_ERROR(ret < 0, -1, "calculate expr error\n");
+		if (scf_vector_add_unique(caller->callee_functions, callee0) < 0)
+			return -1;
+
+		if (scf_vector_add_unique(callee0->caller_functions, caller) < 0)
+			return -1;
+	}
+
+	if (caller != callee2) {
+
+		if (scf_vector_add_unique(caller->callee_functions, callee2) < 0)
+			return -1;
+
+		if (scf_vector_add_unique(callee2->caller_functions, caller) < 0)
+			return -1;
 	}
 
 	return 0;
@@ -157,15 +175,6 @@ static int _scf_op_const_block(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 	while (i < nb_nodes) {
 		scf_node_t*		node = nodes[i];
 		scf_operator_t* op   = node->op;
-		scf_logd("node: %p, type: %d, i: %d, nb_nodes: %d\n", node, node->type, i, nb_nodes);
-
-		if (SCF_LABEL == node->type) {
-			scf_logd("node: %p, w: %s, line:%d\n", node, node->label->w->text->data, node->label->w->line);
-		} else if (scf_type_is_var(node->type)) {
-			scf_logd("node: %p, w: %s, line:%d\n", node, node->var->w->text->data, node->var->w->line);
-		} else if (node->w) {
-			scf_logd("node: %p, w: %s, line:%d\n", node, node->w->text->data, node->w->line);
-		}
 
 		if (!op) {
 			op = scf_find_base_operator_by_type(node->type);
@@ -193,7 +202,6 @@ static int _scf_op_const_block(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 	}
 
 	ast->current_block = prev_block;
-	scf_logw("b: %p ok\n\n", b);
 	return 0;
 }
 
@@ -234,10 +242,8 @@ static int _scf_op_const_return(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 		scf_expr_t*     e = nodes[i];
 		scf_variable_t* r = NULL;
 
-		if (_scf_expr_calculate_internal(ast, e, &r) < 0) {
-			scf_loge("\n");
+		if (_scf_expr_calculate_internal(ast, e, &r) < 0)
 			return -1;
-		}
 	}
 
 	return 0;
@@ -293,7 +299,7 @@ static int _scf_op_const_node(scf_ast_t* ast, scf_node_t* node, scf_handler_data
 static int _scf_op_const_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
 	if (nb_nodes < 2) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 
@@ -306,7 +312,7 @@ static int _scf_op_const_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, vo
 
 	scf_variable_t* r = NULL;
 	if (_scf_expr_calculate_internal(ast, e, &r) < 0) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 
@@ -315,32 +321,24 @@ static int _scf_op_const_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, vo
 		scf_node_t*		node = nodes[i];
 		scf_operator_t* op   = node->op;
 
-		if (node->w) {
-			printf("%s(),%d, node: %p, w: %s, line:%d\n", __func__, __LINE__, node, node->w->text->data, node->w->line);
-		}
 		if (!op) {
 			op = scf_find_base_operator_by_type(node->type);
 			if (!op) {
-				printf("%s(),%d, error: \n", __func__, __LINE__);
+				scf_loge("\n");
 				return -1;
 			}
 		}
 
 		scf_operator_handler_t* h = scf_find_const_operator_handler(op->type, -1, -1, -1);
-		if (!h) {
-			printf("%s(),%d, error: \n", __func__, __LINE__);
+		if (!h)
 			return -1;
-		}
 
 		int ret = h->func(ast, node->nodes, node->nb_nodes, d);
 
-		if (ret < 0) {
-			printf("%s(),%d, error: \n", __func__, __LINE__);
+		if (ret < 0)
 			return -1;
-		}
 	}
 
-	printf("%s(),%d, ok: \n", __func__, __LINE__);
 	return 0;
 }
 
@@ -354,15 +352,11 @@ static int _scf_op_const_while(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 	assert(SCF_OP_EXPR == e->type);
 
 	scf_variable_t* r = NULL;
-	if (_scf_expr_calculate_internal(ast, e, &r) < 0) {
-		scf_loge("\n");
+	if (_scf_expr_calculate_internal(ast, e, &r) < 0)
 		return -1;
-	}
 
-	if (_scf_op_const_node(ast, nodes[1], d) < 0) {
-		scf_loge("\n");
+	if (_scf_op_const_node(ast, nodes[1], d) < 0)
 		return -1;
-	}
 
 	return 0;
 }
@@ -464,15 +458,11 @@ static int _scf_op_const_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, 
 
 	if (caller != callee) {
 
-		if (scf_vector_add_unique(caller->callee_functions, callee) < 0) {
-			scf_loge("\n");
+		if (scf_vector_add_unique(caller->callee_functions, callee) < 0)
 			return -1;
-		}
 
-		if (scf_vector_add_unique(callee->caller_functions, caller) < 0) {
-			scf_loge("\n");
+		if (scf_vector_add_unique(callee->caller_functions, caller) < 0)
 			return -1;
-		}
 	}
 
 	return 0;
@@ -519,11 +509,6 @@ static int _scf_op_const_dec(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, v
 	return 0;
 }
 static int _scf_op_const_dec_post(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
-{
-	return 0;
-}
-
-static int _scf_op_const_neg(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
 	return 0;
 }
@@ -579,7 +564,6 @@ static int _scf_op_const_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 static int _scf_op_const_sizeof(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
-	printf("%s(),%d, error: \n", __func__, __LINE__);
 	return -1;
 }
 
@@ -615,9 +599,6 @@ static int _scf_op_const_unary(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 
 		SCF_XCHG(r->w, parent->w);
 
-		scf_logi("r: %p\n", r);
-		scf_logi("r->data.i64: %ld\n", r->data.i64);
-
 		scf_node_free_data(parent);
 		parent->type = r->type;
 		parent->var  = r;
@@ -628,6 +609,11 @@ static int _scf_op_const_unary(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 	}
 
 	return 0;
+}
+
+static int _scf_op_const_neg(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	return _scf_op_const_unary(ast, nodes, nb_nodes, data);
 }
 
 static int _scf_op_const_bit_not(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
@@ -675,9 +661,6 @@ static int _scf_op_const_binary(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 		r->const_flag = 1;
 
 		SCF_XCHG(r->w, parent->w);
-
-		scf_logi("r: %p\n", r);
-		scf_logi("r->data.i64: %ld\n", r->data.i64);
 
 		scf_node_free_data(parent);
 		parent->type = r->type;

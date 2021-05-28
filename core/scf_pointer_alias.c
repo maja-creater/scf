@@ -132,26 +132,35 @@ static int _bb_dfs_check_initeds(scf_list_t* bb_list_head, scf_basic_block_t* bb
 
 static int _bb_pointer_initeds(scf_vector_t* initeds, scf_list_t* bb_list_head, scf_basic_block_t* bb, scf_dn_status_t* ds)
 {
+	scf_dag_node_t* dn;
 	scf_variable_t* v;
-	int ret;
 
-	ret = _bb_dfs_initeds(bb_list_head, bb, ds, initeds);
+	int ret = _bb_dfs_initeds(bb_list_head, bb, ds, initeds);
 	if (ret < 0)
 		return ret;
 
 	if (0 == initeds->size) {
-		v = ds->dag_node->var;
+		dn = ds->dag_node;
+		v  = dn->var;
 
-		if (!v->arg_flag) {
-			scf_loge("pointer v_%d_%d/%s is not inited\n", v->w->line, v->w->pos, v->w->text->data);
-			return -1;
+		if (v->arg_flag)
+			return 0;
+
+		if (dn->node->split_flag) {
+			scf_loge("dn->node->split_parent: %d, %p\n", dn->node->split_parent->type, dn->node->split_parent);
+			assert(dn->node->split_parent->type == SCF_OP_CALL
+					|| dn->node->split_parent->type == SCF_OP_CREATE);
+			return 0;
 		}
-		return 0;
+
+		scf_loge("pointer v_%d_%d/%s is not inited\n", v->w->line, v->w->pos, v->w->text->data);
+		return -1;
 	}
 
 	ret = _bb_dfs_check_initeds(bb_list_head, bb, initeds);
 	if (ret < 0) {
-		v = ds->dag_node->var;
+		dn = ds->dag_node;
+		v  = dn->var;
 
 		if (!v->arg_flag) {
 			scf_loge("in bb: %p, pointer v_%d_%d/%s may not be inited\n",

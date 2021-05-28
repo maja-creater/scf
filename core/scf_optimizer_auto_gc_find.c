@@ -309,7 +309,12 @@ ref:
 				break;
 		}
 
-		if (SCF_OP_CALL == dn->type) {
+		if (SCF_OP_CALL == dn->type || dn->node->split_flag) {
+
+			if (dn->node->split_flag) {
+				assert(SCF_OP_CALL   == dn->node->split_parent->type
+					|| SCF_OP_CREATE == dn->node->split_parent->type);
+			}
 
 			scf_dag_node_t* dn_pf = dn->childs->data[0];
 			scf_function_t* f2    = dn_pf->var->func_ptr;

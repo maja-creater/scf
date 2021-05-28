@@ -10,7 +10,7 @@ typedef struct {
 
 void* scf_malloc(int size);
 
-void  scf_free(void* data);
+void  scf_free(void* data, void (*release)(void* objdata));
 
 void  scf_ref (void* data);
 

@@ -219,7 +219,8 @@ scf_instruction_t* x64_make_inst_M(scf_rela_t** prela, scf_x64_OpCode_t* OpCode,
 		reg = OpCode->ModRM_OpCode;
 
 	if (!r_base) {
-		if (v->local_flag) {
+		if (v->local_flag || v->tmp_flag) {
+
 			base   = SCF_X64_REG_RBP;
 			offset = v->bp_offset;
 
@@ -233,7 +234,7 @@ scf_instruction_t* x64_make_inst_M(scf_rela_t** prela, scf_x64_OpCode_t* OpCode,
 	} else {
 		base = r_base->id;
 
-		if (v->local_flag)
+		if (v->local_flag || v->tmp_flag)
 			offset = v->bp_offset;
 		else
 			offset = v->offset;
@@ -276,7 +277,8 @@ scf_instruction_t* x64_make_inst_G2M(scf_rela_t** prela, scf_x64_OpCode_t* OpCod
 	int32_t  offset;
 
 	if (!r_base) {
-		if (v_dst->local_flag) {
+		if (v_dst->local_flag || v_dst->tmp_flag) {
+
 			base   = SCF_X64_REG_RBP;
 			offset = v_dst->bp_offset;
 
@@ -290,7 +292,7 @@ scf_instruction_t* x64_make_inst_G2M(scf_rela_t** prela, scf_x64_OpCode_t* OpCod
 	} else {
 		base = r_base->id;
 
-		if (v_dst->local_flag)
+		if (v_dst->local_flag || v_dst->tmp_flag)
 			offset = v_dst->bp_offset;
 		else
 			offset = v_dst->offset;
@@ -319,7 +321,8 @@ scf_instruction_t* x64_make_inst_M2G(scf_rela_t** prela, scf_x64_OpCode_t* OpCod
 	int32_t  offset;
 
 	if (!r_base) {
-		if (v_src->local_flag) {
+		if (v_src->local_flag || v_src->tmp_flag) {
+
 			base   = SCF_X64_REG_RBP;
 			offset = v_src->bp_offset;
 
@@ -333,7 +336,7 @@ scf_instruction_t* x64_make_inst_M2G(scf_rela_t** prela, scf_x64_OpCode_t* OpCod
 	} else {
 		base = r_base->id;
 
-		if (v_src->local_flag)
+		if (v_src->local_flag || v_src->tmp_flag)
 			offset = v_src->bp_offset;
 		else
 			offset = v_src->offset;

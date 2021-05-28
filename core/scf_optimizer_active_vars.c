@@ -4,16 +4,23 @@ typedef int (*bb_find_pt)(scf_basic_block_t* bb, scf_vector_t* queue);
 
 static int _bb_prev_find(scf_basic_block_t* bb, scf_vector_t* queue)
 {
+	scf_basic_block_t* prev_bb;
+	scf_dag_node_t*    dn;
+
 	int count = 0;
 	int ret;
 	int j;
 
 	for (j = 0; j < bb->prevs->size; j++) {
-		scf_basic_block_t* prev_bb = bb->prevs->data[j];
+		prev_bb   = bb->prevs->data[j];
 
 		int k;
 		for (k = 0; k < bb->entry_dn_actives->size; k++) {
-			scf_dag_node_t* dn = bb->entry_dn_actives->data[k];
+			dn =        bb->entry_dn_actives->data[k];
+
+			if (dn->var->tmp_flag
+					&& !scf_vector_find(prev_bb->dn_updateds, dn))
+				continue;
 
 			if (scf_vector_find(prev_bb->exit_dn_actives, dn))
 				continue;
@@ -33,16 +40,22 @@ static int _bb_prev_find(scf_basic_block_t* bb, scf_vector_t* queue)
 
 static int _bb_next_find(scf_basic_block_t* bb, scf_vector_t* queue)
 {
+	scf_basic_block_t* next_bb;
+	scf_dag_node_t*    dn;
+
 	int count = 0;
 	int ret;
 	int j;
 
 	for (j = 0; j < bb->nexts->size; j++) {
-		scf_basic_block_t* next_bb = bb->nexts->data[j];
+		next_bb   = bb->nexts->data[j];
 
 		int k;
 		for (k = 0; k < next_bb->exit_dn_actives->size; k++) {
-			scf_dag_node_t* dn = next_bb->exit_dn_actives->data[k];
+			dn =        next_bb->exit_dn_actives->data[k];
+
+			if (scf_vector_find(next_bb->dn_updateds, dn))
+				continue;
 
 			if (scf_vector_find(bb->exit_dn_actives, dn))
 				continue;

@@ -1,0 +1,29 @@
+
+uint8* scf_malloc(int size);
+
+class Point
+{
+	int x;
+	int y;
+
+	int __init__(Point* this, int a, int b)
+	{
+		this->x = a;
+		this->y = b;
+		return 0;
+	}
+
+};
+
+int main()
+{
+	Point* p;
+	int    err;
+
+	p, err = create Point(1, 2);
+
+	if (-1 == err)
+		return -1;
+	return 0;
+}
+

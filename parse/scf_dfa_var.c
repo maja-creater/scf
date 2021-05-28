@@ -348,9 +348,6 @@ static int _dfa_init_syntax_var(scf_dfa_t* dfa)
 	SCF_DFA_GET_MODULE_NODE(dfa, init_data, lb,     init_data_lb);
 	SCF_DFA_GET_MODULE_NODE(dfa, init_data, rb,     init_data_rb);
 
-	SCF_DFA_GET_MODULE_NODE(dfa, create,    create,   create);
-	SCF_DFA_GET_MODULE_NODE(dfa, create,    identity, create_id);
-	SCF_DFA_GET_MODULE_NODE(dfa, create,    rp,       create_rp);
 
 	scf_dfa_node_add_child(identity,  comma);
 	scf_dfa_node_add_child(comma,     star);
@@ -368,11 +365,6 @@ static int _dfa_init_syntax_var(scf_dfa_t* dfa)
 	// var init
 	scf_dfa_node_add_child(rs,        assign);
 	scf_dfa_node_add_child(identity,  assign);
-
-	// create class object
-	scf_dfa_node_add_child(assign,    create);
-	scf_dfa_node_add_child(create_id, semicolon);
-	scf_dfa_node_add_child(create_rp, semicolon);
 
 	// normal var init
 	scf_dfa_node_add_child(assign,    expr);

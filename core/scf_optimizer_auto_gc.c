@@ -1,47 +1,113 @@
 #include"scf_optimizer.h"
 
+static scf_3ac_operand_t* _auto_gc_operand_alloc_pf(scf_ast_t* ast, scf_function_t* f)
+{
+	scf_3ac_operand_t* src;
+	scf_dag_node_t*    dn;
+	scf_variable_t*    v;
+	scf_type_t*        t;
+
+	t = scf_ast_find_type_type(ast, SCF_FUNCTION_PTR);
+	assert(t);
+
+	if (f)
+		v = SCF_VAR_ALLOC_BY_TYPE(f->node.w, t, 1, 1, f);
+	else
+		v = SCF_VAR_ALLOC_BY_TYPE(NULL, t, 1, 1, NULL);
+
+	if (!v)
+		return NULL;
+	v->const_literal_flag = 1;
+
+	dn = scf_dag_node_alloc(v->type, v, (scf_node_t*)f);
+	if (!dn) {
+		scf_variable_free(v);
+		return NULL;
+	}
+	scf_variable_free(v);
+
+	src = scf_3ac_operand_alloc();
+	if (!src) {
+		scf_dag_node_free(dn);
+		return NULL;
+	}
+
+	src->node     = (scf_node_t*)f;
+	src->dag_node = dn;
+	return src;
+}
+
 static scf_3ac_code_t* _auto_gc_code_alloc_dn(scf_ast_t* ast, const char* fname, scf_dag_node_t* dn)
 {
-	scf_string_t*   s;
-	scf_lex_word_t* w;
-	scf_function_t* f;
-	scf_variable_t* v;
-	scf_type_t*     t;
-	scf_dag_node_t* dn_pf;
+	scf_3ac_operand_t* src;
+	scf_3ac_code_t*    c;
+	scf_function_t*    f;
+	scf_variable_t*    v;
+	scf_type_t*        t;
 
-	scf_3ac_code_t* c    = scf_3ac_code_alloc();
-	scf_vector_t*   srcs = scf_vector_alloc();
+	c = scf_3ac_code_alloc();
+	if (!c)
+		return NULL;
+	c->op   = scf_3ac_find_operator(SCF_OP_CALL);
 
-	s = scf_string_cstr("global");
-	w = scf_lex_word_alloc(s, 0, 0, SCF_LEX_WORD_ID);
-	w->text = scf_string_cstr(fname);
+	c->srcs = scf_vector_alloc();
+	if (!c->srcs) {
+		scf_3ac_code_free(c);
+		return NULL;
+	}
 
 	f = scf_ast_find_function(ast, fname);
 	assert(f);
 
-	t = scf_ast_find_type_type(ast, SCF_FUNCTION_PTR);
-	v = SCF_VAR_ALLOC_BY_TYPE(f->node.w, t, 1, 1, f);
-	assert(v);
-	v->const_literal_flag = 1;
+	src = _auto_gc_operand_alloc_pf(ast, f);
+	if (!src) {
+		scf_3ac_code_free(c);
+		return NULL;
+	}
 
-	dn_pf = scf_dag_node_alloc(v->type, v, (scf_node_t*)f);
-	assert(dn_pf);
+	if (scf_vector_add(c->srcs, src) < 0) {
+		scf_3ac_operand_free(src);
+		scf_3ac_code_free(c);
+		return NULL;
+	}
 
-	scf_3ac_operand_t* src0  = scf_3ac_operand_alloc();
-	scf_3ac_operand_t* src1  = scf_3ac_operand_alloc();
+	src = scf_3ac_operand_alloc();
+	if (!src) {
+		scf_3ac_code_free(c);
+		return NULL;
+	}
+	src->node     = dn->node;
+	src->dag_node = dn;
 
-	scf_vector_add(srcs, src0);
-	scf_vector_add(srcs, src1);
+	if (scf_vector_add(c->srcs, src) < 0) {
+		scf_3ac_operand_free(src);
+		scf_3ac_code_free(c);
+		return NULL;
+	}
 
-	src0->node     = (scf_node_t*)f; 
-	src0->dag_node = dn_pf;
+	if (!strcmp(fname, "scf_free")) {
 
-	src1->node     = dn->node;
-	src1->dag_node = dn;
+		src = _auto_gc_operand_alloc_pf(ast, f);
+		if (!src) {
+			scf_3ac_code_free(c);
+			return NULL;
+		}
 
-	c->op   = scf_3ac_find_operator(SCF_OP_CALL);
-	c->dsts = NULL;
-	c->srcs = srcs;
+		if (scf_vector_add(c->srcs, src) < 0) {
+			scf_3ac_operand_free(src);
+			scf_3ac_code_free(c);
+			return NULL;
+		}
+
+		if (dn->var->type >= SCF_STRUCT) {
+
+			t   = scf_ast_find_type_type(ast, dn->var->type);
+
+			f   = scf_scope_find_function(t->scope, "__release__");
+
+			src->dag_node->var->func_ptr = f;
+		}
+	}
 
 	return c;
 }
@@ -952,8 +1018,8 @@ static int _optimize_auto_gc_bb(scf_ast_t* ast, scf_function_t* f, scf_basic_blo
 		}
 
 _ref:
-		if (cur_bb != bb)
-			dn->var->local_flag = 1;
+		if (!dn->var->local_flag && cur_bb != bb)
+			dn ->var->tmp_flag = 1;
 
 		while (dn) {
 			if (SCF_OP_TYPE_CAST == dn->type)
@@ -967,9 +1033,17 @@ _ref:
 
 		if (SCF_OP_CALL == dn->type) {
 
-			scf_dag_node_t* dn_pf = dn->childs->data[0];
-			scf_function_t* f2    = dn_pf->var->func_ptr;
-			scf_variable_t* ret   = f2->rets->data[0];
+			scf_3ac_code_print(c, NULL);
+
+			scf_loge("dn: %p, dn->childs: %p, dn->node: %p, %s\n", dn, dn->childs, dn->node, dn->var->w->text->data);
+
+			scf_dag_node_t* dn_pf;
+			scf_function_t* f2;
+			scf_variable_t* ret;
+
+			dn_pf = dn->childs->data[0];
+			f2    = dn_pf->var->func_ptr;
+			ret   = f2->rets->data[0];
 
 			if (!strcmp(f2->node.w->text->data, "scf_malloc") || ret->auto_gc_flag) {
 

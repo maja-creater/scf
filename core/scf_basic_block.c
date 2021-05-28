@@ -187,8 +187,8 @@ void scf_basic_block_print_list(scf_list_t* h)
 
 			scf_basic_block_t* bb = scf_list_data(l, scf_basic_block_t, list);
 
-			printf("\033[33mbasic_block: %p, index: %d, depth_first_order: %d\033[0m\n",
-					bb, bb->index, bb->depth_first_order);
+			printf("\033[33mbasic_block: %p, index: %d, depth_first_order: %d, group_flag: %d\033[0m\n",
+					bb, bb->index, bb->depth_first_order, bb->group_flag);
 
 			scf_basic_block_print(bb, sentinel);
 
@@ -766,7 +766,7 @@ int scf_basic_block_inited_vars(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 			dn  = dst->dag_node;
 
 			if (scf_type_is_var(dn->type)
-					&& (dn->var->global_flag || dn->var->local_flag)) {
+					&& (dn->var->global_flag || dn->var->local_flag || dn->var->tmp_flag)) {
 
 				scf_variable_t* v = dn->var;
 				scf_logw("init: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
@@ -1103,7 +1103,7 @@ int scf_basic_block_loads_saves(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 		dn = bb->entry_dn_actives->data[i];
 
 		if (scf_vector_find(bb->entry_dn_aliases, dn)
-				|| scf_type_is_operator(dn->type))
+				|| dn->var->tmp_flag)
 			ret = scf_vector_add_unique(bb->dn_reloads, dn);
 		else
 			ret = scf_vector_add_unique(bb->dn_loads, dn);
@@ -1121,7 +1121,7 @@ int scf_basic_block_loads_saves(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 		}
 
 		if (scf_vector_find(bb->exit_dn_aliases, dn)
-				|| scf_type_is_operator(dn->type))
+				|| dn->var->tmp_flag)
 			ret = scf_vector_add_unique(bb->dn_resaves, dn);
 		else
 			ret = scf_vector_add_unique(bb->dn_saves, dn);
