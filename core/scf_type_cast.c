@@ -25,18 +25,20 @@ static int type_update[] =
 
 static scf_type_cast_t  base_type_casts[] =
 {
-	{"u8",      -1, SCF_VAR_U8,     scf_cast_to_u8},
-	{"u16",     -1, SCF_VAR_U16,    scf_cast_to_u16},
-	{"u32",     -1, SCF_VAR_U32,    scf_cast_to_u32},
-	{"u64",     -1, SCF_VAR_U64,    scf_cast_to_u64},
+	{"u8",      -1, SCF_VAR_U8,      scf_cast_to_u8},
+	{"u16",     -1, SCF_VAR_U16,     scf_cast_to_u16},
+	{"u32",     -1, SCF_VAR_U32,     scf_cast_to_u32},
+	{"u64",     -1, SCF_VAR_U64,     scf_cast_to_u64},
+	{"uintptr", -1, SCF_VAR_UINTPTR, scf_cast_to_u64},
 
-	{"i8",      -1, SCF_VAR_I8,     scf_cast_to_i8},
-	{"i16",     -1, SCF_VAR_I16,    scf_cast_to_i16},
-	{"i32",     -1, SCF_VAR_I32,    scf_cast_to_i32},
-	{"i64",     -1, SCF_VAR_I64,    scf_cast_to_i64},
+	{"i8",      -1, SCF_VAR_I8,      scf_cast_to_i8},
+	{"i16",     -1, SCF_VAR_I16,     scf_cast_to_i16},
+	{"i32",     -1, SCF_VAR_I32,     scf_cast_to_i32},
+	{"i64",     -1, SCF_VAR_I64,     scf_cast_to_i64},
+	{"intptr",  -1, SCF_VAR_INTPTR,  scf_cast_to_i64},
 
-	{"float",   -1, SCF_VAR_FLOAT,  scf_cast_to_float},
-	{"double",  -1, SCF_VAR_DOUBLE, scf_cast_to_double},
+	{"float",   -1, SCF_VAR_FLOAT,   scf_cast_to_float},
+	{"double",  -1, SCF_VAR_DOUBLE,  scf_cast_to_double},
 
 };
 
@@ -110,7 +112,8 @@ int scf_type_cast_check(scf_ast_t* ast, scf_variable_t* dst, scf_variable_t* src
 	if (dst_nb_pointers > 0) {
 
 		if (0 == src_nb_pointers) {
-			if (SCF_VAR_INTPTR == src->type || SCF_VAR_UINTPTR == src->type)
+			if (SCF_VAR_INTPTR == src->type || SCF_VAR_UINTPTR == src->type
+					|| SCF_VAR_U64 == src->type)
 				return 0;
 			goto failed;
 		}

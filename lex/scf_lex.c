@@ -592,20 +592,35 @@ static int _lex_identity(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t*
 			c1 = NULL;
 
 			scf_lex_word_t* w = NULL;
-			int type = _find_key_word(s->data);
-			if (-1 == type) {
-				type = SCF_LEX_WORD_ID + lex->nb_identities++;
-				w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, type);
+
+			if (!strcmp(s->data, "NULL")) {
+
+				w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_CONST_U64);
+				if (w)
+					w->data.u64 = 0;
+
 			} else {
-				w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, type);
+				int type = _find_key_word(s->data);
+
+				if (-1 == type) {
+					type = SCF_LEX_WORD_ID + lex->nb_identities++;
+					w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, type);
+				} else
+					w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, type);
 			}
-			w->text = s;
+
+			if (w)
+				w->text = s;
+			else
+				scf_string_free(s);
 			s = NULL;
 
 			*pword = w;
 			return 0;
 		}
 	}
+
+	return -1;
 }
 
 static int _lex_dot(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c0)

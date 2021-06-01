@@ -1,4 +1,5 @@
 #include"scf_optimizer.h"
+#include"scf_pointer_alias.h"
 
 static scf_3ac_operand_t* _auto_gc_operand_alloc_pf(scf_ast_t* ast, scf_function_t* f)
 {
@@ -37,7 +38,7 @@ static scf_3ac_operand_t* _auto_gc_operand_alloc_pf(scf_ast_t* ast, scf_function
 	return src;
 }
 
-static scf_3ac_code_t* _auto_gc_code_alloc_dn(scf_ast_t* ast, const char* fname, scf_dag_node_t* dn)
+static scf_3ac_code_t* _auto_gc_code_ref(scf_ast_t* ast, scf_dag_node_t* dn)
 {
 	scf_3ac_operand_t* src;
 	scf_3ac_code_t*    c;
@@ -56,58 +57,168 @@ static scf_3ac_code_t* _auto_gc_code_alloc_dn(scf_ast_t* ast, const char* fname,
 		return NULL;
 	}
 
-	f = scf_ast_find_function(ast, fname);
+	f = scf_ast_find_function(ast, "scf_ref");
 	assert(f);
 
-	src = _auto_gc_operand_alloc_pf(ast, f);
-	if (!src) {
+#define AUTO_GC_CODE_ADD_FUNCPTR() \
+	do { \
+		src = _auto_gc_operand_alloc_pf(ast, f); \
+		if (!src) { \
+			scf_3ac_code_free(c); \
+			return NULL; \
+		} \
+		\
+		if (scf_vector_add(c->srcs, src) < 0) { \
+			scf_3ac_operand_free(src); \
+			scf_3ac_code_free(c); \
+			return NULL; \
+		} \
+	} while (0)
+
+	AUTO_GC_CODE_ADD_FUNCPTR();
+
+#define AUTO_GC_CODE_ADD_VAR() \
+	do { \
+		src = scf_3ac_operand_alloc(); \
+		if (!src) { \
+			scf_3ac_code_free(c); \
+			return NULL; \
+		} \
+		src->node     = dn->node; \
+		src->dag_node = dn; \
+		\
+		if (scf_vector_add(c->srcs, src) < 0) { \
+			scf_3ac_operand_free(src); \
+			scf_3ac_code_free(c); \
+			return NULL; \
+		} \
+	} while (0)
+
+	AUTO_GC_CODE_ADD_VAR();
+
+	return c;
+}
+
+static scf_3ac_code_t* _auto_gc_code_freep(scf_ast_t* ast, scf_dag_node_t* dn)
+{
+	scf_3ac_operand_t* src;
+	scf_3ac_code_t*    c;
+	scf_function_t*    f;
+	scf_variable_t*    v;
+	scf_type_t*        t;
+
+	c = scf_3ac_code_alloc();
+	if (!c)
+		return NULL;
+	c->op   = scf_3ac_find_operator(SCF_OP_CALL);
+
+	c->srcs = scf_vector_alloc();
+	if (!c->srcs) {
 		scf_3ac_code_free(c);
 		return NULL;
 	}
 
-	if (scf_vector_add(c->srcs, src) < 0) {
-		scf_3ac_operand_free(src);
+	f = scf_ast_find_function(ast, "scf_freep");
+	assert(f);
+	AUTO_GC_CODE_ADD_FUNCPTR();
+
+	AUTO_GC_CODE_ADD_VAR();
+
+	f = NULL;
+	AUTO_GC_CODE_ADD_FUNCPTR();
+
+	if (dn->var->type >= SCF_STRUCT) {
+
+		t   = scf_ast_find_type_type(ast, dn->var->type);
+
+		f   = scf_scope_find_function(t->scope, "__release__");
+
+		src->dag_node->var->func_ptr = f;
+	}
+
+	return c;
+}
+
+static scf_3ac_code_t* _auto_gc_code_free_array(scf_ast_t* ast, scf_dag_node_t* dn_array, int capacity)
+{
+	scf_3ac_operand_t* src;
+	scf_3ac_code_t*    c;
+	scf_dag_node_t*    dn;
+	scf_function_t*    f;
+	scf_variable_t*    v;
+	scf_type_t*        t;
+
+	c = scf_3ac_code_alloc();
+	if (!c)
+		return NULL;
+	c->op   = scf_3ac_find_operator(SCF_OP_CALL);
+
+	c->srcs = scf_vector_alloc();
+	if (!c->srcs) {
 		scf_3ac_code_free(c);
 		return NULL;
 	}
 
-	src = scf_3ac_operand_alloc();
-	if (!src) {
-		scf_3ac_code_free(c);
-		return NULL;
+	f = scf_ast_find_function(ast, "scf_free_array");
+	assert(f);
+	AUTO_GC_CODE_ADD_FUNCPTR();
+
+	dn = dn_array;
+	AUTO_GC_CODE_ADD_VAR();
+
+	t   = scf_ast_find_type_type(ast, SCF_VAR_INTPTR);
+	v   = SCF_VAR_ALLOC_BY_TYPE(dn_array->var->w, t, 1, 0, NULL);
+	assert(v);
+	v->data.i64 = capacity;
+
+	dn = scf_dag_node_alloc(v->type, v, NULL);
+	assert(dn);
+	AUTO_GC_CODE_ADD_VAR();
+
+	f = NULL;
+	AUTO_GC_CODE_ADD_FUNCPTR();
+
+	if (dn->var->type >= SCF_STRUCT) {
+
+		t   = scf_ast_find_type_type(ast, dn->var->type);
+
+		f   = scf_scope_find_function(t->scope, "__release__");
+
+		src->dag_node->var->func_ptr = f;
 	}
-	src->node     = dn->node;
-	src->dag_node = dn;
 
-	if (scf_vector_add(c->srcs, src) < 0) {
-		scf_3ac_operand_free(src);
-		scf_3ac_code_free(c);
-		return NULL;
-	}
+	return c;
+}
 
-	if (!strcmp(fname, "scf_free")) {
+static scf_3ac_code_t* _code_alloc_address(scf_ast_t* ast, scf_dag_node_t* dn)
+{
+	scf_string_t*   s;
+	scf_lex_word_t* w;
+	scf_3ac_code_t* c    = scf_3ac_code_alloc();
+	scf_vector_t*   srcs = scf_vector_alloc();
+	scf_vector_t*   dsts = scf_vector_alloc();
 
-		src = _auto_gc_operand_alloc_pf(ast, f);
-		if (!src) {
-			scf_3ac_code_free(c);
-			return NULL;
-		}
+	scf_3ac_operand_t*   src0  = scf_3ac_operand_alloc();
+	scf_vector_add(srcs, src0);
 
-		if (scf_vector_add(c->srcs, src) < 0) {
-			scf_3ac_operand_free(src);
-			scf_3ac_code_free(c);
-			return NULL;
-		}
+	src0->node     = dn->node;
+	src0->dag_node = dn;
 
-		if (dn->var->type >= SCF_STRUCT) {
+	scf_3ac_operand_t*   dst0 = scf_3ac_operand_alloc();
+	scf_vector_add(dsts, dst0);
 
-			t   = scf_ast_find_type_type(ast, dn->var->type);
+	c->srcs = srcs;
+	c->dsts = dsts;
+	c->op   = scf_3ac_find_operator(SCF_OP_ADDRESS_OF);
 
-			f   = scf_scope_find_function(t->scope, "__release__");
+	w = scf_lex_word_alloc(dn->var->w->file, 0, 0, SCF_LEX_WORD_ID);
+	w->text = scf_string_cstr("&");
 
-			src->dag_node->var->func_ptr = f;
-		}
-	}
+	scf_type_t*     t   = scf_ast_find_type_type(ast, dn->var->type);
+	scf_variable_t* v   = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, dn->var->nb_pointers + 1, NULL);
+	scf_dag_node_t* dn2 = scf_dag_node_alloc(v->type, v, NULL);
+
+	dst0->dag_node = dn2;
 
 	return c;
 }
@@ -145,7 +256,126 @@ static scf_3ac_code_t* _code_alloc_dereference(scf_ast_t* ast, scf_dag_node_t* d
 	return c;
 }
 
-static int _auto_gc_code_list_for_ds(scf_list_t* h, scf_ast_t* ast, const char* fname, scf_dn_status_t* ds)
+static scf_3ac_code_t* _code_alloc_member(scf_ast_t* ast, scf_dag_node_t* dn_base, scf_dag_node_t* dn_member)
+{
+	scf_string_t*   s;
+	scf_lex_word_t* w;
+	scf_3ac_code_t* c    = scf_3ac_code_alloc();
+	scf_vector_t*   srcs = scf_vector_alloc();
+	scf_vector_t*   dsts = scf_vector_alloc();
+
+	scf_3ac_operand_t*   base   = scf_3ac_operand_alloc();
+	scf_3ac_operand_t*   member = scf_3ac_operand_alloc();
+	scf_vector_add(srcs, base);
+	scf_vector_add(srcs, member);
+
+	base->node       = dn_base->node;
+	base->dag_node   = dn_base;
+
+	member->node     = dn_member->node;
+	member->dag_node = dn_member;
+
+	scf_3ac_operand_t*   dst0 = scf_3ac_operand_alloc();
+	scf_vector_add(dsts, dst0);
+
+	c->srcs = srcs;
+	c->dsts = dsts;
+	c->op   = scf_3ac_find_operator(SCF_OP_POINTER);
+
+	w = scf_lex_word_alloc(dn_base->var->w->file, 0, 0, SCF_LEX_WORD_ID);
+	w->text = scf_string_cstr("->");
+
+	scf_type_t*     t   = scf_ast_find_type_type(ast, dn_member->var->type);
+	scf_variable_t* v   = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, dn_member->var->nb_pointers, NULL);
+	scf_dag_node_t* dn2 = scf_dag_node_alloc(v->type, v, NULL);
+
+	dst0->dag_node = dn2;
+
+	return c;
+}
+
+static scf_3ac_code_t* _code_alloc_member_address(scf_ast_t* ast, scf_dag_node_t* dn_base, scf_dag_node_t* dn_member)
+{
+	scf_string_t*   s;
+	scf_lex_word_t* w;
+	scf_3ac_code_t* c    = scf_3ac_code_alloc();
+	scf_vector_t*   srcs = scf_vector_alloc();
+	scf_vector_t*   dsts = scf_vector_alloc();
+
+	scf_3ac_operand_t*   base   = scf_3ac_operand_alloc();
+	scf_3ac_operand_t*   member = scf_3ac_operand_alloc();
+	scf_vector_add(srcs, base);
+	scf_vector_add(srcs, member);
+
+	base->node       = dn_base->node;
+	base->dag_node   = dn_base;
+
+	member->node     = dn_member->node;
+	member->dag_node = dn_member;
+
+	scf_3ac_operand_t*   dst0 = scf_3ac_operand_alloc();
+	scf_vector_add(dsts, dst0);
+
+	c->srcs = srcs;
+	c->dsts = dsts;
+	c->op   = scf_3ac_find_operator(SCF_OP_3AC_ADDRESS_OF_POINTER);
+
+	w = scf_lex_word_alloc(dn_base->var->w->file, 0, 0, SCF_LEX_WORD_ID);
+	w->text = scf_string_cstr("&->");
+
+	scf_type_t*     t   = scf_ast_find_type_type(ast, dn_member->var->type);
+	scf_variable_t* v   = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, dn_member->var->nb_pointers + 1, NULL);
+	scf_dag_node_t* dn2 = scf_dag_node_alloc(v->type, v, NULL);
+
+	dst0->dag_node = dn2;
+
+	return c;
+}
+
+static scf_3ac_code_t* _code_alloc_array_member_address(scf_ast_t* ast, scf_dag_node_t* dn_base, scf_dag_node_t* dn_index, scf_dag_node_t* dn_scale)
+{
+	scf_string_t*   s;
+	scf_lex_word_t* w;
+	scf_3ac_code_t* c    = scf_3ac_code_alloc();
+	scf_vector_t*   srcs = scf_vector_alloc();
+	scf_vector_t*   dsts = scf_vector_alloc();
+
+	scf_3ac_operand_t*   base   = scf_3ac_operand_alloc();
+	scf_3ac_operand_t*   index  = scf_3ac_operand_alloc();
+	scf_3ac_operand_t*   scale  = scf_3ac_operand_alloc();
+	scf_vector_add(srcs, base);
+	scf_vector_add(srcs, index);
+	scf_vector_add(srcs, scale);
+
+	base->node       = dn_base->node;
+	base->dag_node   = dn_base;
+
+	index->node      = dn_index->node;
+	index->dag_node  = dn_index;
+
+	scale->node      = dn_scale->node;
+	scale->dag_node  = dn_scale;
+
+	scf_3ac_operand_t*   dst0 = scf_3ac_operand_alloc();
+	scf_vector_add(dsts, dst0);
+
+	c->srcs = srcs;
+	c->dsts = dsts;
+	c->op   = scf_3ac_find_operator(SCF_OP_3AC_ADDRESS_OF_ARRAY_INDEX);
+
+	w = scf_lex_word_alloc(dn_base->var->w->file, 0, 0, SCF_LEX_WORD_ID);
+	w->text = scf_string_cstr("&[]");
+
+	scf_type_t*     t   = scf_ast_find_type_type(ast, dn_base->var->type);
+	scf_variable_t* v   = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, dn_base->var->nb_pointers + 1, NULL);
+	scf_dag_node_t* dn2 = scf_dag_node_alloc(v->type, v, NULL);
+
+	dst0->dag_node = dn2;
+
+	return c;
+}
+
+static int _auto_gc_code_list_ref(scf_list_t* h, scf_ast_t* ast, scf_dn_status_t* ds)
 {
 	scf_dag_node_t*    dn = ds->dag_node;
 	scf_3ac_code_t*    c;
@@ -158,12 +388,18 @@ static int _auto_gc_code_list_for_ds(scf_list_t* h, scf_ast_t* ast, const char* 
 
 			scf_dn_index_t* di = ds->dn_indexes->data[i];
 
-			assert(!di->member);
-			assert(di->index >= 0);
+			if (di->member) {
+				assert(di->dn);
 
-			assert(0 == di->index);
+				c = _code_alloc_member(ast, dn, di->dn);
 
-			c = _code_alloc_dereference(ast, dn);
+			} else {
+				assert(di->index >= 0);
+
+				assert(0 == di->index);
+
+				c = _code_alloc_dereference(ast, dn);
+			}
 
 			scf_list_add_tail(h, &c->list);
 
@@ -172,118 +408,92 @@ static int _auto_gc_code_list_for_ds(scf_list_t* h, scf_ast_t* ast, const char* 
 		}
 	}
 
-	c = _auto_gc_code_alloc_dn(ast, fname, dn);
+	c = _auto_gc_code_ref(ast, dn);
 
 	scf_list_add_tail(h, &c->list);
 	return 0;
 }
 
-static int __ds_for_dn(scf_dn_status_t* ds, scf_dag_node_t* dn_base)
+static int _auto_gc_code_list_freep(scf_list_t* h, scf_ast_t* ast, scf_dn_status_t* ds)
 {
-	scf_dag_node_t*   dn_index;
-	scf_dn_index_t*   di;
+	scf_dag_node_t*    dn = ds->dag_node;
+	scf_3ac_code_t*    c;
+	scf_3ac_operand_t* dst;
 
-	int ret;
+	if (ds->dn_indexes) {
 
-	while (SCF_OP_DEREFERENCE == dn_base->type) {
+		scf_dn_index_t* di;
+		int i;
 
-		di = scf_dn_index_alloc();
-		if (!di)
-			return -ENOMEM;
-		di->index = 0;
+		for (i = ds->dn_indexes->size - 1; i >= 1; i--) {
+			di = ds->dn_indexes->data[i];
 
-		ret = scf_vector_add(ds->dn_indexes, di);
-		if (ret < 0) {
-			scf_dn_index_free(di);
-			return -ENOMEM;
+			if (di->member) {
+				assert(di->dn);
+
+				c = _code_alloc_member(ast, dn, di->dn);
+
+			} else {
+				assert(di->index >= 0);
+
+				assert(0 == di->index);
+
+				c = _code_alloc_dereference(ast, dn);
+			}
+
+			scf_list_add_tail(h, &c->list);
+
+			dst = c->dsts->data[0];
+			dn  = dst->dag_node;
 		}
 
-		dn_base  = dn_base->childs->data[0];
+		di = ds->dn_indexes->data[0];
+
+		if (di->member) {
+			assert(di->dn);
+
+			c = _code_alloc_member_address(ast, dn, di->dn);
+
+		} else {
+			assert(di->index >= 0 || -1 == di->index);
+			assert(di->dn_scale);
+
+			scf_loge("\n");
+			scf_dn_status_print(ds);
+			scf_loge("di: %p, di->index: %ld, di->dn: %p, di->dn_scale: %p\n", di, di->index, di->dn, di->dn_scale);
+
+			c = _code_alloc_array_member_address(ast, dn, di->dn, di->dn_scale);
+		}
+
+		scf_list_add_tail(h, &c->list);
+
+		dst = c->dsts->data[0];
+		dn  = dst->dag_node;
+
+	} else {
+		c = _code_alloc_address(ast, dn);
+
+		scf_list_add_tail(h, &c->list);
+
+		dst = c->dsts->data[0];
+		dn  = dst->dag_node;
 	}
 
-	while (SCF_OP_ARRAY_INDEX == dn_base->type
-			|| SCF_OP_POINTER == dn_base->type) {
+	c = _auto_gc_code_freep(ast, dn);
 
-		dn_index = dn_base->childs->data[1];
-
-		ret = scf_dn_status_index(ds, dn_index, dn_base->type);
-		if (ret < 0)
-			return ret;
-
-		dn_base  = dn_base->childs->data[0];
-	}
-	assert(scf_type_is_var(dn_base->type));
-
-	ds->dag_node = dn_base;
+	scf_list_add_tail(h, &c->list);
 	return 0;
 }
 
-static int _ds_for_dn(scf_dn_status_t** pds, scf_dag_node_t* dn)
+static int _auto_gc_code_list_free_array(scf_list_t* h, scf_ast_t* ast, scf_dag_node_t* dn_array)
 {
-	scf_dn_status_t*  ds;
+	scf_3ac_code_t*    c;
 
-	ds = calloc(1, sizeof(scf_dn_status_t));
-	if (!ds)
-		return -ENOMEM;
+	assert(dn_array->var->capacity > 0);
 
-	ds->dn_indexes = scf_vector_alloc();
-	if (!ds->dn_indexes) {
-		free(ds);
-		return -ENOMEM;
-	}
+	c = _auto_gc_code_free_array(ast, dn_array, dn_array->var->capacity);
 
-	int ret = __ds_for_dn(ds, dn);
-	if (ret < 0) {
-		scf_dn_status_free(ds);
-		return ret;
-	}
-
-	if (0 == ds->dn_indexes->size) {
-		scf_vector_free(ds->dn_indexes);
-		ds->dn_indexes = NULL;
-	}
-
-	*pds = ds;
-	return 0;
-}
-
-static int _ds_for_assign_dereference(scf_dn_status_t** pds, scf_dag_node_t* dn)
-{
-	scf_dn_status_t*  ds;
-	scf_dag_node_t*   dn_index;
-	scf_dn_index_t*   di;
-
-	ds = calloc(1, sizeof(scf_dn_status_t));
-	if (!ds)
-		return -ENOMEM;
-
-	ds->dn_indexes = scf_vector_alloc();
-	if (!ds->dn_indexes) {
-		free(ds);
-		return -ENOMEM;
-	}
-
-	di = scf_dn_index_alloc();
-	if (!di) {
-		scf_dn_status_free(ds);
-		return -ENOMEM;
-	}
-	di->index = 0;
-
-	int ret = scf_vector_add(ds->dn_indexes, di);
-	if (ret < 0) {
-		scf_dn_index_free(di);
-		scf_dn_status_free(ds);
-		return ret;
-	}
-
-	ret = __ds_for_dn(ds, dn);
-	if (ret < 0) {
-		scf_dn_status_free(ds);
-		return ret;
-	}
-
-	*pds = ds;
+	scf_list_add_tail(h, &c->list);
 	return 0;
 }
 
@@ -306,11 +516,15 @@ static int _find_ds_malloced(scf_basic_block_t* bb, void* data)
 
 static int _find_dn_active(scf_basic_block_t* bb, void* data)
 {
+	scf_dag_node_t* dn = data;
+
 	if (scf_vector_find(bb->dn_loads, data))
 		return 1;
 
 	if (scf_vector_find(bb->dn_reloads, data))
 		return 1;
+
+	scf_logd("bb: %p, dn: %s, 0\n", bb, dn->var->w->text->data);
 	return 0;
 }
 
@@ -402,7 +616,7 @@ static int _bb_add_active(scf_basic_block_t* bb, scf_dag_node_t* dn)
 	return ret;
 }
 
-static int _bb_add_gc_code(scf_ast_t* ast, scf_basic_block_t* bb, scf_dn_status_t* ds, const char* fname)
+static int _bb_add_gc_code_ref(scf_ast_t* ast, scf_basic_block_t* bb, scf_dn_status_t* ds)
 {
 	scf_3ac_code_t* c;
 	scf_list_t*     l;
@@ -412,7 +626,7 @@ static int _bb_add_gc_code(scf_ast_t* ast, scf_basic_block_t* bb, scf_dn_status_
 	if (scf_vector_add_unique(bb->dn_reloads, ds->dag_node) < 0)
 		return -ENOMEM;
 
-	int ret = _auto_gc_code_list_for_ds(&h, ast, fname, ds);
+	int ret = _auto_gc_code_list_ref(&h, ast, ds);
 	if (ret < 0)
 		return ret;
 
@@ -429,6 +643,96 @@ static int _bb_add_gc_code(scf_ast_t* ast, scf_basic_block_t* bb, scf_dn_status_
 	return 0;
 }
 
+static int _bb_add_gc_code_freep(scf_ast_t* ast, scf_basic_block_t* bb, scf_dn_status_t* ds)
+{
+	scf_3ac_code_t* c;
+	scf_list_t*     l;
+	scf_list_t      h;
+	scf_list_init(&h);
+
+	if (scf_vector_add_unique(bb->dn_reloads, ds->dag_node) < 0)
+		return -ENOMEM;
+
+	int ret = _auto_gc_code_list_freep(&h, ast, ds);
+	if (ret < 0)
+		return ret;
+
+	for (l = scf_list_head(&h); l != scf_list_sentinel(&h); ) {
+
+		c  = scf_list_data(l, scf_3ac_code_t, list);
+		l  = scf_list_next(l);
+
+		scf_list_del(&c->list);
+		scf_list_add_tail(&bb->code_list_head, &c->list);
+
+		c->basic_block = bb;
+	}
+	return 0;
+}
+
+static int _bb_add_gc_code_free_array(scf_ast_t* ast, scf_basic_block_t* bb, scf_dag_node_t* dn_array)
+{
+	scf_3ac_code_t* c;
+	scf_list_t*     l;
+	scf_list_t      h;
+	scf_list_init(&h);
+
+	if (scf_vector_add_unique(bb->dn_reloads, dn_array) < 0)
+		return -ENOMEM;
+
+	int ret = _auto_gc_code_list_free_array(&h, ast, dn_array);
+	if (ret < 0)
+		return ret;
+
+	for (l = scf_list_head(&h); l != scf_list_sentinel(&h); ) {
+
+		c  = scf_list_data(l, scf_3ac_code_t, list);
+		l  = scf_list_next(l);
+
+		scf_list_del(&c->list);
+		scf_list_add_tail(&bb->code_list_head, &c->list);
+
+		c->basic_block = bb;
+	}
+	return 0;
+}
+
+static int _bb_add_free_arry(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t* bb, scf_dag_node_t* dn_array)
+{
+	scf_basic_block_t* bb1     = NULL;
+	scf_dag_node_t*    dn2;
+
+	int ret = scf_basic_block_split(bb, &bb1);
+	if (ret < 0)
+		return ret;
+
+	scf_list_add_front(&bb->list, &bb1->list);
+
+	if (bb->end_flag) {
+
+		scf_basic_block_mov_code(scf_list_head(&bb->code_list_head), bb1, bb);
+
+		bb1->ret_flag  = bb->ret_flag;
+		bb1->end_flag  = 1;
+		bb ->end_flag  = 0;
+		bb ->call_flag = 1;
+
+		bb1 = bb;
+	} else {
+		bb1->call_flag = 1;
+	}
+
+	ret = _bb_add_gc_code_free_array(ast, bb1, dn_array);
+	if (ret < 0)
+		return ret;
+
+	ret = _bb_add_active(bb1, dn_array);
+	if (ret < 0)
+		return ret;
+
+	return scf_basic_block_search_bfs(bb1, _bb_prev_add_active, dn_array);
+}
+
 static int _bb_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t* bb, scf_dn_status_t* ds)
 {
 	scf_basic_block_t* bb1     = NULL;
@@ -443,11 +747,12 @@ static int _bb_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t* bb
 	scf_list_add_front(&bb->list, &bb1->list);
 
 	ds2 = scf_vector_find_cmp(bb->ds_malloced, ds, scf_dn_status_cmp_same_dn_indexes);
+	if (ds2) {
+		assert(0 == scf_vector_del(bb->ds_malloced, ds2));
 
-	assert(0 == scf_vector_del(bb->ds_malloced, ds2));
-
-	if (ds2 != ds)
-		scf_dn_status_free(ds2);
+		if (ds2 != ds)
+			scf_dn_status_free(ds2);
+	}
 	ds2 = NULL;
 
 	int i;
@@ -468,6 +773,7 @@ static int _bb_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t* bb
 
 		scf_basic_block_mov_code(scf_list_head(&bb->code_list_head), bb1, bb);
 
+		bb1->ret_flag  = bb->ret_flag;
 		bb1->end_flag  = 1;
 		bb ->end_flag  = 0;
 		bb ->call_flag = 1;
@@ -483,7 +789,7 @@ static int _bb_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t* bb
 
 	bb1->auto_free_flag = 1;
 
-	ret = _bb_add_gc_code(ast, bb1, ds, "scf_free");
+	ret = _bb_add_gc_code_freep(ast, bb1, ds);
 	if (ret < 0)
 		return ret;
 
@@ -494,12 +800,13 @@ static int _bb_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t* bb
 	return scf_basic_block_search_bfs(bb1, _bb_prev_add_active, dn);
 }
 
-static int _bb_split_prev_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t* bb, scf_list_t* bb_list_head, scf_dn_status_t* ds, scf_vector_t* bb_split_prevs)
+static int _bb_split_prev_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t* bb, scf_dn_status_t* ds, scf_vector_t* bb_split_prevs)
 {
 	scf_basic_block_t* bb1;
 	scf_basic_block_t* bb2;
 	scf_basic_block_t* bb3;
-	scf_dag_node_t*    dn   = ds->dag_node;
+	scf_dag_node_t*    dn           = ds->dag_node;
+	scf_list_t*        bb_list_head = &f->basic_block_list_head;
 
 	bb1 = scf_basic_block_alloc();
 	if (!bb1) {
@@ -597,13 +904,15 @@ static int _bb_split_prev_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_
 			bb3 = scf_list_data(l, scf_basic_block_t, list);
 
 			if (!bb3->jmp_flag)
-				continue;
+				break;
 
 			for (l2 = scf_list_head(&bb3->code_list_head); l2 != scf_list_sentinel(&bb3->code_list_head);
 				 l2 = scf_list_next(l2)) {
 
 				c   = scf_list_data(l2, scf_3ac_code_t, list);
 				dst = c->dsts->data[0];
+
+				scf_loge("bb2: %p, bb3: %p, bb1: %p\n", bb2, bb3, bb1);
 
 				if (dst->bb == bb)
 					dst->bb = bb1;
@@ -631,7 +940,7 @@ static int _bb_split_prev_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_
 		}
 	}
 
-	int ret = _bb_add_gc_code(ast, bb1, ds, "scf_free");
+	int ret = _bb_add_gc_code_freep(ast, bb1, ds);
 	if (ret < 0)
 		return ret;
 
@@ -650,7 +959,7 @@ static int _bb_split_prevs(scf_basic_block_t* bb, scf_dn_status_t* ds, scf_vecto
 	for (i = 0; i < bb->prevs->size; i++) {
 		bb_prev   = bb->prevs->data[i];
 
-		if (!scf_vector_find_cmp(bb_prev->ds_malloced, ds, scf_dn_status_cmp_same_dn_indexes))
+		if (!scf_vector_find_cmp(bb_prev->ds_malloced, ds, scf_dn_status_cmp_like_dn_indexes))
 			continue;
 
 		if (scf_vector_find_cmp(bb_prev->ds_freed, ds, scf_dn_status_cmp_same_dn_indexes))
@@ -663,15 +972,21 @@ static int _bb_split_prevs(scf_basic_block_t* bb, scf_dn_status_t* ds, scf_vecto
 	return 0;
 }
 
-static int _auto_gc_last_free(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head)
+static int _auto_gc_last_free(scf_ast_t* ast, scf_function_t* f)
 {
+	scf_list_t*        bb_list_head = &f->basic_block_list_head;
 	scf_list_t*        l;
 	scf_basic_block_t* bb;
+	scf_vector_t*      local_arrays;
 
 	l  = scf_list_tail(bb_list_head);
 	bb = scf_list_data(l, scf_basic_block_t, list);
 
 	scf_logd("bb: %p, bb->ds_malloced->size: %d\n", bb, bb->ds_malloced->size);
+
+	local_arrays = scf_vector_alloc();
+	if (!local_arrays)
+		return -ENOMEM;
 
 	int i;
 	for (i = 0; i < bb->ds_malloced->size; ) {
@@ -682,10 +997,45 @@ static int _auto_gc_last_free(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_
 
 		scf_loge("f: %s, last free: v_%d_%d/%s, ds->ret: %u\n",
 				f->node.w->text->data, v->w->line, v->w->pos, v->w->text->data, ds->ret);
+		scf_dn_status_print(ds);
 
 		if (ds->ret) {
 			i++;
 			continue;
+		}
+
+		if (ds->dn_indexes) {
+
+			scf_dn_index_t*  di;
+
+			int var_index = 0;
+			int j;
+
+			for (j = ds->dn_indexes->size - 1; j >= 0; j--) {
+				di = ds->dn_indexes->data[j];
+
+				if (di->member) {
+					assert(di->member->member_flag && v->type >= SCF_STRUCT);
+					break;
+				}
+
+				if (-1 == di->index)
+					var_index++;
+			}
+
+			if (var_index > 0 && v->nb_dimentions > 0 && v->local_flag) {
+
+				if (scf_vector_add_unique(local_arrays, dn) < 0)
+					return -ENOMEM;
+
+				i++;
+				continue;
+			}
+
+			if (j >= 0) {
+				i++;
+				continue;
+			}
 		}
 
 		scf_vector_t* vec;
@@ -730,7 +1080,7 @@ static int _auto_gc_last_free(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_
 		for (j = 0; j    < bb->dominators->size; j++) {
 			bb_dominator = bb->dominators->data[j];
 
-			if (bb_dominator->depth_first_order >= dfo)
+			if (bb_dominator->depth_first_order > dfo)
 				break;
 		}
 
@@ -748,8 +1098,14 @@ static int _auto_gc_last_free(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_
 
 				ret = _bb_add_free(ast, f, bb_dominator, ds);
 				i++;
-			} else
+			} else {
+				int size = bb->ds_malloced->size;
+
 				ret = _bb_add_free(ast, f, bb, ds);
+
+				if (size == bb->ds_malloced->size)
+					i++;
+			}
 
 			scf_vector_free(vec);
 			vec = NULL;
@@ -758,11 +1114,22 @@ static int _auto_gc_last_free(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_
 				return ret;
 
 		} else {
-			ret = _bb_split_prev_add_free(ast, f, bb_dominator, bb_list_head, ds, vec);
+			ret = _bb_split_prev_add_free(ast, f, bb_dominator, ds, vec);
 			if (ret < 0)
 				return ret;
 			i++;
 		}
+	}
+
+	scf_dag_node_t*    dn;
+	scf_variable_t*    v;
+
+	for (i = 0; i < local_arrays->size; i++) {
+		dn =        local_arrays->data[i];
+
+		int ret = _bb_add_free_arry(ast, f, bb, dn);
+		if (ret < 0)
+			return ret;
 	}
 
 	return 0;
@@ -800,7 +1167,7 @@ static int _optimize_auto_gc_bb_ref(scf_ast_t* ast, scf_function_t* f, scf_basic
 	if (!bb1->ds_auto_gc)
 		return -ENOMEM;
 
-	int ret = _bb_add_gc_code(ast, bb1, ds, "scf_ref");
+	int ret = _bb_add_gc_code_ref(ast, bb1, ds);
 	if (ret < 0)
 		return ret;
 
@@ -820,12 +1187,13 @@ static int _optimize_auto_gc_bb_ref(scf_ast_t* ast, scf_function_t* f, scf_basic
 	return 0;
 }
 
-static int _optimize_auto_gc_bb_free(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t** pbb, scf_list_t* bb_list_head, scf_dn_status_t* ds)
+static int _optimize_auto_gc_bb_free(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t** pbb, scf_dn_status_t* ds)
 {
 	scf_basic_block_t* cur_bb = *pbb;
 	scf_basic_block_t* bb1    = NULL;
 	scf_basic_block_t* bb2    = NULL;
-	scf_dag_node_t*    dn     = ds->dag_node;
+	scf_dag_node_t*    dn           = ds->dag_node;
+	scf_list_t*        bb_list_head = &f->basic_block_list_head;
 
 	AUTO_GC_BB_SPLIT(cur_bb, bb1);
 	AUTO_GC_BB_SPLIT(bb1,    bb2);
@@ -838,7 +1206,7 @@ static int _optimize_auto_gc_bb_free(scf_ast_t* ast, scf_function_t* f, scf_basi
 	bb1->dereference_flag = 0;
 	bb1->auto_free_flag   = 1;
 
-	int ret = _bb_add_gc_code(ast, bb1, ds, "scf_free");
+	int ret = _bb_add_gc_code_freep(ast, bb1, ds);
 	if (ret < 0)
 		return ret;
 
@@ -871,7 +1239,7 @@ static int _bb_prevs_malloced(scf_basic_block_t* bb, scf_vector_t* ds_malloced)
 			if (scf_vector_find_cmp(bb_prev->ds_freed, ds, scf_dn_status_cmp_same_dn_indexes))
 				continue;
 
-			if (scf_vector_find_cmp(ds_malloced, ds, scf_dn_status_cmp_same_dn_indexes))
+			if (scf_vector_find_cmp(ds_malloced, ds, scf_dn_status_cmp_like_dn_indexes))
 				continue;
 
 			scf_dn_status_t* ds2 = scf_dn_status_clone(ds);
@@ -888,18 +1256,188 @@ static int _bb_prevs_malloced(scf_basic_block_t* bb, scf_vector_t* ds_malloced)
 	return 0;
 }
 
+static int _bb_split_prevs_need_free(scf_dn_status_t* ds_obj, scf_vector_t* ds_malloced, scf_vector_t* bb_split_prevs,
+		scf_3ac_code_t* c, scf_basic_block_t* bb, scf_list_t* bb_list_head)
+{
+	scf_dn_status_t* ds_obj2;
+	scf_dn_status_t* ds_alias;
+	scf_dn_index_t*  di;
+	scf_vector_t*    aliases;
+
+	int ret;
+	int i;
+
+	aliases = scf_vector_alloc();
+	if (!aliases)
+		return -ENOMEM;
+
+	ds_obj2 = scf_dn_status_clone(ds_obj);
+	if (!ds_obj2) {
+		scf_vector_free(aliases);
+		return -ENOMEM;
+	}
+
+	while (1) {
+		scf_vector_t*    aliases2;
+		scf_dn_status_t* ds_alias2;
+
+		scf_3ac_code_t*  c2 = scf_list_data(scf_list_prev(&c->list), scf_3ac_code_t, list);
+
+		aliases2 = scf_vector_alloc();
+		if (!aliases2)
+			return -ENOMEM;
+
+		ret = scf_pointer_alias_ds(aliases2, ds_obj2, c2, bb, bb_list_head);
+		if (ret < 0) {
+			scf_vector_free(aliases2);
+
+			if (SCF_POINTER_NOT_INIT == ret)
+				break;
+			return ret;
+		}
+
+		int j;
+		for (j = 0; j < aliases2->size; j++) {
+			ds_alias2 = aliases2->data[j];
+
+			SCF_XCHG(ds_alias2->dn_indexes, ds_alias2->alias_indexes);
+			SCF_XCHG(ds_alias2->dag_node,   ds_alias2->alias);
+
+			if (scf_vector_add(aliases, ds_alias2) < 0) {
+				scf_vector_free (aliases2);
+				return ret;
+			}
+		}
+
+		scf_vector_free (aliases2);
+		aliases2 = NULL;
+
+		if (ds_obj2->dn_indexes) {
+
+			assert(ds_obj2->dn_indexes->size > 0);
+
+			di = ds_obj2->dn_indexes->data[0];
+
+			for (j = 1; j < ds_obj2->dn_indexes->size; j++)
+				ds_obj2->dn_indexes->data[j - 1] = ds_obj2->dn_indexes->data[j];
+
+			scf_dn_index_free(di);
+			di = NULL;
+
+			ds_obj2->dn_indexes->size--;
+
+			if (0 == ds_obj2->dn_indexes->size) {
+				scf_vector_free(ds_obj2->dn_indexes);
+				ds_obj2->dn_indexes = NULL;
+			}
+		} else
+			break;
+	}
+
+#if 0
+	printf("\n");
+	int k;
+	for (k = 0; k < ds_malloced->size; k++) {
+		ds_alias  = ds_malloced->data[k];
+
+		scf_loge("\n");
+		scf_dn_status_print(ds_alias);
+	}
+	printf("\n");
+#endif
+	int need = 0;
+	for (i = 0; i < aliases->size; i++) {
+		ds_alias  = aliases->data[i];
+
+		if (!ds_alias->dag_node)
+			continue;
+
+		if (ds_obj->dn_indexes) {
+
+			if (!ds_alias->dn_indexes) {
+				ds_alias ->dn_indexes = scf_vector_alloc();
+
+				if (!ds_alias->dn_indexes) {
+					ret = -ENOMEM;
+					goto error;
+				}
+			}
+
+			int k0 = scf_variable_nb_pointers(ds_alias->dag_node->var) - ds_alias->dn_indexes->size;
+			int k1 = scf_variable_nb_pointers(ds_obj  ->dag_node->var) - ds_obj  ->dn_indexes->size;
+			int k  = k0 - k1;
+
+			assert(k0 >= 0);
+			assert(k1 >= 0);
+
+			scf_loge("k: %d\n", k);
+
+			int j;
+			for (j = 0; j < k; j++) {
+				di = ds_obj->dn_indexes->data[j];
+
+				if (scf_vector_add(ds_alias->dn_indexes, di) < 0) {
+					ret = -ENOMEM;
+					goto error;
+				}
+				di->refs++;
+			}
+
+			for (j = ds_alias->dn_indexes->size - 1 - k; j >= 0; j--)
+				ds_alias->dn_indexes->data[j + k] = ds_alias->dn_indexes->data[j];
+
+			for (j = 0; j < k; j++)
+				ds_alias->dn_indexes->data[j] = ds_obj->dn_indexes->data[j];
+		}
+
+#define SPLIT_PREVS_NEED_FREE(malloced, obj, split_prevs) \
+		do { \
+			scf_dn_status_t* ds; \
+			\
+			if (scf_vector_find_cmp(malloced, obj, scf_dn_status_cmp_like_dn_indexes)) { \
+				\
+				if (_bb_split_prevs(bb, obj, split_prevs) < 0) { \
+					ret = -ENOMEM; \
+					goto error; \
+				} \
+				\
+				ds = scf_vector_find_cmp(malloced, obj, scf_dn_status_cmp_same_dn_indexes); \
+				if (ds) {\
+				    assert(0 == scf_vector_del(malloced, ds)); \
+				    scf_dn_status_free(ds); \
+				} \
+				need = 1; \
+			} \
+		} while (0)
+
+		SPLIT_PREVS_NEED_FREE(ds_malloced, ds_alias, bb_split_prevs);
+	}
+
+	SPLIT_PREVS_NEED_FREE(ds_malloced, ds_obj, bb_split_prevs);
+	ret = need;
+
+error:
+//	scf_vector_clear(aliases, ( void (*)(void*) ) scf_dn_status_free);
+	scf_vector_free (aliases);
+	return ret;
+}
 
 static int _optimize_auto_gc_bb(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t* bb, scf_list_t* bb_list_head)
 {
 	scf_list_t*     l;
 	scf_3ac_code_t* c;
 	scf_vector_t*   ds_malloced;
+	scf_vector_t*   ds_assigned;
 
 	scf_basic_block_t* bb_prev = NULL;
 	scf_basic_block_t* cur_bb  = bb;
 
 	ds_malloced = scf_vector_alloc();
 	if (!ds_malloced)
+		return -ENOMEM;
+
+	ds_assigned = scf_vector_alloc();
+	if (!ds_assigned)
 		return -ENOMEM;
 
 	// at first, the malloced vars, are ones malloced in previous blocks
@@ -918,6 +1456,11 @@ static int _optimize_auto_gc_bb(scf_ast_t* ast, scf_function_t* f, scf_basic_blo
 		c  = scf_list_data(l, scf_3ac_code_t, list);
 		l  = scf_list_next(l);
 
+		scf_3ac_operand_t* base;
+		scf_3ac_operand_t* member;
+		scf_3ac_operand_t* index;
+		scf_3ac_operand_t* scale;
+
 		scf_3ac_operand_t* dst;
 		scf_3ac_operand_t* src;
 		scf_dag_node_t*    dn;
@@ -929,15 +1472,62 @@ static int _optimize_auto_gc_bb(scf_ast_t* ast, scf_function_t* f, scf_basic_blo
 			dst = c->dsts->data[0];
 			v0  = dst->dag_node->var;
 
-			if (!scf_variable_is_struct_pointer(v0))
+			if (!scf_variable_may_malloced(v0))
 				goto _end;
 
-			ds_obj = scf_dn_status_alloc(dst->dag_node);
+			ds_obj = NULL;
+
+			ret = scf_ds_for_dn(&ds_obj, dst->dag_node);
 			if (!ds_obj)
 				return -ENOMEM;
 
 			src = c->srcs->data[0];
 			dn  = src->dag_node;
+
+		} else if (SCF_OP_3AC_ASSIGN_ARRAY_INDEX == c->op->type) {
+
+			assert(4 == c->srcs->size);
+
+			base  = c->srcs->data[0];
+			index = c->srcs->data[1];
+			scale = c->srcs->data[2];
+			src   = c->srcs->data[3];
+			dn    = src->dag_node;
+			v0    = _scf_operand_get(base->node->parent);
+
+			if (!scf_variable_may_malloced(v0))
+				continue;
+
+			ds_obj = NULL;
+
+			int ret = scf_ds_for_assign_array_member(&ds_obj, base->dag_node, index->dag_node, scale->dag_node);
+			if (ret < 0)
+				return ret;
+
+			if (ds_obj->dag_node->var->arg_flag)
+				ds_obj->ret = 1;
+
+		} else if (SCF_OP_3AC_ASSIGN_POINTER == c->op->type) {
+
+			assert(3 == c->srcs->size);
+
+			base   = c->srcs->data[0];
+			member = c->srcs->data[1];
+			src    = c->srcs->data[2];
+			dn     = src->dag_node;
+			v0     = member->dag_node->var;
+
+			if (!scf_variable_may_malloced(v0))
+				continue;
+
+			ds_obj = NULL;
+
+			int ret = scf_ds_for_assign_member(&ds_obj, base->dag_node, member->dag_node);
+			if (ret < 0)
+				return ret;
+
+			if (ds_obj->dag_node->var->arg_flag)
+				ds_obj->ret = 1;
 
 		} else if (SCF_OP_3AC_ASSIGN_DEREFERENCE == c->op->type) {
 
@@ -947,74 +1537,55 @@ static int _optimize_auto_gc_bb(scf_ast_t* ast, scf_function_t* f, scf_basic_blo
 			dn  = src->dag_node;
 			v0  = dn->var;
 
-			if (!scf_variable_is_struct_pointer(v0))
+			if (!scf_variable_may_malloced(v0))
 				goto _end;
 
 			src     = c->srcs->data[0];
 			ds_obj  = NULL;
 
-			int ret = _ds_for_assign_dereference(&ds_obj, src->dag_node);
+			int ret = scf_ds_for_assign_dereference(&ds_obj, src->dag_node);
 			if (ret < 0)
 				return ret;
-#if 0
-		} else if (SCF_OP_RETURN == c->op->type) {
 
-			src = c->srcs->data[0];
-			dn  = src->dag_node;
-			v0  = dn->var;
-
-			if (!scf_variable_is_struct_pointer(v0))
-				goto _end;
-
-			ds_obj = scf_dn_status_alloc(src->dag_node);
-			if (!ds_obj)
-				return -ENOMEM;
-
-			goto _ref;
-#endif
 		} else
 			goto _end;
 
-		if (scf_vector_find_cmp(ds_malloced, ds_obj, scf_dn_status_cmp_same_dn_indexes)) {
+		scf_vector_t* bb_split_prevs;
 
-			scf_vector_t* bb_split_prevs;
+		bb_split_prevs = scf_vector_alloc();
+		if (!bb_split_prevs)
+			return -ENOMEM;
 
-			bb_split_prevs = scf_vector_alloc();
-			if (!bb_split_prevs)
-				return -ENOMEM;
+		ret = _bb_split_prevs_need_free(ds_obj, ds_malloced, bb_split_prevs, c, bb, bb_list_head);
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
 
-			int ret = _bb_split_prevs(bb, ds_obj, bb_split_prevs);
-			if (ret < 0) {
+		if (ret) {
+
+			if (!scf_vector_find_cmp(ds_assigned, ds_obj, scf_dn_status_cmp_like_dn_indexes)
+					&& bb_split_prevs->size > 0
+					&& bb_split_prevs->size < bb->prevs->size)
+
+				ret = _bb_split_prev_add_free(ast, f, bb, ds_obj, bb_split_prevs);
+			else {
 				scf_vector_free(bb_split_prevs);
 				bb_split_prevs = NULL;
+
+				ret = _optimize_auto_gc_bb_free(ast, f, &cur_bb, ds_obj);
+			}
+
+			if (ret < 0)
 				return ret;
-			}
+		} else {
+			scf_vector_free(bb_split_prevs);
+			bb_split_prevs = NULL;
+		}
 
-			if (bb_split_prevs->size > 0 && bb_split_prevs->size < bb->prevs->size) {
-
-				scf_logw("auto gc error: bb: %p, not all v_%d_%d/%s in previous blocks malloced automaticly\n",
-						bb, v0->w->line, v0->w->pos, v0->w->text->data);
-
-				int ret = _bb_split_prev_add_free(ast, f, bb, bb_list_head, ds_obj, bb_split_prevs);
-				if (ret < 0)
-					return ret;
-
-			} else {
-				scf_vector_free(bb_split_prevs);
-				bb_split_prevs = NULL;
-
-				int ret = _optimize_auto_gc_bb_free(ast, f, &cur_bb, bb_list_head, ds_obj);
-				if (ret < 0)
-					return ret;
-
-				scf_dn_status_t* ds = scf_vector_find_cmp(ds_malloced, ds_obj, scf_dn_status_cmp_same_dn_indexes);
-
-				assert(ds);
-				assert(0 == scf_vector_del(ds_malloced, ds));
-
-				scf_dn_status_free(ds);
-				ds = NULL;
-			}
+		if (scf_vector_add(ds_assigned, ds_obj) < 0) {
+			scf_dn_status_free(ds_obj);
+			return -ENOMEM;
 		}
 
 _ref:
@@ -1031,11 +1602,12 @@ _ref:
 				break;
 		}
 
-		if (SCF_OP_CALL == dn->type) {
+		if (SCF_OP_CALL == dn->type || dn->node->split_flag) {
 
-			scf_3ac_code_print(c, NULL);
-
-			scf_loge("dn: %p, dn->childs: %p, dn->node: %p, %s\n", dn, dn->childs, dn->node, dn->var->w->text->data);
+			if (dn->node->split_flag) {
+				assert(SCF_OP_CALL   == dn->node->split_parent->type
+					|| SCF_OP_CREATE == dn->node->split_parent->type);
+			}
 
 			scf_dag_node_t* dn_pf;
 			scf_function_t* f2;
@@ -1052,14 +1624,7 @@ _ref:
 					ret->auto_gc_flag = 1;
 				}
 
-#if 0
-				else if (SCF_OP_3AC_ASSIGN_DEREFERENCE == c->op->type) {
-
-					if (f->argv && scf_vector_find(f->argv, ds_obj->dag_node->var))
-						ds_obj->dag_node->var->auto_gc_flag = 1;
-				}
-#endif
-				if (!scf_vector_find_cmp(ds_malloced, ds_obj, scf_dn_status_cmp_same_dn_indexes)) {
+				if (!scf_vector_find_cmp(ds_malloced, ds_obj, scf_dn_status_cmp_like_dn_indexes)) {
 
 					assert(0 == scf_vector_add(ds_malloced, ds_obj));
 				} else {
@@ -1078,7 +1643,7 @@ _ref:
 			if (!ds)
 				return -ENOMEM;
 
-			if (scf_vector_find_cmp(ds_malloced, ds, scf_dn_status_cmp_same_dn_indexes)) {
+			if (scf_vector_find_cmp(ds_malloced, ds, scf_dn_status_cmp_like_dn_indexes)) {
 
 				scf_basic_block_t* bb2 = NULL;
 
@@ -1086,13 +1651,6 @@ _ref:
 					scf_variable_t* ret = f->rets->data[0];
 					ret->auto_gc_flag = 1;
 				}
-#if 0
-				else if (SCF_OP_3AC_ASSIGN_DEREFERENCE == c->op->type) {
-
-					if (f->argv && scf_vector_find(f->argv, ds_obj->dag_node->var))
-						ds_obj->dag_node->var->auto_gc_flag = 1;
-				}
-#endif
 
 				if (cur_bb != bb) {
 					scf_list_del(&c->list);
@@ -1103,7 +1661,7 @@ _ref:
 				if (ret < 0)
 					return ret;
 
-				if (!scf_vector_find_cmp(ds_malloced, ds_obj, scf_dn_status_cmp_same_dn_indexes)) {
+				if (!scf_vector_find_cmp(ds_malloced, ds_obj, scf_dn_status_cmp_like_dn_indexes)) {
 
 					assert(0 == scf_vector_add(ds_malloced, ds_obj));
 				} else {
@@ -1149,7 +1707,7 @@ static int _optimize_auto_gc(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_l
 
 	int ret;
 
-	ret = _auto_gc_last_free(ast, f, bb_list_head);
+	ret = _auto_gc_last_free(ast, f);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -1165,7 +1723,6 @@ static int _optimize_auto_gc(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_l
 
 		bb = scf_list_data(l, scf_basic_block_t, list);
 
-
 		for (l  = scf_list_next(l); l != scf_list_sentinel(bb_list_head); l = scf_list_next(l)) {
 
 			bb2 = scf_list_data(l, scf_basic_block_t, list);
@@ -1173,7 +1730,6 @@ static int _optimize_auto_gc(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_l
 			if (!bb2->auto_ref_flag && !bb2->auto_free_flag)
 				break;
 		}
-
 
 		ret = _optimize_auto_gc_bb(ast, f, bb, bb_list_head);
 		if (ret < 0) {

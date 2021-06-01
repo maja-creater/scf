@@ -283,12 +283,12 @@ int	scf_parse_open(scf_parse_t** pparse, const char* path)
 
 	scf_ast_add_file_block(parse->ast, path);
 
-#if 1
 	if (_add_global_function(parse->ast, "scf_ref") < 0) {
 		scf_loge("\n");
 		return -1;
 	}
 
+#if 0
 	if (_add_global_function(parse->ast, "scf_free") < 0) {
 		scf_loge("\n");
 		return -1;

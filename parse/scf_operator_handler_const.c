@@ -537,8 +537,13 @@ static int _scf_op_const_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 	scf_node_t*     parent = nodes[0]->parent;
 
 	if (scf_variable_const(src)) {
-#if 1
-		scf_type_cast_t* cast = scf_find_base_type_cast(src->type, dst->type);
+
+		int dst_type = dst->type;
+
+		if (dst->nb_pointers + dst->nb_dimentions > 0)
+			dst_type = SCF_VAR_UINTPTR;
+
+		scf_type_cast_t* cast = scf_find_base_type_cast(src->type, dst_type);
 		if (cast) {
 			scf_variable_t* r = NULL;
 
@@ -556,7 +561,6 @@ static int _scf_op_const_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 			parent->type = r->type;
 			parent->var  = r;
 		}
-#endif
 	}
 
 	return 0;

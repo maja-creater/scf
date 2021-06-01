@@ -712,13 +712,10 @@ static int _bb_init_array_index(scf_3ac_code_t* c, scf_basic_block_t* bb, scf_li
 	ds->dag_node = dn_base;
 	ds->inited   = 1;
 
-	if (scf_variable_nb_pointers(dn_src->var) > 0) {
-
-		ret = _bb_init_pointer_aliases(ds, dn_src, c, bb, bb_list_head);
-		scf_dn_status_free(ds);
-		return ret;
-	}
-
+	ret = _bb_init_pointer_aliases(ds, dn_src, c, bb, bb_list_head);
+	scf_dn_status_free(ds);
+	return ret;
+#if 0
 	scf_dn_status_vector_clear_by_ds(c ->dn_status_initeds, ds);
 	scf_dn_status_vector_clear_by_ds(bb->dn_status_initeds, ds);
 
@@ -738,6 +735,7 @@ static int _bb_init_array_index(scf_3ac_code_t* c, scf_basic_block_t* bb, scf_li
 		return ret;
 	}
 	return 0;
+#endif
 }
 
 int scf_basic_block_inited_vars(scf_basic_block_t* bb, scf_list_t* bb_list_head)

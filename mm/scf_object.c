@@ -16,14 +16,15 @@ void* scf_malloc(int size)
 	return obj->data;
 }
 
-void scf_free(void* data, void (*release)(void* objdata))
+void scf_freep(void** pp, void (*release)(void* objdata))
 {
-	if (!data)
+	if (!pp || !*pp)
 		return;
 
-	scf_object_t* obj = (scf_object_t*)((uint8_t*)data - sizeof(scf_object_t));
+	void*         data = *pp;
+	scf_object_t* obj  = (scf_object_t*)((uint8_t*)data - sizeof(scf_object_t));
 
-	scf_loge("obj: %p\n", obj);
+	scf_loge("obj: %p, pp: %p, data: %p\n", obj, pp, data);
 
 	if (scf_atomic_dec_and_test(&obj->refs)) {
 
@@ -31,6 +32,40 @@ void scf_free(void* data, void (*release)(void* objdata))
 			release(obj->data);
 
 		__sys_free(obj);
+	}
+
+	*pp = NULL;
+}
+
+void scf_free_array(void** pp, int size, void (*release)(void* objdata))
+{
+	if (!pp)
+		return;
+
+	scf_object_t* obj;
+	void*         data;
+
+	int i;
+	for (i = 0; i < size; i++) {
+
+		data = pp[i];
+
+		if (!data)
+			continue;
+
+		obj  = (scf_object_t*)((uint8_t*)data - sizeof(scf_object_t));
+
+		scf_loge("obj: %p, pp: %p, data: %p, i: %d\n", obj, pp, data, i);
+
+		if (scf_atomic_dec_and_test(&obj->refs)) {
+
+			if (release)
+				release(obj->data);
+
+			__sys_free(obj);
+		}
+
+		pp[i] = NULL;
 	}
 }
 

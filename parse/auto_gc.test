@@ -1,0 +1,31 @@
+
+uint8* scf_malloc(int size);
+int    scf_freep(uint8** pp);
+int    scf_free_array(uint8** pp, int size);
+
+class Point
+{
+	uint8* data;
+
+	int __init__(Point* this, int size)
+	{
+		this->data = scf_malloc(size);
+
+		return 0;
+	}
+
+};
+
+int main(int i)
+{
+	Point* pp[2] = {NULL, NULL};
+	int     err;
+
+	i = 1;
+
+	pp[i], err = create Point(8);
+
+	pp[i] = NULL;
+
+	return 0;
+}

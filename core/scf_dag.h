@@ -49,6 +49,10 @@ struct scf_dag_node_s {
 struct scf_dn_index_s {
 	scf_variable_t*     member;
 	intptr_t            index;
+
+	scf_dag_node_t*     dn;
+	scf_dag_node_t*     dn_scale;
+
 	int                 refs;
 };
 
@@ -119,6 +123,11 @@ int               scf_dn_status_cmp_like_dn_indexes(const void* p0, const void* 
 int               scf_dn_status_index(scf_dn_status_t* ds, scf_dag_node_t* dn_index, int type);
 
 int               scf_dn_status_alias_index(scf_dn_status_t* ds, scf_dag_node_t* dn_index, int type);
+
+int               scf_ds_for_dn                (scf_dn_status_t** pds, scf_dag_node_t* dn);
+int               scf_ds_for_assign_member     (scf_dn_status_t** pds, scf_dag_node_t* dn_base, scf_dag_node_t* dn_member);
+int               scf_ds_for_assign_dereference(scf_dn_status_t** pds, scf_dag_node_t* dn);
+int               scf_ds_for_assign_array_member(scf_dn_status_t** pds, scf_dag_node_t* dn_base, scf_dag_node_t* dn_index, scf_dag_node_t* dn_scale);
 
 void              scf_dn_status_vector_clear_by_ds(scf_vector_t* vec, scf_dn_status_t* ds);
 void              scf_dn_status_vector_clear_by_dn(scf_vector_t* vec, scf_dag_node_t*  dn);

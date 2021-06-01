@@ -324,7 +324,8 @@ static int _optimize_basic_block(scf_ast_t* ast, scf_function_t* f, scf_list_t* 
 
 		if (bb->jmp_flag || bb->ret_flag || bb->end_flag || bb->call_flag
 				|| bb->dereference_flag) {
-			scf_logd("jmp bb: %p\n\n", bb);
+			if (bb->ret_flag)
+				scf_logw("jmp bb: %p\n\n", bb);
 			continue;
 		}
 

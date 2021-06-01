@@ -1360,12 +1360,13 @@ static int _scf_op_semantic_call(scf_ast_t* ast, scf_node_t** nodes, int nb_node
 		t    = scf_ast_find_type_type(ast, fret->type);
 		r    = SCF_VAR_ALLOC_BY_TYPE(parent->w, t, fret->const_flag, fret->nb_pointers, fret->func_ptr);
 
-		node = scf_node_alloc(r->w, r->type, r);
+		node = scf_node_alloc(r->w, parent->type, NULL);
 		if (!node) {
 			scf_loge("\n");
 			return -ENOMEM;
 		}
 
+		node->result       = r;
 		node->op           = parent->op;
 		node->split_parent = parent;
 		node->split_flag   = 1;

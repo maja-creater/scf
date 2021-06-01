@@ -138,5 +138,19 @@ static inline int scf_variable_is_array(scf_variable_t* v)
 	return v->nb_dimentions > 0;
 }
 
+static inline int scf_variable_may_malloced(scf_variable_t* v)
+{
+	if (v->nb_dimentions > 0)
+		return 0;
+
+	if (SCF_FUNCTION_PTR == v->type) {
+		if (v->nb_pointers > 1)
+			return 1;
+		return 0;
+	}
+
+	return v->nb_pointers > 0;
+}
+
 #endif
 

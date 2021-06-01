@@ -321,7 +321,7 @@ static int _optimize_dominators(scf_ast_t* ast, scf_function_t* f, scf_list_t* b
 	for (i = 0; i < f->dfs_tree->size; i++) {
 		scf_bb_edge_t* edge = f->dfs_tree->data[i];
 
-		scf_logw("bb_%p_%d --> bb_%p_%d\n",
+		scf_logd("bb_%p_%d --> bb_%p_%d\n",
 				edge->start, edge->start->depth_first_order,
 				edge->end,   edge->end->depth_first_order);
 	}

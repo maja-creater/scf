@@ -143,16 +143,16 @@ scf_label_t* scf_scope_find_label(scf_scope_t* scope, const char* name)
 
 scf_function_t*	scf_scope_find_function(scf_scope_t* scope, const char* name)
 {
-	scf_list_t* l;
+	scf_function_t* f;
+	scf_list_t*     l;
 
 	for (l = scf_list_head(&scope->function_list_head);
 			l != scf_list_sentinel(&scope->function_list_head); l = scf_list_next(l)) {
 
-		scf_function_t* f = scf_list_data(l, scf_function_t, list);
-		printf("%s(),%d, scope: %p, name: %s, f: %s\n", __func__, __LINE__, scope, name, f->node.w->text->data);
-		if (!strcmp(name, f->node.w->text->data)) {
+		f = scf_list_data(l, scf_function_t, list);
+
+		if (!strcmp(name, f->node.w->text->data))
 			return f;
-		}
 	}
 	return NULL;
 }

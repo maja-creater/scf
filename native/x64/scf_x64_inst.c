@@ -771,25 +771,32 @@ static int _x64_inst_assign_array_index(scf_native_t* ctx, scf_3ac_code_t* c, in
 	} else {
 		int is_float = scf_variable_float(vs);
 		if (is_float) {
+
 			OpCode_type = x64_float_OpCode_type(OpCode_type, vs->type);
-			OpCode      = x64_find_OpCode(OpCode_type, size, size, SCF_X64_G2E);
 
 			if (0 == src->dag_node->color) {
 				src->dag_node->color = -1;
 				vs->global_flag      =  1;
 			}
 		} else if (0 == src->dag_node->color) {
+
 			OpCode = x64_find_OpCode(OpCode_type, size, size, SCF_X64_I2E);
 
-			if (sib.index)
-				inst = x64_make_inst_I2SIB(OpCode, sib.base, sib.index, sib.scale, sib.disp, (uint8_t*)&vs->data, size);
-			else
-				inst = x64_make_inst_I2P(OpCode, sib.base, sib.disp, (uint8_t*)&vs->data, size);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-			return 0;
-		} else {
-			OpCode = x64_find_OpCode(OpCode_type, size, size, SCF_X64_G2E);
+			if (OpCode) {
+				if (sib.index)
+					inst = x64_make_inst_I2SIB(OpCode, sib.base, sib.index, sib.scale, sib.disp, (uint8_t*)&vs->data, size);
+				else
+					inst = x64_make_inst_I2P(OpCode, sib.base, sib.disp, (uint8_t*)&vs->data, size);
+
+				X64_INST_ADD_CHECK(c->instructions, inst);
+				return 0;
+			}
+
+			if (0 == src->dag_node->color)
+				src->dag_node->color = -1;
 		}
+
+		OpCode = x64_find_OpCode(OpCode_type, size, size, SCF_X64_G2E);
 	}
 
 	if (!OpCode) {

@@ -757,12 +757,15 @@ static int _dn_status_index(scf_vector_t* indexes, scf_dag_node_t* dn_index, int
 	if (SCF_OP_ARRAY_INDEX == type) {
 
 		if (scf_variable_const(dn_index->var))
+
 			di->index = dn_index->var->data.i;
 		else
 			di->index = -1;
+		di->dn = dn_index;
 
 	} else if (SCF_OP_POINTER == type) {
 		di->member = dn_index->var;
+		di->dn     = dn_index;
 	} else {
 		scf_dn_index_free(di);
 		return -1;
@@ -809,3 +812,201 @@ void scf_dn_status_vector_clear_by_dn(scf_vector_t* vec, scf_dag_node_t* dn)
 		assert(0 == scf_vector_del(vec, ds));
 	}
 }
+
+static int __ds_for_dn(scf_dn_status_t* ds, scf_dag_node_t* dn_base)
+{
+	scf_dag_node_t*   dn_index;
+	scf_dag_node_t*   dn_scale;
+	scf_dn_index_t*   di;
+
+	int ret;
+
+	if (!ds || !dn_base || !ds->dn_indexes)
+		return -EINVAL;
+
+	while (SCF_OP_DEREFERENCE == dn_base->type) {
+
+		di = scf_dn_index_alloc();
+		if (!di)
+			return -ENOMEM;
+		di->index = 0;
+
+		ret = scf_vector_add(ds->dn_indexes, di);
+		if (ret < 0) {
+			scf_dn_index_free(di);
+			return -ENOMEM;
+		}
+
+		dn_base  = dn_base->childs->data[0];
+	}
+
+	while (SCF_OP_ARRAY_INDEX == dn_base->type
+			|| SCF_OP_POINTER == dn_base->type) {
+
+		dn_index = dn_base->childs->data[1];
+
+		ret = scf_dn_status_index(ds, dn_index, dn_base->type);
+		if (ret < 0)
+			return ret;
+
+		if (SCF_OP_ARRAY_INDEX == dn_base->type) {
+
+			di           = ds->dn_indexes->data[ds->dn_indexes->size - 1];
+
+			di->dn_scale = dn_base->childs->data[2];
+			assert(di->dn_scale);
+		}
+
+		dn_base  = dn_base->childs->data[0];
+	}
+	assert(scf_type_is_var(dn_base->type));
+
+	ds->dag_node = dn_base;
+	return 0;
+}
+
+int scf_ds_for_dn(scf_dn_status_t** pds, scf_dag_node_t* dn)
+{
+	scf_dn_status_t*  ds;
+
+	ds = calloc(1, sizeof(scf_dn_status_t));
+	if (!ds)
+		return -ENOMEM;
+
+	ds->dn_indexes = scf_vector_alloc();
+	if (!ds->dn_indexes) {
+		free(ds);
+		return -ENOMEM;
+	}
+
+	int ret = __ds_for_dn(ds, dn);
+	if (ret < 0) {
+		scf_dn_status_free(ds);
+		return ret;
+	}
+
+	if (0 == ds->dn_indexes->size) {
+		scf_vector_free(ds->dn_indexes);
+		ds->dn_indexes = NULL;
+	}
+
+	*pds = ds;
+	return 0;
+}
+
+int scf_ds_for_assign_member(scf_dn_status_t** pds, scf_dag_node_t* dn_base, scf_dag_node_t* dn_member)
+{
+	scf_dn_status_t*  ds;
+	scf_dn_index_t*   di;
+	int i;
+
+	ds = calloc(1, sizeof(scf_dn_status_t));
+	if (!ds)
+		return -ENOMEM;
+
+	ds->dn_indexes = scf_vector_alloc();
+	if (!ds->dn_indexes) {
+		free(ds);
+		return -ENOMEM;
+	}
+
+	int ret = __ds_for_dn(ds, dn_base);
+	if (ret < 0) {
+		scf_dn_status_free(ds);
+		return ret;
+	}
+
+	ret = scf_dn_status_index(ds, dn_member, SCF_OP_POINTER);
+	if (ret < 0)
+		return ret;
+
+	di = ds->dn_indexes->data[ds->dn_indexes->size - 1];
+
+	for (i = ds->dn_indexes->size - 2; i >= 0; i--)
+		ds->dn_indexes->data[i + 1] = ds->dn_indexes->data[i];
+
+	ds->dn_indexes->data[0] = di;
+
+	*pds = ds;
+	return 0;
+}
+
+int scf_ds_for_assign_array_member(scf_dn_status_t** pds, scf_dag_node_t* dn_base, scf_dag_node_t* dn_index, scf_dag_node_t* dn_scale)
+{
+	scf_dn_status_t*  ds;
+	scf_dn_index_t*   di;
+	int i;
+
+	ds = calloc(1, sizeof(scf_dn_status_t));
+	if (!ds)
+		return -ENOMEM;
+
+	ds->dn_indexes = scf_vector_alloc();
+	if (!ds->dn_indexes) {
+		free(ds);
+		return -ENOMEM;
+	}
+
+	int ret = __ds_for_dn(ds, dn_base);
+	if (ret < 0) {
+		scf_dn_status_free(ds);
+		return ret;
+	}
+
+	ret = scf_dn_status_index(ds, dn_index, SCF_OP_ARRAY_INDEX);
+	if (ret < 0)
+		return ret;
+
+	di = ds->dn_indexes->data[ds->dn_indexes->size - 1];
+
+	di->dn_scale = dn_scale;
+
+	for (i = ds->dn_indexes->size - 2; i >= 0; i--)
+		ds->dn_indexes->data[i + 1] = ds->dn_indexes->data[i];
+
+	ds->dn_indexes->data[0] = di;
+
+	*pds = ds;
+	return 0;
+}
+
+int scf_ds_for_assign_dereference(scf_dn_status_t** pds, scf_dag_node_t* dn)
+{
+	scf_dn_status_t*  ds;
+	scf_dag_node_t*   dn_index;
+	scf_dn_index_t*   di;
+
+	ds = calloc(1, sizeof(scf_dn_status_t));
+	if (!ds)
+		return -ENOMEM;
+
+	ds->dn_indexes = scf_vector_alloc();
+	if (!ds->dn_indexes) {
+		free(ds);
+		return -ENOMEM;
+	}
+
+	di = scf_dn_index_alloc();
+	if (!di) {
+		scf_dn_status_free(ds);
+		return -ENOMEM;
+	}
+	di->index = 0;
+
+	int ret = scf_vector_add(ds->dn_indexes, di);
+	if (ret < 0) {
+		scf_dn_index_free(di);
+		scf_dn_status_free(ds);
+		return ret;
+	}
+
+	ret = __ds_for_dn(ds, dn);
+	if (ret < 0) {
+		scf_dn_status_free(ds);
+		return ret;
+	}
+
+	*pds = ds;
+	return 0;
+}
+
