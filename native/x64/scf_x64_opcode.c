@@ -184,6 +184,18 @@ scf_x64_OpCode_t	x64_OpCodes[] = {
 	{SCF_X64_MOVZX, "movzx",  2, {0x0f, 0xb7, 0x0},2, 2,4, SCF_X64_E2G, 0,0, 0,{0,0}},
 	{SCF_X64_MOVZX, "movzx",  2, {0x0f, 0xb7, 0x0},2, 2,8, SCF_X64_E2G, 0,0, 0,{0,0}},
 
+	{SCF_X64_MOVS, "movs",  2, {0xf3, 0xa4, 0x0},2, 1,4, SCF_X64_G, 0,0, 0,{0,0}},
+	{SCF_X64_MOVS, "movs",  2, {0xf3, 0xa4, 0x0},2, 1,8, SCF_X64_G, 0,0, 0,{0,0}},
+	{SCF_X64_MOVS, "movs",  2, {0xf3, 0xa5, 0x0},2, 2,4, SCF_X64_G, 0,0, 0,{0,0}},
+	{SCF_X64_MOVS, "movs",  2, {0xf3, 0xa5, 0x0},2, 4,4, SCF_X64_G, 0,0, 0,{0,0}},
+	{SCF_X64_MOVS, "movs",  2, {0xf3, 0xa5, 0x0},2, 8,8, SCF_X64_G, 0,0, 0,{0,0}},
+
+	{SCF_X64_STOS, "stos",  2, {0xf3, 0xaa, 0x0},2, 1,4, SCF_X64_G, 0,0, 0,{0,0}},
+	{SCF_X64_STOS, "stos",  2, {0xf3, 0xaa, 0x0},2, 1,8, SCF_X64_G, 0,0, 0,{0,0}},
+	{SCF_X64_STOS, "stos",  2, {0xf3, 0xab, 0x0},2, 2,4, SCF_X64_G, 0,0, 0,{0,0}},
+	{SCF_X64_STOS, "stos",  2, {0xf3, 0xab, 0x0},2, 4,4, SCF_X64_G, 0,0, 0,{0,0}},
+	{SCF_X64_STOS, "stos",  2, {0xf3, 0xab, 0x0},2, 8,8, SCF_X64_G, 0,0, 0,{0,0}},
+
 	{SCF_X64_CMP,  "cmp",  2, {0x38, 0x0, 0x0},1,  1,1, SCF_X64_G2E, 0,0, 0,{0,0}},
 	{SCF_X64_CMP,  "cmp",  2, {0x39, 0x0, 0x0},1,  2,2, SCF_X64_G2E, 0,0, 0,{0,0}},
 	{SCF_X64_CMP,  "cmp",  2, {0x39, 0x0, 0x0},1,  4,4, SCF_X64_G2E, 0,0, 0,{0,0}},

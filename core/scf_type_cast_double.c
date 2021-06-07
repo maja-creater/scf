@@ -27,12 +27,10 @@ int scf_cast_to_double(scf_ast_t* ast, scf_variable_t** pret, scf_variable_t* sr
 			break;
 
 		case SCF_VAR_I64:
-		case SCF_VAR_INTPTR:
 			r->data.d = (double)src->data.i64;
 			break;
 
 		case SCF_VAR_U64:
-		case SCF_VAR_UINTPTR:
 			r->data.d = (double)src->data.u64;
 			break;
 

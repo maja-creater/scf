@@ -35,10 +35,10 @@ static scf_type_cast_t  base_type_casts[] =
 	{"i16",     -1, SCF_VAR_I16,     scf_cast_to_i16},
 	{"i32",     -1, SCF_VAR_I32,     scf_cast_to_i32},
 	{"i64",     -1, SCF_VAR_I64,     scf_cast_to_i64},
-	{"intptr",  -1, SCF_VAR_INTPTR,  scf_cast_to_i64},
+//	{"intptr",  -1, SCF_VAR_INTPTR,  scf_cast_to_i64},
 
 	{"float",   -1, SCF_VAR_FLOAT,   scf_cast_to_float},
-	{"double",  -1, SCF_VAR_DOUBLE,  scf_cast_to_double},
+//	{"double",  -1, SCF_VAR_DOUBLE,  scf_cast_to_double},
 
 };
 

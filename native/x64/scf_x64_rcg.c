@@ -982,6 +982,52 @@ static int _x64_rcg_return_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_gra
 	return 0;
 }
 
+static int _x64_rcg_memset_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+{
+	int i;
+
+	scf_register_x64_t* r;
+	scf_3ac_operand_t*  src;
+	scf_graph_node_t*   gn;
+	scf_dag_node_t*     dn;
+
+	int ret = _x64_rcg_make2(c, NULL, NULL, NULL);
+	if (ret < 0)
+		return ret;
+
+	ret = _x64_rcg_make(c, g, NULL, NULL, NULL);
+	if (ret < 0)
+		return ret;
+
+	if (!c->srcs || c->srcs->size != 3)
+		return -EINVAL;
+
+	for (i  = 0; i < c->srcs->size; i++) {
+		src =        c->srcs->data[i];
+		dn  =        src->dag_node;
+
+		int size = x64_variable_size (dn->var);
+		size     = size > 4 ? 8 : 4;
+
+		if (0 == i)
+			r = x64_find_register_type_id_bytes(0, SCF_X64_REG_DI, size);
+
+		else if (1 == i)
+			r = x64_find_register_type_id_bytes(0, SCF_X64_REG_AX, size);
+
+		else if (2 == i)
+			r = x64_find_register_type_id_bytes(0, SCF_X64_REG_CX, size);
+		else
+			return -EINVAL;
+
+		ret = _x64_rcg_make_node(&gn, g, dn, r, NULL);
+		if (ret < 0)
+			return ret;
+	}
+
+	return 0;
+}
+
 static int _x64_rcg_goto_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
 	return 0;
@@ -1270,6 +1316,8 @@ static x64_rcg_handler_t x64_rcg_handlers[] = {
 
 	{SCF_OP_3AC_PUSH_RAX,   _x64_rcg_push_rax_handler},
 	{SCF_OP_3AC_POP_RAX,    _x64_rcg_pop_rax_handler},
+
+	{SCF_OP_3AC_MEMSET,     _x64_rcg_memset_handler},
 
 
 	{SCF_OP_3AC_ASSIGN_DEREFERENCE,     _x64_rcg_assign_dereference_handler},

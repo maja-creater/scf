@@ -3,9 +3,8 @@
 
 #include"scf_def.h"
 
-typedef union {
+typedef struct {
 	volatile int  count;
-	unsigned char fill[8];
 } scf_atomic_t;
 
 static inline void scf_atomic_inc(scf_atomic_t* v)

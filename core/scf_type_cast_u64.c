@@ -29,10 +29,10 @@ int scf_cast_to_u64(scf_ast_t* ast, scf_variable_t** pret, scf_variable_t* src)
 			break;
 
 		case SCF_VAR_I64:
-		case SCF_VAR_INTPTR:
+			r->data.u64 = src->data.i64;
+			break;
 		case SCF_VAR_U64:
-		case SCF_VAR_UINTPTR:
-			r->data.i64 = src->data.u64;
+			r->data.u64 = src->data.u64;
 			break;
 
 		default:

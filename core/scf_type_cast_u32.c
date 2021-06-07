@@ -27,8 +27,6 @@ int scf_cast_to_u32(scf_ast_t* ast, scf_variable_t** pret, scf_variable_t* src)
 		case SCF_VAR_U32:
 		case SCF_VAR_I64:
 		case SCF_VAR_U64:
-		case SCF_VAR_INTPTR:
-		case SCF_VAR_UINTPTR:
 			r->data.u32 = src->data.u32;
 			break;
 

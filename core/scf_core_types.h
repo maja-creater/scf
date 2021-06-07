@@ -156,6 +156,8 @@ enum scf_core_types {
 	SCF_OP_3AC_PUSH_RAX, // push rax, only for 3ac & native
 	SCF_OP_3AC_POP_RAX,  // pop  rax, only for 3ac & native
 
+	SCF_OP_3AC_MEMSET,  //
+
 	SCF_OP_3AC_SAVE,     // save a var to memory,   only for 3ac & native
 	SCF_OP_3AC_LOAD,     // load a var from memory, only for 3ac & native
 	SCF_OP_3AC_RELOAD,   // reload a var from memory, only for 3ac & native
@@ -173,13 +175,13 @@ enum scf_core_types {
 	SCF_VAR_I32,
 	SCF_VAR_INT = SCF_VAR_I32,
 	SCF_VAR_I64,
-	SCF_VAR_INTPTR,
+	SCF_VAR_INTPTR = SCF_VAR_I64,
 
 	SCF_VAR_U8,
 	SCF_VAR_U16,
 	SCF_VAR_U32,
 	SCF_VAR_U64,
-	SCF_VAR_UINTPTR,
+	SCF_VAR_UINTPTR = SCF_VAR_U64,
 
 	SCF_FUNCTION_PTR, // function pointer
 

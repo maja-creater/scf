@@ -204,10 +204,23 @@ static int _x64_argv_prepare(scf_graph_t* g, scf_basic_block_t* bb, scf_function
 
 static int _x64_argv_save(scf_basic_block_t* bb, scf_function_t* f)
 {
-	assert(!scf_list_empty(&bb->code_list_head));
+	scf_list_t*     l;
+	scf_3ac_code_t* c;
 
-	scf_list_t*     l = scf_list_head(&bb->code_list_head);
-	scf_3ac_code_t* c = scf_list_data(l, scf_3ac_code_t, list);
+	if (!scf_list_empty(&bb->code_list_head)) {
+
+		l = scf_list_head(&bb->code_list_head);
+		c = scf_list_data(l, scf_3ac_code_t, list);
+	} else {
+		c = scf_3ac_code_alloc();
+		if (!c)
+			return -ENOMEM;
+
+		c->op = scf_3ac_find_operator(SCF_OP_3AC_NOP);
+		c->basic_block = bb;
+
+		scf_list_add_tail(&bb->code_list_head, &c->list);
+	}
 
 	if (!c->instructions) {
 		c->instructions = scf_vector_alloc();

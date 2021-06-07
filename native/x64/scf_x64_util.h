@@ -17,6 +17,9 @@ enum scf_x64_OpCode_types {
 	SCF_X64_MOVSX,
 	SCF_X64_MOVZX,
 
+	SCF_X64_MOVS,
+	SCF_X64_STOS,
+
 	SCF_X64_LEA,
 
 	SCF_X64_PUSH,

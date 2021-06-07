@@ -91,6 +91,7 @@ static scf_3ac_operator_t _3ac_operators[] = {
 
 	{SCF_OP_3AC_PUSH_RAX,    "push rax"},
 	{SCF_OP_3AC_POP_RAX,     "pop  rax"},
+	{SCF_OP_3AC_MEMSET,      "memset"},
 
 	{SCF_OP_3AC_INC,         "inc3"},
 	{SCF_OP_3AC_DEC,         "dec3"},

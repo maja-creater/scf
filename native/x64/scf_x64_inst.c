@@ -1357,6 +1357,77 @@ static int _x64_inst_return_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	return 0;
 }
 
+static int _x64_inst_memset_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	if (!c->srcs || c->srcs->size != 3)
+		return -EINVAL;
+
+	scf_x64_context_t*  x64   = ctx->priv;
+	scf_function_t*     f     = x64->f;
+	scf_3ac_operand_t*  dst   = c->srcs->data[0];
+	scf_3ac_operand_t*  data  = c->srcs->data[1];
+	scf_3ac_operand_t*  count = c->srcs->data[2];
+	scf_instruction_t*  inst  = NULL;
+
+	scf_register_x64_t*	rax   = x64_find_register("rax");
+	scf_register_x64_t*	rcx   = x64_find_register("rcx");
+	scf_register_x64_t*	rdi   = x64_find_register("rdi");
+	scf_register_x64_t*	rd;
+	scf_x64_OpCode_t*   mov;
+	scf_x64_OpCode_t*   stos;
+
+	if (!c->instructions) {
+		c->instructions = scf_vector_alloc();
+		if (!c->instructions)
+			return -ENOMEM;
+	}
+
+	int ret = x64_overflow_reg2(rdi, dst->dag_node, c, f);
+	if (ret < 0)
+		return ret;
+
+	ret = x64_overflow_reg2(rax, data->dag_node, c, f);
+	if (ret < 0)
+		return ret;
+
+	ret = x64_overflow_reg2(rcx, count->dag_node, c, f);
+	if (ret < 0)
+		return ret;
+
+#define X64_MEMSET_LOAD_REG(r, dn) \
+	do { \
+		int size = x64_variable_size(dn->var); \
+		assert(8 == size); \
+		\
+		if (0 == dn->color) { \
+			mov  = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_I2G); \
+			inst = x64_make_inst_I2G(mov, r, (uint8_t*)&dn->var->data, size); \
+			X64_INST_ADD_CHECK(c->instructions, inst); \
+			\
+		} else { \
+			if (dn->color < 0) \
+				dn->color = r->color; \
+			X64_SELECT_REG_CHECK(&rd, dn, c, f, 1); \
+			\
+			if (!X64_COLOR_CONFLICT(rd->color, r->color)) { \
+				mov  = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_G2E); \
+				inst = x64_make_inst_G2E(mov, r, rd); \
+				X64_INST_ADD_CHECK(c->instructions, inst); \
+			} \
+		} \
+	} while (0)
+
+	X64_MEMSET_LOAD_REG(rdi, dst  ->dag_node);
+	X64_MEMSET_LOAD_REG(rax, data ->dag_node);
+	X64_MEMSET_LOAD_REG(rcx, count->dag_node);
+
+	stos = x64_find_OpCode(SCF_X64_STOS, 1, 8, SCF_X64_G);
+	inst = x64_make_inst(stos, 1);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	return 0;
+}
+
 static int _x64_inst_nop_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 {
 	return 0;
@@ -1739,6 +1810,8 @@ static x64_inst_handler_t x64_inst_handlers[] = {
 
 	{SCF_OP_3AC_PUSH_RAX,   _x64_inst_push_rax_handler},
 	{SCF_OP_3AC_POP_RAX,    _x64_inst_pop_rax_handler},
+
+	{SCF_OP_3AC_MEMSET,     _x64_inst_memset_handler},
 
 	{SCF_OP_3AC_ASSIGN_DEREFERENCE,     _x64_inst_assign_dereference_handler},
 	{SCF_OP_3AC_ASSIGN_ARRAY_INDEX,     _x64_inst_assign_array_index_handler},

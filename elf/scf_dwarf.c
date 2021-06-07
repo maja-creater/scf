@@ -184,6 +184,13 @@ int scf_dwarf_abbrev_add_struct_type(scf_vector_t* abbrevs)
 	return _abbrev_add(abbrevs, DW_TAG_structure_type, 1, abbrev_struct_type, n);
 }
 
+int scf_dwarf_abbrev_add_pointer_type(scf_vector_t* abbrevs)
+{
+	int n = sizeof(abbrev_pointer_type) / sizeof(abbrev_pointer_type[0]);
+
+	return _abbrev_add(abbrevs, DW_TAG_pointer_type, 0, abbrev_pointer_type, n);
+}
+
 int scf_dwarf_abbrev_add_subprogram(scf_vector_t* abbrevs)
 {
 	int n = sizeof(abbrev_subprogram) / sizeof(abbrev_subprogram[0]);
@@ -219,6 +226,77 @@ int scf_dwarf_abbrev_add_cu(scf_vector_t* abbrevs)
 
 int scf_dwarf_debug_encode(scf_dwarf_debug_t* debug, scf_vector_t* file_names)
 {
+	scf_dwarf_info_entry_t* ie;
+	scf_vector_t*           infos;
+
+	int first = 1;
+	int i;
+
+	infos = scf_vector_alloc();
+	if (!infos)
+		return -ENOMEM;
+
+	ie = debug->infos->data[0];
+	assert(1 == ie->code);
+
+	if (scf_vector_add(infos, ie) < 0)
+		return -ENOMEM;
+#if 1
+	for (i = 0; i < debug->struct_types->size; i++) {
+		ie =        debug->struct_types->data[i];
+
+		if (scf_vector_add(infos, ie) < 0)
+			return -ENOMEM;
+
+		if (0 == ie->code && first) {
+
+			int j;
+			for (j = 0; j < debug->base_types->size; j++) {
+				ie =        debug->base_types->data[j];
+
+				if (scf_vector_add(infos, ie) < 0)
+					return -ENOMEM;
+			}
+
+			first = 0;
+		}
+	}
+#endif
+
+	for (i = 1; i < debug->infos->size; i++) {
+		ie =        debug->infos->data[i];
+
+		if (scf_vector_add(infos, ie) < 0)
+			return -ENOMEM;
+
+		if (0 == ie->code && first) {
+
+			int j;
+			for (j = 0; j < debug->base_types->size; j++) {
+				ie =        debug->base_types->data[j];
+
+				if (scf_vector_add(infos, ie) < 0)
+					return -ENOMEM;
+			}
+
+			first = 0;
+		}
+	}
+
+	ie = scf_dwarf_info_entry_alloc();
+	if (!ie)
+		return -ENOMEM;
+	ie->code = 0;
+
+	if (scf_vector_add(infos, ie) < 0) {
+		scf_dwarf_info_entry_free(ie);
+		return -ENOMEM;
+	}
+
+	scf_vector_free(debug->infos);
+	debug->infos = infos;
+	infos        = NULL;
+
 	int ret = scf_dwarf_abbrev_encode(debug->abbrevs, debug->debug_abbrev);
 	if (ret < 0) {
 		scf_loge("\n");
@@ -259,6 +337,18 @@ scf_dwarf_debug_t* scf_dwarf_debug_alloc()
 	scf_dwarf_debug_t* debug = calloc(1, sizeof(scf_dwarf_debug_t));
 	if (!debug)
 		return NULL;
+
+	debug->base_types = scf_vector_alloc();
+	if (!debug->base_types) {
+		scf_dwarf_debug_free(debug);
+		return NULL;
+	}
+
+	debug->struct_types = scf_vector_alloc();
+	if (!debug->struct_types) {
+		scf_dwarf_debug_free(debug);
+		return NULL;
+	}
 
 	debug->lines = scf_vector_alloc();
 	if (!debug->lines) {
@@ -327,6 +417,12 @@ scf_dwarf_debug_t* scf_dwarf_debug_alloc()
 void scf_dwarf_debug_free (scf_dwarf_debug_t* debug)
 {
 	if (debug) {
+		if (debug->base_types)
+			scf_vector_free(debug->base_types);
+
+		if (debug->struct_types)
+			scf_vector_free(debug->struct_types);
+
 		if (debug->lines)
 			scf_vector_free(debug->lines);
 

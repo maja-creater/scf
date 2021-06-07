@@ -430,18 +430,30 @@ static int _debug_abbrev_find_by_tag(const void* v0, const void* v1)
 	return tag != d->tag;
 }
 
-static scf_dwarf_info_entry_t* _debug_find_type(scf_parse_t* parse, scf_type_t* t)
+static scf_dwarf_info_entry_t* _debug_find_type(scf_parse_t* parse, scf_type_t* t, int nb_pointers)
 {
 	scf_dwarf_abbrev_declaration_t* d;
 	scf_dwarf_abbrev_attribute_t*   attr;
 	scf_dwarf_info_entry_t*         ie;
 	scf_dwarf_info_attr_t*          iattr;
-	scf_dwarf_uword_t               tag;
 
-	if (t->type < SCF_STRUCT)
-		tag = DW_TAG_base_type;
-	else
-		tag = DW_TAG_structure_type;
+	scf_dwarf_uword_t               tag;
+	scf_vector_t*                   types;
+
+	if (nb_pointers > 0) {
+
+		tag   = DW_TAG_pointer_type;
+		types = parse->debug->base_types;
+
+	} else if (t->type < SCF_STRUCT) {
+
+		tag   = DW_TAG_base_type;
+		types = parse->debug->base_types;
+
+	} else {
+		tag   = DW_TAG_structure_type;
+		types = parse->debug->struct_types;
+	}
 
 	d = scf_vector_find_cmp(parse->debug->abbrevs, (void*)(uintptr_t)tag, _debug_abbrev_find_by_tag);
 	if (!d)
@@ -449,8 +461,8 @@ static scf_dwarf_info_entry_t* _debug_find_type(scf_parse_t* parse, scf_type_t* 
 
 	int i;
 	int j;
-	for (i = 0; i < parse->debug->infos->size; i++) {
-		ie =        parse->debug->infos->data[i];
+	for (i = 0; i < types->size; i++) {
+		ie =        types->data[i];
 
 		if (ie->code != d->code)
 			continue;
@@ -473,16 +485,35 @@ static scf_dwarf_info_entry_t* _debug_find_type(scf_parse_t* parse, scf_type_t* 
 	return NULL;
 }
 
-static int __debug_add_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev_declaration_t** pad, scf_parse_t* parse, scf_type_t* t)
+static int __debug_add_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev_declaration_t** pad, scf_parse_t* parse,
+		scf_type_t* t, int nb_pointers, scf_dwarf_info_entry_t* ie_type)
 {
 	scf_dwarf_abbrev_declaration_t* d;
 	scf_dwarf_abbrev_attribute_t*   attr;
 	scf_dwarf_info_entry_t*         ie;
 	scf_dwarf_info_attr_t*          iattr;
+	scf_vector_t*                   types;
 
 	int ret;
 
-	if (t->type < SCF_STRUCT) {
+	if (nb_pointers > 0) {
+
+		d = scf_vector_find_cmp(parse->debug->abbrevs, (void*)DW_TAG_pointer_type, _debug_abbrev_find_by_tag);
+		if (!d) {
+			ret = scf_dwarf_abbrev_add_pointer_type(parse->debug->abbrevs);
+			if (ret < 0) {
+				scf_loge("\n");
+				return -1;
+			}
+
+			scf_loge("abbrevs->size: %d\n", parse->debug->abbrevs->size);
+
+			d = parse->debug->abbrevs->data[parse->debug->abbrevs->size - 1];
+		}
+
+		types = parse->debug->base_types;
+
+	} else if (t->type < SCF_STRUCT) {
 
 		d = scf_vector_find_cmp(parse->debug->abbrevs, (void*)DW_TAG_base_type, _debug_abbrev_find_by_tag);
 		if (!d) {
@@ -496,6 +527,9 @@ static int __debug_add_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev_decla
 
 			d = parse->debug->abbrevs->data[parse->debug->abbrevs->size - 1];
 		}
+
+		types = parse->debug->base_types;
+
 	} else {
 		d = scf_vector_find_cmp(parse->debug->abbrevs, (void*)DW_TAG_structure_type, _debug_abbrev_find_by_tag);
 		if (!d) {
@@ -507,6 +541,8 @@ static int __debug_add_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev_decla
 
 			d = parse->debug->abbrevs->data[parse->debug->abbrevs->size - 1];
 		}
+
+		types = parse->debug->struct_types;
 	}
 
 	ie = scf_dwarf_info_entry_alloc();
@@ -514,7 +550,7 @@ static int __debug_add_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev_decla
 		return -ENOMEM;
 	ie->code = d->code;
 
-	ret = scf_vector_add(parse->debug->infos, ie);
+	ret = scf_vector_add(types, ie);
 	if (ret < 0) {
 		scf_dwarf_info_entry_free(ie);
 		return ret;
@@ -539,7 +575,14 @@ static int __debug_add_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev_decla
 
 		if (DW_AT_byte_size == iattr->name) {
 
-			ret = scf_dwarf_info_fill_attr(iattr, (uint8_t*)&t->size, sizeof(t->size));
+			uint32_t byte_size;
+
+			if (nb_pointers > 0)
+				byte_size = sizeof(void*);
+			else
+				byte_size = t->size;
+
+			ret = scf_dwarf_info_fill_attr(iattr, (uint8_t*)&byte_size, sizeof(byte_size));
 			if (ret < 0)
 				return ret;
 
@@ -590,6 +633,16 @@ static int __debug_add_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev_decla
 			if (ret < 0)
 				return ret;
 
+		} else if (DW_AT_type == iattr->name) {
+
+			uint32_t type = 0;
+
+			iattr->ref_entry = ie_type;
+
+			ret = scf_dwarf_info_fill_attr(iattr, (uint8_t*)&type, sizeof(type));
+			if (ret < 0)
+				return ret;
+
 		} else if (DW_AT_sibling == iattr->name) {
 
 			uint32_t type = 0;
@@ -636,7 +689,7 @@ static int __debug_add_member_var(scf_dwarf_info_entry_t** pie, scf_parse_t* par
 		return -ENOMEM;
 	ie->code = d->code;
 
-	ret = scf_vector_add(parse->debug->infos, ie);
+	ret = scf_vector_add(parse->debug->struct_types, ie);
 	if (ret < 0) {
 		scf_dwarf_info_entry_free(ie);
 		return ret;
@@ -706,24 +759,17 @@ static int __debug_add_member_var(scf_dwarf_info_entry_t** pie, scf_parse_t* par
 	return 0;
 }
 
-static int _debug_add_type(scf_dwarf_info_entry_t** pie, scf_parse_t* parse, scf_type_t* t)
+static int _debug_add_type(scf_dwarf_info_entry_t** pie, scf_parse_t* parse, scf_type_t* t, int nb_pointers);
+
+static int _debug_add_struct_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev_declaration_t** pad, scf_parse_t* parse, scf_type_t* t)
 {
-	scf_dwarf_abbrev_declaration_t* d;
+//	scf_dwarf_abbrev_declaration_t* d;
 	scf_dwarf_abbrev_attribute_t*   attr;
 	scf_dwarf_info_entry_t*         ie;
 	scf_dwarf_info_attr_t*          iattr;
 
 	int ret;
 	int i;
-
-	if (t->type < SCF_STRUCT) {
-
-		*pie = _debug_find_type(parse, t);
-		if (*pie)
-			return 0;
-
-		return __debug_add_type(pie, &d, parse, t);
-	}
 
 	scf_vector_t* ie_member_types = scf_vector_alloc();
 	if (!ie_member_types)
@@ -738,10 +784,10 @@ static int _debug_add_type(scf_dwarf_info_entry_t** pie, scf_parse_t* parse, scf
 		v_member  = t->scope->vars->data[i];
 		t_member  = scf_ast_find_type_type(parse->ast, v_member->type);
 
-		ie_member = _debug_find_type(parse, t_member);
+		ie_member = _debug_find_type(parse, t_member, v_member->nb_pointers);
 		if (!ie_member) {
 
-			ret = _debug_add_type(&ie_member, parse, t_member);
+			ret = _debug_add_type(&ie_member, parse, t_member, v_member->nb_pointers);
 			if (ret < 0) {
 				scf_loge("\n");
 				return ret;
@@ -754,7 +800,7 @@ static int _debug_add_type(scf_dwarf_info_entry_t** pie, scf_parse_t* parse, scf
 
 	assert(ie_member_types->size == t->scope->vars->size);
 
-	ret = __debug_add_type(&ie, &d, parse, t);
+	ret = __debug_add_type(&ie, pad, parse, t, 0, NULL);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -781,13 +827,49 @@ static int _debug_add_type(scf_dwarf_info_entry_t** pie, scf_parse_t* parse, scf
 		return -ENOMEM;
 	ie0->code = 0;
 
-	if (scf_vector_add(parse->debug->infos, ie0) < 0) {
+	if (scf_vector_add(parse->debug->struct_types, ie0) < 0) {
 		scf_dwarf_info_entry_free(ie0);
 		return -ENOMEM;
 	}
 
 	*pie = ie;
 	return 0;
+}
+
+static int _debug_add_type(scf_dwarf_info_entry_t** pie, scf_parse_t* parse, scf_type_t* t, int nb_pointers)
+{
+	scf_dwarf_abbrev_declaration_t* d;
+	scf_dwarf_abbrev_attribute_t*   attr;
+	scf_dwarf_info_entry_t*         ie;
+	scf_dwarf_info_attr_t*          iattr;
+
+	int ret;
+	int i;
+
+	*pie = _debug_find_type(parse, t, nb_pointers);
+	if (*pie)
+		return 0;
+
+	ie = _debug_find_type(parse, t, 0);
+	if (!ie) {
+
+		if (t->type < SCF_STRUCT)
+			ret = __debug_add_type(&ie, &d, parse, t, 0, NULL);
+		else
+			ret = _debug_add_struct_type(&ie, &d, parse, t);
+
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
+	}
+
+	if (0 == nb_pointers) {
+		*pie = ie;
+		return 0;
+	}
+
+	return __debug_add_type(pie, &d, parse, t, nb_pointers, ie);
 }
 
 static int _debug_add_var(scf_parse_t* parse, scf_node_t* node)
@@ -807,10 +889,10 @@ static int _debug_add_var(scf_parse_t* parse, scf_node_t* node)
 	int i;
 	int j;
 
-	ie = _debug_find_type(parse, t);
+	ie = _debug_find_type(parse, t, var->nb_pointers);
 	if (!ie) {
 
-		ret = _debug_add_type(&ie, parse, t);
+		ret = _debug_add_type(&ie, parse, t, var->nb_pointers);
 		if (ret < 0) {
 			scf_loge("\n");
 			return -1;
@@ -1126,10 +1208,10 @@ static int _debug_add_subprogram(scf_dwarf_info_entry_t** pie, scf_parse_t* pars
 			scf_variable_t* v    = f->rets->data[0];
 			scf_type_t*     t    = scf_ast_find_type_type(parse->ast, v->type);
 
-			ie2 = _debug_find_type(parse, t);
+			ie2 = _debug_find_type(parse, t, v->nb_pointers);
 			if (!ie2) {
 
-				ret = _debug_add_type(&ie2, parse, t);
+				ret = _debug_add_type(&ie2, parse, t, v->nb_pointers);
 				if (ret < 0) {
 					scf_loge("\n");
 					return ret;
@@ -1226,9 +1308,9 @@ static int _debug_add_cu(scf_dwarf_info_entry_t** pie, scf_parse_t* parse, scf_f
 
 		if (DW_AT_producer == iattr->name) {
 
-			scf_dwarf_uword_t producer = 0;
+			char* producer = "GNU C11 7.4.0 -mtune=generic -march=x86-64 -g -fstack-protector-strong";
 
-			ret = scf_dwarf_info_fill_attr(iattr, (uint8_t*)&producer, sizeof(producer));
+			ret = scf_dwarf_info_fill_attr(iattr, (uint8_t*)producer, strlen(producer));
 			if (ret < 0)
 				return ret;
 
@@ -1293,31 +1375,12 @@ static int _fill_function_inst(scf_string_t* code, scf_function_t* f, int64_t of
 	int i;
 
 	scf_dwarf_abbrev_declaration_t* abbrev0 = NULL;
-	scf_dwarf_info_entry_t*         cu      = NULL;
 	scf_dwarf_info_entry_t*         subp    = NULL;
 	scf_dwarf_info_entry_t*         ie0     = NULL;
-	scf_dwarf_line_result_t*        r       = NULL;
-	scf_dwarf_line_result_t*        r2      = NULL;
-
-	ret = _debug_add_cu(&cu, parse, f, offset);
-	if (ret < 0)
-		return ret;
 
 	ret = _debug_add_subprogram(&subp, parse, f, offset);
 	if (ret < 0)
 		return ret;
-
-	r = calloc(1, sizeof(scf_dwarf_line_result_t));
-	if (!r)
-		return -ENOMEM;
-	r->address = 0;
-	r->line    = 1;
-	r->is_stmt = 1;
-
-	if (scf_vector_add(parse->debug->lines, r) < 0) {
-		free(r);
-		return -ENOMEM;
-	}
 
 	f->code_bytes = 0;
 
@@ -1347,25 +1410,9 @@ static int _fill_function_inst(scf_string_t* code, scf_function_t* f, int64_t of
 		f->code_bytes += bb->code_bytes;
 	}
 
-	assert(parse->debug->lines->size > 0);
-	r2 = parse->debug->lines->data[parse->debug->lines->size - 1];
+	uint64_t high_pc_ = offset + f->code_bytes;
 
-	uint64_t high_pc = offset + f->code_bytes;
-
-	r = calloc(1, sizeof(scf_dwarf_line_result_t));
-	if (!r)
-		return -ENOMEM;
-	r->address = high_pc;
-	r->line    = r2->line;
-	r->is_stmt = 1;
-	r->end_sequence = 1;
-
-	if (scf_vector_add(parse->debug->lines, r) < 0) {
-		free(r);
-		return -ENOMEM;
-	}
-
-#define DEBUG_UPDATE_HIGH_PC(ie) \
+#define DEBUG_UPDATE_HIGH_PC(ie, high_pc) \
 	do { \
 		scf_dwarf_info_attr_t*  iattr; \
 		int i; \
@@ -1382,8 +1429,7 @@ static int _fill_function_inst(scf_string_t* code, scf_function_t* f, int64_t of
 		} \
 	} while (0)
 
-	DEBUG_UPDATE_HIGH_PC(cu);
-	DEBUG_UPDATE_HIGH_PC(subp);
+	DEBUG_UPDATE_HIGH_PC(subp, high_pc_);
 
 #if 1
 	ie0 = scf_dwarf_info_entry_alloc();
@@ -1819,7 +1865,23 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 		goto error;
 	}
 
-	int64_t offset  = 0;
+	scf_dwarf_info_entry_t*  cu = NULL;
+	scf_dwarf_line_result_t* r  = NULL;
+	scf_dwarf_line_result_t* r2 = NULL;
+
+	r = calloc(1, sizeof(scf_dwarf_line_result_t));
+	if (!r)
+		return -ENOMEM;
+	r->address = 0;
+	r->line    = 1;
+	r->is_stmt = 1;
+
+	if (scf_vector_add(parse->debug->lines, r) < 0) {
+		free(r);
+		return -ENOMEM;
+	}
+
+	int64_t offset = 0;
 	int i;
 	for (i = 0; i < functions->size; i++) {
 
@@ -1829,6 +1891,12 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 			continue;
 
 		scf_logw("f: %s, code_bytes: %d\n", f->node.w->text->data, f->code_bytes);
+
+		if (!cu) {
+			ret = _debug_add_cu(&cu, parse, f, offset);
+			if (ret < 0)
+				return ret;
+		}
 
 		ret = _fill_function_inst(code, f, offset, parse);
 		if (ret < 0) {
@@ -1881,6 +1949,23 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 		}
 
 		offset += f->code_bytes;
+	}
+	DEBUG_UPDATE_HIGH_PC(cu, offset);
+
+	assert(parse->debug->lines->size > 0);
+	r2 = parse->debug->lines->data[parse->debug->lines->size - 1];
+
+	r = calloc(1, sizeof(scf_dwarf_line_result_t));
+	if (!r)
+		return -ENOMEM;
+	r->address = offset;
+	r->line    = r2->line;
+	r->is_stmt = 1;
+	r->end_sequence = 1;
+
+	if (scf_vector_add(parse->debug->lines, r) < 0) {
+		free(r);
+		return -ENOMEM;
 	}
 
 #if 1
