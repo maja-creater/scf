@@ -30,13 +30,13 @@ typedef struct {
 } scf_elf_x64_rela_t;
 
 typedef struct {
-	FILE*			fp;
+	FILE*           fp;
 
-	Elf64_Ehdr		eh;
+	Elf64_Ehdr      eh;
 
-	Elf64_Shdr		sh_null;
+	Elf64_Shdr      sh_null;
 
-	scf_vector_t*	sections;
+	scf_vector_t*   sections;
 
 	Elf64_Shdr		sh_rela;
 	scf_vector_t*	relas;

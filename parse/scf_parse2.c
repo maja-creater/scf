@@ -2099,7 +2099,7 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 		}
 	}
 
-	ret = scf_elf_write_rel(elf, NULL);
+	ret = scf_elf_write_rel(elf);
 	if (ret < 0) {
 		scf_loge("\n");
 		goto error;

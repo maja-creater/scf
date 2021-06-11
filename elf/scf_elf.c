@@ -114,37 +114,52 @@ int scf_elf_read_section(scf_elf_context_t* elf, scf_elf_section_t** psection, c
 	return -1;
 }
 
-int scf_elf_write_rel(scf_elf_context_t* elf, scf_list_t* code_list_head)
+int scf_elf_read_syms(scf_elf_context_t* elf, scf_vector_t* syms)
 {
-	if (elf) {
+	if (elf && syms) {
 
-		if (elf->ops && elf->ops->write_rel)
-			return elf->ops->write_rel(elf, code_list_head);
+		if (elf->ops && elf->ops->read_syms)
+			return elf->ops->read_syms(elf, syms);
 	}
 
 	scf_loge("\n");
 	return -1;
 }
 
-int scf_elf_write_dyn(scf_elf_context_t* elf, scf_list_t* code_list_head)
+int scf_elf_read_relas(scf_elf_context_t* elf, scf_vector_t* relas)
 {
-	if (elf && code_list_head) {
+	if (elf && relas) {
 
-		if (elf->ops && elf->ops->write_rel)
-			return elf->ops->write_dyn(elf, code_list_head);
+		if (elf->ops && elf->ops->read_relas)
+			return elf->ops->read_relas(elf, relas);
 	}
 
 	scf_loge("\n");
 	return -1;
 }
 
-int scf_elf_write_exec(scf_elf_context_t* elf, scf_list_t* code_list_head)
+int scf_elf_write_rel(scf_elf_context_t* elf)
 {
-	if (elf && code_list_head) {
+	if (elf && elf->ops && elf->ops->write_rel)
+		return elf->ops->write_rel(elf);
 
-		if (elf->ops && elf->ops->write_rel)
-			return elf->ops->write_exec(elf, code_list_head);
-	}
+	scf_loge("\n");
+	return -1;
+}
+
+int scf_elf_write_dyn(scf_elf_context_t* elf)
+{
+	if (elf && elf->ops && elf->ops->write_rel)
+		return elf->ops->write_dyn(elf);
+
+	scf_loge("\n");
+	return -1;
+}
+
+int scf_elf_write_exec(scf_elf_context_t* elf)
+{
+	if (elf && elf->ops && elf->ops->write_rel)
+		return elf->ops->write_exec(elf);
 
 	scf_loge("\n");
 	return -1;
