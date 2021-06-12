@@ -1410,6 +1410,18 @@ static int _fill_function_inst(scf_string_t* code, scf_function_t* f, int64_t of
 		f->code_bytes += bb->code_bytes;
 	}
 
+	if (f->code_bytes & 0x7) {
+
+		size_t   n    = 8 - (f->code_bytes & 0x7);
+		uint64_t fill = 0;
+
+		ret = scf_string_cat_cstr_len(code, (uint8_t*)&fill, n);
+		if (ret < 0)
+			return ret;
+
+		f->code_bytes += n;
+	}
+
 	uint64_t high_pc_ = offset + f->code_bytes;
 
 #define DEBUG_UPDATE_HIGH_PC(ie, high_pc) \

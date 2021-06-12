@@ -10,16 +10,9 @@ int main()
 	scf_elf_sym_t*     sym;
 	scf_elf_sym_t*     sym2;
 
-	scf_vector_t*      syms;
-	scf_vector_t*      relas;
-
 	scf_string_t*      text;
 	scf_string_t*      data;
 
-	syms  = scf_vector_alloc();
-	relas = scf_vector_alloc();
-	assert(syms);
-	assert(relas);
 
 	text = scf_string_alloc();
 	data = scf_string_alloc();
@@ -33,6 +26,13 @@ int main()
 		"./1.elf"
 	};
 
+	ret = scf_elf_open(&exe, "x64", "./1.out", "wb");
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	int nb_syms = 0;
 	int i;
 	for (i = 0; i < sizeof(inputs) / sizeof(inputs[0]); i++) {
 
@@ -43,17 +43,25 @@ int main()
 
 		scf_elf_section_t* cs2    = NULL;
 		scf_elf_section_t* ds2    = NULL;
-		scf_vector_t*      syms2  = NULL;
-		scf_vector_t*      relas2 = NULL;
 
 		scf_elf_rela_t*    rela2;
 
+		scf_vector_t*      syms2;
+		scf_vector_t*      relas2;
+
 		syms2  = scf_vector_alloc();
 		relas2 = scf_vector_alloc();
+
 		assert(syms2);
 		assert(relas2);
 
 		ret = scf_elf_read_section(obj, &cs2, ".text");
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
+
+		ret = scf_elf_read_section(obj, &ds2, ".data");
 		if (ret < 0) {
 			scf_loge("\n");
 			return ret;
@@ -77,21 +85,37 @@ int main()
 
 			rela2->r_offset += text->len;
 
-			rela2->r_info    = ELF64_R_INFO(ELF64_R_SYM(rela2->r_info) + syms->size, ELF64_R_TYPE(rela2->r_info));
+			rela2->r_info    = ELF64_R_INFO(ELF64_R_SYM(rela2->r_info) + nb_syms, ELF64_R_TYPE(rela2->r_info));
 
-			assert(0 == scf_vector_add(relas, rela2));
+			ret = scf_elf_add_rela(exe, rela2);
+			if (ret < 0) {
+				scf_loge("\n");
+				return ret;
+			}
 		}
 
 		for (j   = 0; j < syms2->size; j++) {
 			sym2 =        syms2->data[j];
 
-			if (cs2->index     == sym2->st_shndx)
-				sym2->st_value += text->len;
-			else {
+			if (cs2->index == sym2->st_shndx) {
+
+				sym2->st_value  += text->len;
+				sym2->st_shndx  =  1;
+
+			} else if (ds2->index == sym2->st_shndx) {
+
+				sym2->st_value  += data->len;
+				sym2->st_shndx  =  2;
+			} else
 				scf_loge("sym2->st_shndx: %d, cs2->index: %d, input: %s\n", sym2->st_shndx, cs2->index, inputs[i]);
+
+			ret = scf_elf_add_sym(exe, sym2);
+			if (ret < 0) {
+				scf_loge("\n");
+				return ret;
 			}
 
-			assert(0 == scf_vector_add(syms, sym2));
+			nb_syms++;
 		}
 
 		if (cs2->data_len > 0) {
@@ -103,83 +127,24 @@ int main()
 			}
 		}
 
+		if (ds2->data_len > 0) {
+
+			ret = scf_string_cat_cstr_len(data, ds2->data, ds2->data_len);
+			if (ret < 0) {
+				scf_loge("\n");
+				return ret;
+			}
+		}
+
 		free(cs2);
-		scf_vector_free(syms2);
-		scf_vector_free(relas2);
-		syms2  = NULL;
-		relas2 = NULL;
-		cs2    = NULL;
-	}
-
-	for (i   = 0; i < relas->size; i++) {
-		rela =        relas->data[i];
-
-		int sym_idx = ELF64_R_SYM(rela->r_info);
-
-		assert(sym_idx >= 1);
-		assert(sym_idx -  1 < syms->size);
-
-		sym = syms->data[sym_idx - 1];
-
-		if (0 == sym->st_shndx) {
-
-			int n = 0;
-			int j;
-
-			for (j   = 0; j < syms->size; j++) {
-				sym2 =        syms->data[j];
-
-				if (0 == sym2->st_shndx)
-					continue;
-
-				if (STB_LOCAL == ELF64_ST_BIND(sym2->st_info))
-					continue;
-
-				if (!strcmp(sym2->name, sym->name)) {
-					sym = sym2;
-					n++;
-				}
-			}
-
-			if (n > 1) {
-				scf_loge("tow global symbol: %s\n", sym->name);
-				return -1;
-			}
-		}
-
-		int32_t offset = sym->st_value - rela->r_offset + rela->r_addend;
-
-		scf_logw("rela %d: %s, r_offset: %#lx, sym: %s, st_value: %#lx, st_size: %ld, offset: %#x, st_shndx: %d\n",
-				i, rela->name, rela->r_offset, sym->name, sym->st_value, sym->st_size, offset, sym->st_shndx);
-
-		memcpy(text->data + rela->r_offset, &offset, sizeof(offset));
-	}
-
-	ret = scf_elf_open(&exe, "x64", "./1.out", "wb");
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-
-	for (i  = 0; i < syms->size; i++) {
-		sym =        syms->data[i];
-
-		if (STT_SECTION == ELF64_ST_TYPE(sym->st_info))
-			continue;
-
-		if (0 == sym->st_shndx)
-			continue;
-
-		scf_logw("sym %d: %s, st_shndx: %d\n", i, sym->name, sym->st_shndx);
-
-		ret = scf_elf_add_sym(exe, sym);
-		if (ret < 0) {
-			scf_loge("\n");
-			return -1;
-		}
+		free(ds2);
+		cs2 = NULL;
+		ds2 = NULL;
 	}
 
 	scf_elf_section_t cs = {0};
+	scf_elf_section_t ds = {0};
+
 	cs.name              = ".text";
 	cs.sh_type           = SHT_PROGBITS;
 	cs.sh_flags          = SHF_ALLOC | SHF_EXECINSTR;
@@ -187,7 +152,20 @@ int main()
 	cs.data              = text->data;
 	cs.data_len          = text->len;
 
+	ds.name              = ".data";
+	ds.sh_type           = SHT_PROGBITS;
+	ds.sh_flags          = SHF_ALLOC | SHF_WRITE;
+	ds.sh_addralign      = 8;
+	ds.data              = data->data;
+	ds.data_len          = data->len;
+
 	ret = scf_elf_add_section(exe, &cs);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	ret = scf_elf_add_section(exe, &ds);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
