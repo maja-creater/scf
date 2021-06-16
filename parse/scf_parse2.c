@@ -892,6 +892,7 @@ static int _debug_add_var(scf_parse_t* parse, scf_node_t* node)
 
 	scf_dwarf_abbrev_declaration_t* d;
 	scf_dwarf_abbrev_declaration_t* d2;
+	scf_dwarf_abbrev_declaration_t* subp;
 	scf_dwarf_abbrev_attribute_t*   attr;
 	scf_dwarf_info_entry_t*         ie;
 	scf_dwarf_info_entry_t*         ie2;
@@ -912,7 +913,10 @@ static int _debug_add_var(scf_parse_t* parse, scf_node_t* node)
 
 	scf_logd("ie: %p, t->name: %s\n", ie, t->name->data);
 
-	d2 = scf_vector_find_cmp(parse->debug->abbrevs, (void*)DW_TAG_variable, _debug_abbrev_find_by_tag);
+	subp = scf_vector_find_cmp(parse->debug->abbrevs, (void*)DW_TAG_subprogram, _debug_abbrev_find_by_tag);
+	assert(subp);
+
+	d2   = scf_vector_find_cmp(parse->debug->abbrevs, (void*)DW_TAG_variable, _debug_abbrev_find_by_tag);
 	if (!d2) {
 		ret = scf_dwarf_abbrev_add_var(parse->debug->abbrevs);
 		if (ret < 0) {
@@ -925,8 +929,11 @@ static int _debug_add_var(scf_parse_t* parse, scf_node_t* node)
 		assert(DW_TAG_variable == d2->tag);
 	}
 
-	for (i  = 0; i < parse->debug->infos->size; i++) {
-		ie2 =        parse->debug->infos->data[i];
+	for (i  = parse->debug->infos->size - 1; i >= 0; i--) {
+		ie2 = parse->debug->infos->data[i];
+
+		if (ie2->code == subp->code)
+			break;
 
 		if (ie2->code != d2->code)
 			continue;

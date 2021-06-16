@@ -279,7 +279,7 @@ static int merge_objs(scf_elf_file_t* exec, char* inputs[], int nb_inputs)
 		scf_elf_file_t* obj = NULL;
 
 		if (scf_elf_file_open(&obj, inputs[i], "rb") < 0) {
-			scf_loge("\n");
+			scf_loge("inputs[%d]: %s\n", i, inputs[i]);
 			return -1;
 		}
 
@@ -336,7 +336,7 @@ static int merge_objs(scf_elf_file_t* exec, char* inputs[], int nb_inputs)
 				sym2->st_value  += exec->debug_str->len;
 				sym2->st_shndx  =  6;
 			} else
-				scf_loge("sym2->st_shndx: %d, cs: %d, ds: %d, input: %s\n", sym2->st_shndx, obj->cs_idx, obj->ds_idx, inputs[i]);
+				scf_logd("sym2->st_shndx: %d, cs: %d, ds: %d, input: %s\n", sym2->st_shndx, obj->cs_idx, obj->ds_idx, inputs[i]);
 
 			int ret = scf_elf_add_sym(exec->elf, sym2);
 			if (ret < 0) {
@@ -381,7 +381,8 @@ int main()
 
 	char* inputs[] = {
 		"./_start.o",
-		"./1.elf"
+		"./1.elf",
+		"./2.elf",
 	};
 
 	ret = scf_elf_file_open(&exec, "./1.out", "wb");

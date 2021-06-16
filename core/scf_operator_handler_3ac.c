@@ -1376,7 +1376,13 @@ static int _scf_op_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* 
 		}
 
 		v = _scf_operand_get(arg);
-		v->local_flag = 1;
+
+		if (!v->global_flag
+				&& !v->static_flag
+				&& !v->member_flag
+				&& !v->local_flag
+				&& !v->const_flag)
+			v->tmp_flag = 1;
 	}
 
 

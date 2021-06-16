@@ -418,10 +418,8 @@ static int _x64_elf_read_relas(scf_elf_context_t* elf, scf_vector_t* relas, cons
 	}
 
 	ret = __x64_elf_read_section(elf, &sh_rela, sh_name);
-	if (ret < 0) {
-		scf_loge("\n");
+	if (ret < 0)
 		return ret;
-	}
 
 	ret = __x64_elf_read_section(elf, &strtab, ".strtab");
 	if (ret < 0) {
@@ -838,13 +836,13 @@ static int _x64_elf_link_debug(scf_elf_x64_t* x64, scf_elf_x64_section_t* s, scf
 
 		uint64_t offset = sym->sym.st_value + rela->r_addend;
 
-		if (!strncmp(sym->name->data, ".debug_abbrev", 7)) {
+		if (!strncmp(sym->name->data, ".debug_", 7)) {
 
 			int k  = ELF64_R_SYM(rela->r_info);
 
 			sym2   = x64->symbols->data[k - 1];
 
-			offset = sym2->sym.st_value;
+			offset = sym2->sym.st_value + rela->r_addend;
 			rela->r_addend = offset;
 
 		} else if (!strcmp(sym->name->data, ".text")) {
