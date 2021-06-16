@@ -21,14 +21,60 @@ static int _do_data_init(scf_dfa_t* dfa, scf_vector_t* words, dfa_parse_data_t* 
 	scf_variable_t*     var   = d->current_var;
 	scf_lex_word_t*     w     = words->data[words->size - 1];
 	data_module_data_t* md    = d->module_datas[dfa_module_init_data.index];
+	dfa_init_expr_t*    ie;
 
 	int ret = -1;
+	int i   = 0;
 
 	if (d->current_var->nb_dimentions > 0)
 		ret = scf_array_init(parse->ast, w, d->current_var, d->init_exprs);
 
 	else if (d->current_var->type >=  SCF_STRUCT)
 		ret = scf_struct_init(parse->ast, w, d->current_var, d->init_exprs);
+
+	if (ret < 0)
+		goto error;
+
+	if (d->current_var->global_flag) {
+
+		for (i = 0; i < d->init_exprs->size; i++) {
+			ie =        d->init_exprs->data[i];
+
+			assert(!ie->current_index);
+
+			ret = scf_expr_calculate(parse->ast, ie->expr, NULL);
+			if (ret < 0)
+				goto error;
+
+			scf_expr_free(ie->expr);
+			free(ie);
+			ie = NULL;
+		}
+	} else {
+		for (i = 0; i < d->init_exprs->size; i++) {
+			ie =        d->init_exprs->data[i];
+
+			assert(!ie->current_index);
+
+			ret = scf_node_add_child((scf_node_t*)parse->ast->current_block, ie->expr);
+			if (ret < 0)
+				goto error;
+
+			free(ie);
+			ie = NULL;
+		}
+	}
+
+error:
+	for (; i < d->init_exprs->size; i++) {
+		ie =        d->init_exprs->data[i];
+
+		assert(!ie->current_index);
+
+		scf_expr_free(ie->expr);
+		free(ie);
+		ie = NULL;
+	}
 
 	scf_vector_free(d->init_exprs);
 	d->init_exprs = NULL;

@@ -41,9 +41,9 @@ void scf_function_free(scf_function_t* f)
 	scf_scope_free(f->scope);
 	f->scope = NULL;
 
-	if (f->name) {
-		scf_string_free(f->name);
-		f->name = NULL;
+	if (f->signature) {
+		scf_string_free(f->signature);
+		f->signature = NULL;
 	}
 
 	if (f->w_start) {
@@ -172,14 +172,17 @@ int scf_function_same_type(scf_function_t* f0, scf_function_t* f1)
 	return scf_function_same_argv(f0->argv, f1->argv);
 }
 
-scf_string_t* scf_function_signature(scf_function_t* f)
+int scf_function_signature(scf_function_t* f)
 {
 	int ret;
 	int i;
 
+	if (f->signature)
+		scf_string_free(f->signature);
+
 	scf_string_t* s = scf_string_alloc();
 	if (!s)
-		return NULL;
+		return -ENOMEM;
 
 	scf_type_t*   t = (scf_type_t*)f->node.parent;
 	if (t->node.type >= SCF_STRUCT) {
@@ -197,14 +200,18 @@ scf_string_t* scf_function_signature(scf_function_t* f)
 		ret = scf_string_cat_cstr(s, "main");
 		if (ret < 0)
 			goto error;
-		return s;
+	
+		f->signature = s;
+		return 0;
 	}
 
 	ret = scf_string_cat(s, f->node.w->text);
 	if (ret < 0)
 		goto error;
 	scf_logw("f signature: %s\n", s->data);
-	return s;
+
+	f->signature = s;
+	return 0;
 
 	if (f->argv) {
 		for (i = 0; i < f->argv->size; i++) {
@@ -222,10 +229,12 @@ scf_string_t* scf_function_signature(scf_function_t* f)
 	}
 
 	scf_logw("f signature: %s\n", s->data);
-	return s;
+
+	f->signature = s;
+	return 0;
 
 error:
 	scf_string_free(s);
-	return NULL;
+	return -1;
 }
 

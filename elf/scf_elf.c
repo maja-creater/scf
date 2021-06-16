@@ -9,6 +9,16 @@ scf_elf_ops_t*			elf_ops_array[] =
 	NULL,
 };
 
+void scf_elf_rela_free(scf_elf_rela_t* rela)
+{
+	if (rela) {
+		if (rela->name)
+			free(rela->name);
+
+		free(rela);
+	}
+}
+
 int scf_elf_open(scf_elf_context_t** pelf, const char* machine, const char* path, const char* mode)
 {
 	scf_elf_context_t* elf = calloc(1, sizeof(scf_elf_context_t));
@@ -78,18 +88,6 @@ int scf_elf_add_section(scf_elf_context_t* elf, const scf_elf_section_t* section
 	return -1;
 }
 
-int scf_elf_add_rela(scf_elf_context_t* elf, const scf_elf_rela_t* rela)
-{
-	if (elf && rela) {
-
-		if (elf->ops && elf->ops->add_rela)
-			return elf->ops->add_rela(elf, rela);
-	}
-
-	scf_loge("\n");
-	return -1;
-}
-
 int	scf_elf_add_rela_section(scf_elf_context_t* elf, const scf_elf_section_t* section, scf_vector_t* relas)
 {
 	if (elf && section && relas) {
@@ -126,12 +124,12 @@ int scf_elf_read_syms(scf_elf_context_t* elf, scf_vector_t* syms)
 	return -1;
 }
 
-int scf_elf_read_relas(scf_elf_context_t* elf, scf_vector_t* relas)
+int scf_elf_read_relas(scf_elf_context_t* elf, scf_vector_t* relas, const char* sh_name)
 {
-	if (elf && relas) {
+	if (elf && relas && sh_name) {
 
 		if (elf->ops && elf->ops->read_relas)
-			return elf->ops->read_relas(elf, relas);
+			return elf->ops->read_relas(elf, relas, sh_name);
 	}
 
 	scf_loge("\n");

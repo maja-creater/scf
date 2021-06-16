@@ -2,6 +2,95 @@
 #include"scf_type.h"
 #include"scf_function.h"
 
+scf_member_t* scf_member_alloc(scf_variable_t* base)
+{
+	scf_member_t* m = calloc(1, sizeof(scf_member_t));
+	if (!m)
+		return NULL;
+
+	m->base = base;
+	return m;
+}
+
+void scf_member_free(scf_member_t* m)
+{
+	if (m) {
+		if (m->indexes) {
+			scf_vector_clear(m->indexes, ( void (*)(void*) ) free);
+			scf_vector_free (m->indexes);
+		}
+
+		free(m);
+	}
+}
+
+int scf_member_offset(scf_member_t* m)
+{
+	if (!m->indexes)
+		return 0;
+
+	scf_variable_t* base = m->base;
+	scf_index_t*    idx;
+
+	int dim    = 0;
+	int offset = 0;
+	int i;
+	int j;
+
+	for (i  = 0; i < m->indexes->size; i++) {
+		idx =        m->indexes->data[i];
+
+		if (idx->member) {
+			offset += idx->member->offset;
+			base    = idx->member;
+			dim     = 0;
+			continue;
+		}
+
+		assert(idx->index >= 0);
+
+		dim++;
+
+		int capacity = 1;
+
+		for (j = dim; j  < base->nb_dimentions; j++)
+			capacity    *= base->dimentions[j];
+
+		capacity *= base->size;
+		offset   += capacity * idx->index;
+	}
+
+	return offset;
+}
+
+int scf_member_add_index(scf_member_t* m, scf_variable_t* member, int index)
+{
+	if (!m)
+		return -1;
+
+	if (!m->indexes) {
+		m ->indexes = scf_vector_alloc();
+		if (!m->indexes)
+			return -ENOMEM;
+	}
+
+	scf_index_t* idx = calloc(1, sizeof(scf_index_t));
+	if (!idx)
+		return -ENOMEM;
+
+	if (member)
+		idx->member = member;
+	else
+		idx->index  = index;
+
+	if (scf_vector_add(m->indexes, idx) < 0) {
+		free(idx);
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
 scf_variable_t*	scf_variable_alloc(scf_lex_word_t* w, scf_type_t* t)
 {
 	scf_variable_t* var = calloc(1, sizeof(scf_variable_t));

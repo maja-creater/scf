@@ -48,6 +48,27 @@ static inline scf_vector_t* scf_vector_clone(scf_vector_t* origin)
 	return clone;
 }
 
+static inline int scf_vector_cat(scf_vector_t* dst, scf_vector_t* src)
+{
+	if (!dst || !src)
+		return -EINVAL;
+
+	int size = dst->size + src->size;
+	if (size > dst->capacity) {
+
+		void* p = realloc(dst->data, sizeof(void*) * (size + NB_MEMBER_INC));
+		if (!p)
+			return -ENOMEM;
+
+		dst->data = p;
+		dst->capacity = size + NB_MEMBER_INC;
+	}
+
+	memcpy(dst->data + dst->size * sizeof(void*), src->data, src->size * sizeof(void*));
+	dst->size += src->size;
+	return 0;
+}
+
 static inline int scf_vector_add(scf_vector_t* v, void* node)
 {
 	if (!v || !v->data)

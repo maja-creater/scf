@@ -27,15 +27,25 @@
 		var;\
 	 })
 
+typedef struct scf_ast_rela_s   scf_ast_rela_t;
 typedef struct scf_ast_s		scf_ast_t;
 
-struct scf_ast_s {
+struct scf_ast_rela_s
+{
+	scf_member_t*       ref; // ref should point to obj's address
+	scf_member_t*       obj;
+};
 
-	scf_block_t*		root_block;
-	scf_block_t*		current_block;
+struct scf_ast_s
+{
+	scf_block_t*        root_block;
+	scf_block_t*        current_block;
 
 	int					nb_structs;
 	int					nb_functions;
+
+	scf_vector_t*       global_consts;
+	scf_vector_t*       global_relas;
 };
 
 int scf_expr_calculate(scf_ast_t* ast, scf_expr_t* expr, scf_variable_t** pret);

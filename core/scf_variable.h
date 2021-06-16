@@ -26,6 +26,7 @@ struct scf_variable_s {
 	int					offset;
 	int					bp_offset;  // offset based on RBP / EBP register
 	int					sp_offset;  // offset based on RSP / ESP register
+	int					ds_offset;  // offset in data section
 
 	union {
 		int32_t         i;
@@ -54,6 +55,24 @@ struct scf_variable_s {
 	uint32_t            arg_flag    :1;
 	uint32_t            auto_gc_flag:1;
 };
+
+struct scf_index_s
+{
+	scf_variable_t*     member;
+	int                 index;
+};
+
+struct scf_member_s
+{
+	scf_variable_t*     base;
+	scf_vector_t*       indexes;
+};
+
+scf_member_t*   scf_member_alloc (scf_variable_t* base);
+void            scf_member_free  (scf_member_t*   m);
+int             scf_member_offset(scf_member_t*   m);
+
+int             scf_member_add_index(scf_member_t* m, scf_variable_t* member, int index);
 
 scf_variable_t*	scf_variable_alloc(scf_lex_word_t* w, scf_type_t* t);
 scf_variable_t*	scf_variable_clone(scf_variable_t* var);

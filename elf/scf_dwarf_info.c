@@ -1,5 +1,7 @@
 #include"scf_dwarf_def.h"
 #include"scf_leb128.h"
+#include"scf_native.h"
+#include"scf_elf.h"
 
 scf_dwarf_info_entry_t* scf_dwarf_info_entry_alloc()
 {
@@ -289,9 +291,59 @@ int scf_dwarf_info_decode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string
 	return 0;
 }
 
-
-int scf_dwarf_info_encode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string_t* debug_str, scf_string_t* debug_info, scf_dwarf_info_header_t* header)
+static int _add_rela_common(scf_dwarf_debug_t* debug, const char* sym, uint64_t offset, int type)
 {
+	scf_rela_t* rela = calloc(1, sizeof(scf_rela_t));
+	if (!rela)
+		return -ENOMEM;
+
+	rela->name = scf_string_cstr(sym);
+	if (!rela->name) {
+		free(rela);
+		return -ENOMEM;
+	}
+
+	if (scf_vector_add(debug->info_relas, rela) < 0) {
+		scf_string_free(rela->name);
+		free(rela);
+		return -ENOMEM;
+	}
+	rela->text_offset = offset;
+	rela->addend      = 0;
+	rela->type        = type;
+	return 0;
+}
+
+static int _add_rela_subprogram(scf_dwarf_debug_t* debug, scf_dwarf_info_entry_t* ie, uint64_t offset, int type)
+{
+	scf_dwarf_info_attr_t* iattr = NULL;
+
+	int k;
+	for (k = 0; k < ie->attributes->size; k++) {
+		iattr     = ie->attributes->data[k];
+
+		if (DW_AT_name == iattr->name)
+			break;
+	}
+
+	assert(k < ie->attributes->size);
+	assert(iattr->data);
+
+	return _add_rela_common(debug, iattr->data->data, offset, type);
+}
+
+int scf_dwarf_info_encode(scf_dwarf_debug_t* debug, scf_dwarf_info_header_t* header)
+{
+	if (!debug || !header) {
+		scf_loge("\n");
+		return -EINVAL;
+	}
+
+	scf_vector_t* infos      = debug->infos;
+	scf_vector_t* abbrevs    = debug->abbrevs;
+	scf_string_t* debug_str  = debug->str;
+	scf_string_t* debug_info = debug->debug_info;
+
 	if (!infos || !abbrevs || !debug_str || !debug_info || !header) {
 		scf_loge("\n");
 		return -EINVAL;
@@ -335,6 +387,13 @@ int scf_dwarf_info_encode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string
 
 	DWARF_INFO_FILL(debug_info, &header->length,       sizeof(header->length));
 	DWARF_INFO_FILL(debug_info, &header->version,      sizeof(header->version));
+
+	int ret = _add_rela_common(debug, ".debug_abbrev", debug_info->len, R_X86_64_32);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
 	DWARF_INFO_FILL(debug_info, &header->offset,       sizeof(header->offset));
 	DWARF_INFO_FILL(debug_info, &header->address_size, sizeof(header->address_size));
 
@@ -380,6 +439,23 @@ int scf_dwarf_info_encode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string
 			switch (iattr->form) {
 
 				case DW_FORM_addr:
+
+					if (DW_AT_low_pc == iattr->name) {
+
+						if (DW_TAG_compile_unit == d->tag)
+
+							ret = _add_rela_common(debug, ".text", debug_info->len, R_X86_64_64);
+
+						else if (DW_TAG_subprogram == d->tag)
+
+							ret = _add_rela_subprogram(debug, ie, debug_info->len, R_X86_64_64);
+						else
+							ret = 0;
+
+						if (ret < 0)
+							return ret;
+					}
+
 					DWARF_INFO_FILL(debug_info, &iattr->address, sizeof(uintptr_t));
 					break;
 

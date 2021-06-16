@@ -37,6 +37,7 @@ typedef struct {
 	int                 inst_index;  // index in code->instructions
 	int                 inst_offset; // byte offset in instruction
 	int64_t             text_offset; // byte offset in .text segment
+	uint64_t            type;
 	int                 addend;
 } scf_rela_t;
 

@@ -7,5 +7,7 @@ scf_operator_handler_t* scf_find_const_operator_handler(const int type, const in
 
 int scf_function_const_opt(scf_ast_t* ast, scf_function_t* f);
 
+int scf_const_opt(scf_ast_t* ast);
+
 #endif
 

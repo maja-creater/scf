@@ -20,14 +20,9 @@ typedef struct {
 
 	Elf64_Sym		sym;
 
+	int             index;
+
 } scf_elf_x64_sym_t;
-
-typedef struct {
-	scf_string_t*	name;
-
-	Elf64_Rela		rela;
-
-} scf_elf_x64_rela_t;
 
 typedef struct {
 	FILE*           fp;
@@ -37,9 +32,6 @@ typedef struct {
 	Elf64_Shdr      sh_null;
 
 	scf_vector_t*   sections;
-
-	Elf64_Shdr		sh_rela;
-	scf_vector_t*	relas;
 
 	Elf64_Shdr		sh_symtab;
 	scf_vector_t*	symbols;

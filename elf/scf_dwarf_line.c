@@ -1,6 +1,7 @@
 #include"scf_dwarf_def.h"
 #include"scf_leb128.h"
 #include"scf_native.h"
+#include"scf_elf.h"
 
 scf_dwarf_line_machine_t* scf_dwarf_line_machine_alloc()
 {
@@ -674,6 +675,7 @@ int scf_dwarf_line_encode(scf_dwarf_debug_t* debug, scf_dwarf_line_machine_t* lm
 				free(rela);
 				return -ENOMEM;
 			}
+			rela->type        = R_X86_64_64;
 			rela->addend      = result->address;
 			rela->text_offset = debug_line->len;
 

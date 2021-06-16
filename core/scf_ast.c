@@ -9,7 +9,14 @@ int	scf_ast_open(scf_ast_t** past)
 
 	ast->root_block = scf_block_alloc_cstr("global");
 	ast->root_block->node.root_flag = 1;
-	printf("%s(),%d, root_block: %p\n", __func__, __LINE__, ast->root_block);
+
+	ast->global_consts = scf_vector_alloc();
+	if (!ast->global_consts)
+		return -ENOMEM;
+
+	ast->global_relas  = scf_vector_alloc();
+	if (!ast->global_relas)
+		return -ENOMEM;
 
 	*past = ast;
 	return 0;

@@ -22,6 +22,8 @@ void 			scf_string_free(scf_string_t* s);
 
 void 			scf_string_print_bin(scf_string_t* s);
 
+int	            scf_string_fill_zero(scf_string_t* s0, size_t len);
+
 int				scf_string_cmp(const scf_string_t* s0, const scf_string_t* s1);
 
 int				scf_string_cmp_cstr(const scf_string_t* s0, const char* str);

@@ -310,7 +310,7 @@ int scf_dwarf_debug_encode(scf_dwarf_debug_t* debug, scf_vector_t* file_names)
 	header.offset  = 0;
 	header.address_size = sizeof(void*);
 
-	ret = scf_dwarf_info_encode(debug->infos, debug->abbrevs, debug->str, debug->debug_info, &header);
+	ret = scf_dwarf_info_encode(debug, &header);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;

@@ -18,10 +18,6 @@ static int _bb_prev_find(scf_basic_block_t* bb, scf_vector_t* queue)
 		for (k = 0; k < bb->entry_dn_actives->size; k++) {
 			dn =        bb->entry_dn_actives->data[k];
 
-			if (dn->var->tmp_flag
-					&& !scf_vector_find(prev_bb->dn_updateds, dn))
-				continue;
-
 			if (scf_vector_find(prev_bb->exit_dn_actives, dn))
 				continue;
 

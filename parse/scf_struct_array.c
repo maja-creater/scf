@@ -195,7 +195,7 @@ int scf_array_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variable_t* var, scf_v
 	for (i = 0; i < var->nb_dimentions; i++) {
 		assert(var->dimentions);
 
-		printf("%s(), %d, dim[%d]: %d\n", __func__, __LINE__, i, var->dimentions[i]);
+		scf_logi("dim[%d]: %d\n", i, var->dimentions[i]);
 
 		if (var->dimentions[i] < 0)
 			unset_dims[nb_unset_dims++] = i;
@@ -249,7 +249,7 @@ int scf_array_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variable_t* var, scf_v
 	for (i = 0; i < init_exprs->size; i++) {
 
 		dfa_init_expr_t* init_expr = init_exprs->data[i];
-		printf("%s(), %d, #### data init, i: %d, init_expr->expr: %p\n", __func__, __LINE__, i, init_expr->expr);
+		scf_logi("#### data init, i: %d, init_expr->expr: %p\n", i, init_expr->expr);
 
 		scf_expr_t* e           = scf_expr_alloc();
 		scf_node_t* node_assign = scf_node_alloc(w, op_assign->type, NULL);
@@ -258,19 +258,19 @@ int scf_array_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variable_t* var, scf_v
 		int         nb_indexes  = init_expr->current_index->size;
 
 		if (scf_array_member_init(ast, w, var, indexes, nb_indexes, &node) < 0) {
-			printf("%s(), %d, error: \n", __func__, __LINE__);
+			scf_loge("\n");
 			return -1;
 		}
 
 		scf_node_add_child(node_assign, node);
 		scf_node_add_child(node_assign, init_expr->expr);
 		scf_expr_add_node(e, node_assign);
-		scf_node_add_child((scf_node_t*)ast->current_block, e);
+//		scf_node_add_child((scf_node_t*)ast->current_block, e);
 
 		scf_vector_free(init_expr->current_index);
-		free(init_expr);
-		init_expr           = NULL;
-		init_exprs->data[i] = NULL;
+		init_expr->current_index = NULL;
+
+		init_expr->expr = e;
 		printf("\n");
 	}
 
@@ -305,12 +305,11 @@ int scf_struct_init(scf_ast_t* ast, scf_lex_word_t* w, scf_variable_t* var, scf_
 		scf_node_add_child(node_assign, node);
 		scf_node_add_child(node_assign, init_expr->expr);
 		scf_expr_add_node(e, node_assign);
-		scf_node_add_child((scf_node_t*)ast->current_block, e);
 
 		scf_vector_free(init_expr->current_index);
-		free(init_expr);
-		init_expr           = NULL;
-		init_exprs->data[i] = NULL;
+		init_expr->current_index = NULL;
+
+		init_expr->expr = e;
 		printf("\n");
 	}
 

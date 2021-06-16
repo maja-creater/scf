@@ -8,7 +8,7 @@ struct scf_function_s {
 
 	scf_scope_t*      scope;
 
-	scf_string_t*     name;
+	scf_string_t*     signature;
 
 	scf_lex_word_t*   w_start;
 	scf_lex_word_t*   w_end;
@@ -55,7 +55,7 @@ int             scf_function_same_type(scf_function_t* f0, scf_function_t* f1);
 int             scf_function_same_argv(scf_vector_t* argv0, scf_vector_t* argv1);
 int             scf_function_like_argv(scf_vector_t* argv0, scf_vector_t* argv1);
 
-scf_string_t*   scf_function_signature(scf_function_t* f);
+int             scf_function_signature(scf_function_t* f);
 
 #endif
 

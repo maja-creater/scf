@@ -7,6 +7,8 @@ typedef struct {
 
 } scf_handler_data_t;
 
+static int __scf_op_semantic_call(scf_ast_t* ast, scf_function_t* f, void* data);
+
 static int _semantic_add_address_of(scf_ast_t* ast, scf_node_t** pp, scf_node_t* src)
 {
 	scf_node_t* parent = src->parent;
@@ -397,6 +399,9 @@ static int _scf_expr_calculate_internal(scf_ast_t* ast, scf_node_t* node, void* 
 {
 	if (!node)
 		return 0;
+
+	if (SCF_FUNCTION == node->type)
+		return __scf_op_semantic_call(ast, (scf_function_t*)node, data);
 
 	if (0 == node->nb_nodes) {
 
@@ -840,24 +845,30 @@ static int _scf_op_semantic_block(scf_ast_t* ast, scf_node_t** nodes, int nb_nod
 			continue;
 		}
 
-		if (!op) {
-			op = scf_find_base_operator_by_type(node->type);
-			if (!op) {
-				scf_loge("node->type: %d\n", node->type);
-				return -1;
-			}
-		}
-
-		scf_operator_handler_t* h = scf_find_semantic_operator_handler(op->type, -1, -1, -1);
-		if (!h) {
-			scf_loge("\n");
-			return -1;
-		}
-
 		scf_variable_t** pret = d->pret;
 
-		d->pret = &node->result;
-		int ret = h->func(ast, node->nodes, node->nb_nodes, d);
+		int ret;
+
+		if (SCF_FUNCTION == node->type)
+			ret = __scf_op_semantic_call(ast, (scf_function_t*)node, data);
+		else {
+			if (!op) {
+				op = scf_find_base_operator_by_type(node->type);
+				if (!op) {
+					scf_loge("node->type: %d\n", node->type);
+					return -1;
+				}
+			}
+
+			scf_operator_handler_t* h = scf_find_semantic_operator_handler(op->type, -1, -1, -1);
+			if (!h) {
+				scf_loge("\n");
+				return -1;
+			}
+
+			d->pret = &node->result;
+			ret = h->func(ast, node->nodes, node->nb_nodes, d);
+		}
 		d->pret = pret;
 
 		if (ret < 0) {
@@ -1267,23 +1278,6 @@ static int __scf_op_semantic_call(scf_ast_t* ast, scf_function_t* f, void* data)
 	}
 
 	ast->current_block = prev_block;
-	return 0;
-}
-
-int scf_function_semantic_analysis(scf_ast_t* ast, scf_function_t* f)
-{
-	scf_logi("f: %p\n", f);
-
-	scf_handler_data_t d = {0};
-
-	int ret = __scf_op_semantic_call(ast, f, &d);
-
-	if (ret < 0) {
-		scf_loge("\n");
-		return -1;
-	}
-
-	scf_logi("f: %p ok\n", f);
 	return 0;
 }
 
@@ -2513,5 +2507,54 @@ scf_operator_handler_t* scf_find_semantic_operator_handler(const int type, const
 	}
 
 	return NULL;
+}
+
+int scf_function_semantic_analysis(scf_ast_t* ast, scf_function_t* f)
+{
+	scf_logi("f: %p\n", f);
+
+	scf_handler_data_t d = {0};
+
+	int ret = __scf_op_semantic_call(ast, f, &d);
+
+	if (ret < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	scf_logi("f: %p ok\n", f);
+	return 0;
+}
+
+int scf_expr_semantic_analysis(scf_ast_t* ast, scf_expr_t* e)
+{
+	scf_handler_data_t d = {0};
+
+	if (!e->nodes || e->nb_nodes != 1) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	int ret = _scf_expr_calculate_internal(ast, e->nodes[0], &d);
+	if (ret < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+int scf_semantic_analysis(scf_ast_t* ast)
+{
+	scf_handler_data_t d = {0};
+
+	int ret = _scf_expr_calculate_internal(ast, (scf_node_t*)ast->root_block, &d);
+
+	if (ret < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	return 0;
 }
 

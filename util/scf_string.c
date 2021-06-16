@@ -169,15 +169,19 @@ int	scf_string_copy(scf_string_t* s0, const scf_string_t* s1)
 
 int	scf_string_cat(scf_string_t* s0, const scf_string_t* s1)
 {
-	if (!s0 || !s1 || !s0->data || !s1->data)
+	if (!s0 || !s1 || !s0->data || !s1->data) {
+		scf_loge("\n");
 		return -EINVAL;
+	}
 
 	assert(s0->capacity > 0);
 
 	if (s0->len + s1->len > s0->capacity) {
 		char* p = realloc(s0->data, s0->len + s1->len + SCF_STRING_NUMBER_INC + 1);
-		if (!p)
+		if (!p) {
+		scf_loge("\n");
 			return -ENOMEM;
+		}
 
 		s0->data = p;
 		s0->capacity = s0->len + s1->len + SCF_STRING_NUMBER_INC;
@@ -199,8 +203,10 @@ int	scf_string_cat_cstr(scf_string_t* s0, const char* str)
 
 int	scf_string_cat_cstr_len(scf_string_t* s0, const char* str, size_t len)
 {
-	if (!s0 || !s0->data || !str)
+	if (!s0 || !s0->data || !str) {
+		scf_loge("\n");
 		return -EINVAL;
+	}
 
 	scf_string_t s1;
 	s1.capacity	= -1;
@@ -208,6 +214,29 @@ int	scf_string_cat_cstr_len(scf_string_t* s0, const char* str, size_t len)
 	s1.data		= (char*)str;
 
 	return scf_string_cat(s0, &s1);
+}
+
+int	scf_string_fill_zero(scf_string_t* s0, size_t len)
+{
+	if (!s0 || !s0->data)
+		return -EINVAL;
+
+	assert(s0->capacity > 0);
+
+	if (s0->len + len > s0->capacity) {
+
+		char* p = realloc(s0->data, s0->len + len + SCF_STRING_NUMBER_INC + 1);
+		if (!p)
+			return -ENOMEM;
+
+		s0->data = p;
+		s0->capacity = s0->len + len + SCF_STRING_NUMBER_INC;
+	}
+
+	memset(s0->data + s0->len, 0, len);
+	s0->data[s0->len + len] = '\0';
+	s0->len += len;
+	return 0;
 }
 
 static int* _prefix_kmp(const uint8_t* P, int m)

@@ -4,6 +4,9 @@
 typedef struct scf_type_s       scf_type_t;
 typedef struct scf_variable_s   scf_variable_t;
 
+typedef struct scf_member_s     scf_member_t;
+typedef struct scf_index_s      scf_index_t;
+
 typedef struct scf_label_s		scf_label_t;
 
 typedef struct scf_node_s       scf_node_t;

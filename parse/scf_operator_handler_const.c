@@ -10,10 +10,15 @@ typedef struct {
 
 static scf_handler_data_t* gd = NULL;
 
+static int __scf_op_const_call(scf_ast_t* ast, scf_function_t* f, void* data);
+
 static int _scf_expr_calculate_internal(scf_ast_t* ast, scf_node_t* node, void* data)
 {
 	if (!node)
 		return 0;
+
+	if (SCF_FUNCTION == node->type)
+		return __scf_op_const_call(ast, (scf_function_t*)node, data);
 
 	if (0 == node->nb_nodes) {
 		assert(scf_type_is_var(node->type) || SCF_LABEL == node->type);
@@ -176,21 +181,27 @@ static int _scf_op_const_block(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 		scf_node_t*		node = nodes[i];
 		scf_operator_t* op   = node->op;
 
-		if (!op) {
-			op = scf_find_base_operator_by_type(node->type);
+		int ret;
+
+		if (SCF_FUNCTION == node->type)
+			ret = __scf_op_const_call(ast, (scf_function_t*)node, data);
+		else {
 			if (!op) {
-				scf_loge("node->type: %d\n", node->type);
+				op = scf_find_base_operator_by_type(node->type);
+				if (!op) {
+					scf_loge("node->type: %d\n", node->type);
+					return -1;
+				}
+			}
+
+			scf_operator_handler_t* h = scf_find_const_operator_handler(op->type, -1, -1, -1);
+			if (!h) {
+				scf_loge("\n");
 				return -1;
 			}
-		}
 
-		scf_operator_handler_t* h = scf_find_const_operator_handler(op->type, -1, -1, -1);
-		if (!h) {
-			scf_loge("\n");
-			return -1;
+			ret = h->func(ast, node->nodes, node->nb_nodes, d);
 		}
-
-		int ret = h->func(ast, node->nodes, node->nb_nodes, d);
 
 		if (ret < 0) {
 			scf_loge("\n");
@@ -940,3 +951,16 @@ scf_operator_handler_t* scf_find_const_operator_handler(const int type, const in
 	return NULL;
 }
 
+int scf_const_opt(scf_ast_t* ast)
+{
+	scf_handler_data_t d = {0};
+
+	int ret = _scf_expr_calculate_internal(ast, (scf_node_t*)ast->root_block, &d);
+
+	if (ret < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	return 0;
+}

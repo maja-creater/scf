@@ -7,5 +7,9 @@ scf_operator_handler_t* scf_find_semantic_operator_handler(const int type, const
 
 int scf_function_semantic_analysis(scf_ast_t* ast, scf_function_t* f);
 
+int scf_expr_semantic_analysis(scf_ast_t* ast, scf_expr_t* e);
+
+int scf_semantic_analysis(scf_ast_t* ast);
+
 #endif
 

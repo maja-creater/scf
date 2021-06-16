@@ -427,7 +427,7 @@ int scf_dwarf_abbrev_decode(scf_vector_t* abbrev_results, const char*   debug_ab
 int scf_dwarf_abbrev_encode(scf_vector_t* abbrev_results, scf_string_t* debug_abbrev);
 
 int scf_dwarf_info_decode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string_t* debug_str, const char*   debug_info, size_t debug_info_size, scf_dwarf_info_header_t* header);
-int scf_dwarf_info_encode(scf_vector_t* infos, scf_vector_t* abbrevs, scf_string_t* debug_str, scf_string_t* debug_info, scf_dwarf_info_header_t* header);
+int scf_dwarf_info_encode(scf_dwarf_debug_t* debug, scf_dwarf_info_header_t* header);
 
 void scf_dwarf_abbrev_print(scf_vector_t* abbrev_results);
 void scf_dwarf_info_print  (scf_vector_t* infos);

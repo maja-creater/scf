@@ -26,6 +26,14 @@ struct scf_parse_s {
 	scf_vector_t*      symtab;
 
 	scf_dwarf_debug_t* debug;
+
+	int sh_text;
+	int sh_data;
+
+	int sh_debug_abbrev;
+	int sh_debug_info;
+	int sh_debug_line;
+	int sh_debug_str;
 };
 
 typedef struct {

@@ -139,6 +139,41 @@ static int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
 	return 0;
 }
 
+static int _var_init_expr(scf_dfa_t* dfa, dfa_parse_data_t* d)
+{
+	scf_parse_t* parse = dfa->priv;
+
+	if (!d->expr) {
+		scf_loge("\n");
+		return SCF_DFA_ERROR;
+	}
+
+	assert(d->current_var);
+
+	d->expr_local_flag--;
+
+	if (d->current_var->global_flag) {
+
+		scf_logw("d->expr: %p, d->current_var: %p, global_flag: %d\n",
+				d->expr, d->current_var, d->current_var->global_flag);
+
+		if (scf_expr_calculate(parse->ast, d->expr, NULL) < 0) {
+			scf_loge("\n");
+			return SCF_DFA_ERROR;
+		}
+
+		scf_expr_free(d->expr);
+
+	} else {
+		assert(d->expr->nb_nodes > 0);
+
+		scf_node_add_child((scf_node_t*)parse->ast->current_block, (scf_node_t*)d->expr);
+	}
+
+	d->expr = NULL;
+	return 0;
+}
+
 static int _var_action_comma(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 {
 	scf_parse_t*      parse = dfa->priv;
@@ -152,18 +187,11 @@ static int _var_action_comma(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	d->nb_lss = 0;
 	d->nb_rss = 0;
 
-	if (d->expr) {
-		while(d->expr->parent)
-			d->expr = d->expr->parent;
-
-		scf_logi("d->expr: %p, d->expr->parent: %p\n", d->expr, d->expr->parent);
-
-		scf_node_add_child((scf_node_t*)parse->ast->current_block, (scf_node_t*)d->expr);
-		d->expr = NULL;
-	}
-
 	if (d->current_var)
 		scf_variable_size(d->current_var);
+
+	if (d->expr_local_flag > 0 && _var_init_expr(dfa, d) < 0)
+		return SCF_DFA_ERROR;
 
 	return SCF_DFA_SWITCH_TO;
 }
@@ -187,21 +215,12 @@ static int _var_action_semicolon(scf_dfa_t* dfa, scf_vector_t* words, void* data
 	free(id);
 	id = NULL;
 
-	if (d->expr) {
-		while(d->expr->parent)
-			d->expr = d->expr->parent;
-
-		if (0 == d->expr->nb_nodes)
-			scf_expr_free(d->expr);
-		else
-			scf_node_add_child((scf_node_t*)parse->ast->current_block, (scf_node_t*)d->expr);
-		d->expr = NULL;
-	}
-
 	if (d->current_var)
 		scf_variable_size(d->current_var);
 
-	scf_logw("d->expr: %p\n", d->expr);
+	if (d->expr_local_flag > 0 && _var_init_expr(dfa, d) < 0)
+		return SCF_DFA_ERROR;
+
 	return SCF_DFA_OK;
 }
 
@@ -242,6 +261,7 @@ static int _var_action_assign(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	scf_expr_add_node(e, n0);
 
 	d->expr         = e;
+	d->expr_local_flag++;
 
 	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "var_semicolon"), SCF_DFA_HOOK_POST);
 	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "var_comma"), SCF_DFA_HOOK_POST);
