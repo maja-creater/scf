@@ -57,6 +57,7 @@ static scf_instruction_t* _x64_make_OpCode(scf_x64_OpCode_t* OpCode, int bytes, 
 	for (i = 0; i < OpCode->nb_OpCodes; i++)
 		inst->code[inst->len++] = OpCode->OpCodes[i];
 
+	inst->OpCode = (scf_OpCode_t*)OpCode; 
 	return inst;
 }
 
@@ -160,6 +161,12 @@ scf_instruction_t* x64_make_inst_G(scf_x64_OpCode_t* OpCode, scf_register_x64_t*
 	assert(1 == OpCode->nb_OpCodes);
 
 	inst->code[inst->len - 1] += r->id;
+
+	if (SCF_X64_PUSH == OpCode->type)
+		inst->src.base = (scf_register_t*)r;
+	else if (SCF_X64_POP == OpCode->type)
+		inst->dst.base = (scf_register_t*)r;
+
 	return inst;
 }
 
@@ -273,6 +280,8 @@ scf_instruction_t* x64_make_inst_G2M(scf_rela_t** prela, scf_x64_OpCode_t* OpCod
 		return NULL;
 	}
 
+	scf_register_x64_t* rbp = x64_find_register("rbp");
+
 	uint32_t base;
 	int32_t  offset;
 
@@ -281,6 +290,8 @@ scf_instruction_t* x64_make_inst_G2M(scf_rela_t** prela, scf_x64_OpCode_t* OpCod
 
 			base   = SCF_X64_REG_RBP;
 			offset = v_dst->bp_offset;
+
+			r_base = rbp;
 
 		} else if (v_dst->global_flag) {
 			base   = -1;
@@ -307,6 +318,11 @@ scf_instruction_t* x64_make_inst_G2M(scf_rela_t** prela, scf_x64_OpCode_t* OpCod
 		return NULL;
 	}
 
+	inst->src.base = (scf_register_t*)r_src;
+	inst->dst.base = (scf_register_t*)r_base;
+	inst->dst.disp = offset;
+	inst->dst.flag = 1;
+
 	return inst;
 }
 
@@ -317,6 +333,8 @@ scf_instruction_t* x64_make_inst_M2G(scf_rela_t** prela, scf_x64_OpCode_t* OpCod
 		return NULL;
 	}
 
+	scf_register_x64_t* rbp = x64_find_register("rbp");
+
 	uint32_t base;
 	int32_t  offset;
 
@@ -325,6 +343,7 @@ scf_instruction_t* x64_make_inst_M2G(scf_rela_t** prela, scf_x64_OpCode_t* OpCod
 
 			base   = SCF_X64_REG_RBP;
 			offset = v_src->bp_offset;
+			r_base = rbp;
 
 		} else if (v_src->global_flag) {
 			base   = -1;
@@ -351,6 +370,11 @@ scf_instruction_t* x64_make_inst_M2G(scf_rela_t** prela, scf_x64_OpCode_t* OpCod
 		return NULL;
 	}
 
+	inst->dst.base = (scf_register_t*)r_dst;
+	inst->src.base = (scf_register_t*)r_base;
+	inst->src.disp = offset;
+	inst->src.flag = 1;
+
 	return inst;
 }
 
@@ -370,6 +394,11 @@ scf_instruction_t* x64_make_inst_P2G(scf_x64_OpCode_t* OpCode, scf_register_x64_
 		return NULL;
 	}
 
+	inst->dst.base = (scf_register_t*)r_dst;
+	inst->src.base = (scf_register_t*)r_base;
+	inst->src.disp = offset;
+	inst->src.flag = 1;
+
 	return inst;
 }
 
@@ -388,6 +417,11 @@ scf_instruction_t* x64_make_inst_G2P(scf_x64_OpCode_t* OpCode, scf_register_x64_
 		free(inst);
 		return NULL;
 	}
+
+	inst->src.base = (scf_register_t*)r_src;
+	inst->dst.base = (scf_register_t*)r_base;
+	inst->dst.disp = offset;
+	inst->dst.flag = 1;
 
 	return inst;
 }
@@ -440,6 +474,10 @@ scf_instruction_t* x64_make_inst_G2E(scf_x64_OpCode_t* OpCode, scf_register_x64_
 	scf_ModRM_setMod(&ModRM, SCF_X64_MOD_REGISTER);
 
 	inst->code[inst->len++] = ModRM;
+
+	inst->src.base = (scf_register_t*)r_src;
+	inst->dst.base = (scf_register_t*)r_dst;
+
 	return inst;
 }
 
@@ -460,6 +498,10 @@ scf_instruction_t* x64_make_inst_E2G(scf_x64_OpCode_t* OpCode, scf_register_x64_
 	scf_ModRM_setMod(&ModRM, SCF_X64_MOD_REGISTER);
 
 	inst->code[inst->len++] = ModRM;
+
+	inst->src.base = (scf_register_t*)r_src;
+	inst->dst.base = (scf_register_t*)r_dst;
+
 	return inst;
 }
 
@@ -540,6 +582,14 @@ scf_instruction_t* x64_make_inst_SIB2G(scf_x64_OpCode_t* OpCode, scf_register_x6
 	if (!inst)
 		return NULL;
 
+	inst->dst.base  = (scf_register_t*)r_dst;
+
+	inst->src.base  = (scf_register_t*)r_base;
+	inst->src.index = (scf_register_t*)r_index;
+	inst->src.scale = scale;
+	inst->src.disp  = disp;
+	inst->src.flag  = 1;
+
 	return _x64_make_inst_SIB(inst, OpCode, r_dst->id, r_base, r_index, scale, disp, r_dst->bytes);
 }
 
@@ -553,6 +603,14 @@ scf_instruction_t* x64_make_inst_G2SIB(scf_x64_OpCode_t* OpCode, scf_register_x6
 	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_src->bytes, r_src, NULL);
 	if (!inst)
 		return NULL;
+
+	inst->src.base  = (scf_register_t*)r_src;
+
+	inst->dst.base  = (scf_register_t*)r_base;
+	inst->dst.index = (scf_register_t*)r_index;
+	inst->dst.scale = scale;
+	inst->dst.disp  = disp;
+	inst->dst.flag  = 1;
 
 	return _x64_make_inst_SIB(inst, OpCode, r_src->id, r_base, r_index, scale, disp, r_src->bytes);
 }

@@ -22,6 +22,8 @@ static int _identity_action_identity(scf_dfa_t* dfa, scf_vector_t* words, void* 
 	}
 
 	id->identity = w;
+	id->const_flag = d->const_flag;
+	d ->const_flag = 0;
 
 	return SCF_DFA_NEXT_WORD;
 }

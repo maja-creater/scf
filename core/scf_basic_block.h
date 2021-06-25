@@ -24,6 +24,9 @@ struct scf_bb_group_s
 	scf_basic_block_t*  pre;
 	scf_basic_block_t*  post;
 
+	scf_vector_t*       entries;
+	scf_vector_t*       exits;
+
 	scf_vector_t*       body;
 
 	scf_bb_group_t*     loop_parent;
@@ -45,8 +48,10 @@ struct scf_basic_block_s
 	scf_vector_t*   prevs; // prev basic blocks
 	scf_vector_t*   nexts; // next basic blocks
 
-	scf_vector_t*   dominators; // basic blocks dominate this block
-	int             depth_first_order;
+	scf_vector_t*   dominators_normal;
+	scf_vector_t*   dominators_reverse;
+	int             dfo_normal;
+	int             dfo_reverse;
 
 	scf_vector_t*   entry_dn_actives;
 	scf_vector_t*   exit_dn_actives;
@@ -88,6 +93,7 @@ struct scf_basic_block_s
 
 	uint32_t        generate_flag :1;
 
+	uint32_t        loop_flag   :1;
 	uint32_t        group_flag  :1;
 	uint32_t        visited_flag:1;
 	uint32_t        native_flag :1;
@@ -103,7 +109,9 @@ int                 scf_basic_block_search_dfs_prev(scf_basic_block_t* root, scf
 scf_basic_block_t*  scf_basic_block_alloc();
 void                scf_basic_block_free(scf_basic_block_t* bb);
 
-void                scf_bb_group_free(scf_bb_group_t* bbg);
+scf_bb_group_t*     scf_bb_group_alloc();
+void                scf_bb_group_free (scf_bb_group_t* bbg);
+void                scf_bb_group_print(scf_bb_group_t* bbg);
 
 void                scf_basic_block_print(scf_basic_block_t* bb, scf_list_t* sentinel);
 void                scf_basic_block_print_list(scf_list_t* h);

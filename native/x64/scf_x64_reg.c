@@ -68,6 +68,9 @@ scf_register_x64_t	x64_registers[] = {
 
 	{7, 4, "mm7",    X64_COLOR(1, 7, 0xf),  NULL, 0},
 	{7, 8, "xmm7",   X64_COLOR(1, 7, 0xff), NULL, 0},
+
+
+	{0xf, 8, "rip",  X64_COLOR(0, 7, 0xff), NULL, 0},
 };
 
 int x64_reg_cached_vars(scf_register_x64_t* r)
@@ -128,7 +131,7 @@ void x64_registers_clear()
 	}
 }
 
-int x64_caller_save_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs, int stack_size)
+int x64_caller_save_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs, int stack_size, scf_register_x64_t** saved_regs)
 {
 	int i;
 	int j;
@@ -140,6 +143,7 @@ int x64_caller_save_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs
 	scf_x64_OpCode_t*   push = x64_find_OpCode(SCF_X64_PUSH, 8,8, SCF_X64_G);
 
 	int size = 0;
+	int k    = 0;
 
 	for (j = 0; j < nb_regs; j++) {
 		r2 = x64_find_register_type_id_bytes(0, regs[j], 8);
@@ -165,6 +169,8 @@ int x64_caller_save_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs
 		else
 			inst = x64_make_inst_G(push, r2);
 		X64_INST_ADD_CHECK(instructions, inst);
+
+		saved_regs[k++] = r2;
 		size += 8;
 	}
 	return size;
@@ -204,7 +210,7 @@ int x64_push_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs)
 	return 0;
 }
 
-int x64_pop_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs, scf_register_x64_t** updated_regs, int nb_updated)
+int x64_pop_regs(scf_vector_t* instructions, scf_register_x64_t** regs, int nb_regs, scf_register_x64_t** updated_regs, int nb_updated)
 {
 	int i;
 	int j;
@@ -219,7 +225,7 @@ int x64_pop_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs, scf_re
 	uint32_t imm = 8;
 
 	for (j = nb_regs - 1; j >= 0; j--) {
-		r2 = x64_find_register_type_id_bytes(0, regs[j], 8);
+		r2 = regs[j];
 
 		for (i = 0; i < sizeof(x64_registers) / sizeof(x64_registers[0]); i++) {
 			r  = &(x64_registers[i]);
@@ -395,7 +401,7 @@ int x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf_3ac_code_t* c, 
 	}
 
 	// if temp var in register, alloc it in stack
-	if (0 == v->bp_offset) {
+	if (0 == v->bp_offset && !v->global_flag && !v->local_flag) {
 
 		int local_vars_size  = f->local_vars_size;
 		local_vars_size     += var_size;

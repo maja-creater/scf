@@ -99,8 +99,6 @@ scf_variable_t*	scf_block_find_variable(scf_block_t* b, const char* name)
 		if (SCF_OP_BLOCK == b->node.type || SCF_FUNCTION == b->node.type || b->node.type >= SCF_STRUCT) {
 
 			if (b->scope) {
-				printf("%s(),%d, b: %p, b->scope->name: %s, name: %s\n", __func__, __LINE__, b, b->scope->name->data, name);
-
 				scf_variable_t* v = scf_scope_find_variable(b->scope, name);
 				if (v)
 					return v;

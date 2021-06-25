@@ -288,6 +288,8 @@ static int __optimize_basic_block(scf_basic_block_t* bb, scf_function_t* f)
 
 		scf_list_del(&c->list);
 		scf_list_add_tail(&bb->code_list_head, &c->list);
+
+		c->basic_block = bb;
 	}
 #if 1
 	ret = scf_basic_block_active_vars(bb);

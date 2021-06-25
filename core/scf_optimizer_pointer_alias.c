@@ -55,8 +55,18 @@ static int _3ac_pointer_alias(scf_dag_node_t* alias, scf_3ac_code_t* c, scf_basi
 #endif
 
 	pointer->dag_node = alias;
-	SCF_XCHG(c->dsts->data[0], pointer);
-	scf_3ac_operand_free(pointer);
+
+	if (!c->dsts) {
+		c->dsts = scf_vector_alloc();
+		if (!c->dsts)
+			return -ENOMEM;
+
+		if (scf_vector_add(c->dsts, pointer) < 0)
+			return -ENOMEM;
+	} else {
+		SCF_XCHG(c->dsts->data[0], pointer);
+		scf_3ac_operand_free(pointer);
+	}
 	pointer = NULL;
 
 	switch (c->op->type) {
@@ -218,17 +228,16 @@ static int __optimize_alias_bb(scf_list_t** pend, scf_list_t* start, scf_basic_b
 
 static int _optimize_alias_bb(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 {
-	scf_list_t* l;
 	scf_list_t* start;
 	scf_list_t* end;
 
 	int ret;
 
-	start = scf_list_head(&bb->code_list_head);
-	end   = scf_list_sentinel(&bb->code_list_head);
+	do {
+		start = scf_list_head(&bb->code_list_head);
+		end   = scf_list_sentinel(&bb->code_list_head);
 
-	while (1) {
-		ret     = __optimize_alias_bb(&end, start, bb, bb_list_head);
+		ret   = __optimize_alias_bb(&end, start, bb, bb_list_head);
 		if (ret < 0) {
 			scf_loge("\n");
 			return ret;
@@ -237,71 +246,27 @@ static int _optimize_alias_bb(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 		if (end == scf_list_sentinel(&bb->code_list_head))
 			break;
 
+		bb->dereference_flag = 1;
+
+		if (scf_list_next(end) == scf_list_sentinel(&bb->code_list_head))
+			break;
+
 		scf_basic_block_t* bb_child = NULL;
-		scf_3ac_code_t*    c;
 
-		start = end;
+		int ret = scf_basic_block_split(bb, &bb_child);
+		if (ret < 0)
+			return ret;
 
-		if (start != scf_list_head(&bb->code_list_head)) {
+		bb_child->dereference_flag = 0;
+		bb_child->array_index_flag = bb->array_index_flag;
 
-			int flag = 0;
+		scf_basic_block_mov_code(scf_list_next(end), bb_child, bb);
 
-			for (l = scf_list_prev(start); l != scf_list_sentinel(&bb->code_list_head);
-					l = scf_list_prev(l)) {
+		scf_list_add_front(&bb->list, &bb_child->list);
 
-				c = scf_list_data(l, scf_3ac_code_t, list);
+		bb = bb_child;
+	} while (1);
 
-				if (SCF_OP_DEREFERENCE == c->op->type)
-					flag = 1;
-				else if (scf_type_is_assign(c->op->type))
-					break;
-				else if (scf_type_is_assign_dereference(c->op->type)) {
-					flag = 1;
-					break;
-				}
-			}
-			l = scf_list_next(l);
-
-			if (l != scf_list_head(&bb->code_list_head)) {
-
-				int ret = scf_basic_block_split(bb, &bb_child);
-				if (ret < 0)
-					return ret;
-
-				bb      ->dereference_flag = flag;
-				bb_child->dereference_flag = 1;
-				bb_child->array_index_flag = bb->array_index_flag;
-
-				scf_list_add_front(&bb->list, &bb_child->list);
-
-				SCF_XCHG(bb->entry_dn_aliases,   bb_child->entry_dn_aliases);
-				SCF_XCHG(bb->dn_pointer_aliases, bb_child->dn_pointer_aliases);
-
-
-				for ( ; l != scf_list_sentinel(&bb->code_list_head); ) {
-					c = scf_list_data(l, scf_3ac_code_t, list);
-					l = scf_list_next(l);
-
-					scf_list_del(&c->list);
-					scf_list_add_tail(&bb_child->code_list_head, &c->list);
-					c->basic_block = bb_child;
-				}
-
-				bb    = bb_child;
-			}
-		}
-		start = scf_list_next(start);
-
-		for (l = start; l != scf_list_sentinel(&bb->code_list_head); ) {
-			c = scf_list_data(l, scf_3ac_code_t, list);
-			l = scf_list_next(l);
-
-			if (scf_type_is_assign(c->op->type)
-					|| scf_type_is_assign_dereference(c->op->type))
-				break;
-		}
-		end = l;
-	}
 	return 0;
 }
 

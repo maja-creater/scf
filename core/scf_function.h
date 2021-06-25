@@ -32,7 +32,9 @@ struct scf_function_s {
 
 	scf_vector_t*     dfs_tree;
 	scf_vector_t*     bb_loops;
+	scf_vector_t*     bb_groups;
 	int               max_dfo;
+	int               max_dfo_reverse;
 
 	scf_vector_t*     text_relas; // re-localtions in .text segment
 	scf_vector_t*     data_relas; // re-localtions in .data segment
@@ -45,6 +47,7 @@ struct scf_function_s {
 
 	uint32_t          vargs_flag  :1;
 	uint32_t          visited_flag:1;
+	uint32_t          bp_used_flag:1;
 };
 
 scf_function_t*	scf_function_alloc(scf_lex_word_t* w);

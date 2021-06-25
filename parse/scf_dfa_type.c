@@ -12,6 +12,17 @@ static int _type_is__struct(scf_dfa_t* dfa, void* word)
 		|| SCF_LEX_WORD_KEY_STRUCT == w->type;
 }
 
+static int _type_action_const(scf_dfa_t* dfa, scf_vector_t* words, void* data)
+{
+	scf_parse_t*      parse = dfa->priv;
+	scf_lex_word_t*   w     = words->data[words->size - 1];
+	dfa_parse_data_t* d     = data;
+
+	d->const_flag = 1;
+
+	return SCF_DFA_NEXT_WORD;
+}
+
 static int _type_action_base_type(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 {
 	scf_parse_t*      parse = dfa->priv;
@@ -37,6 +48,8 @@ static int _type_action_base_type(scf_dfa_t* dfa, scf_vector_t* words, void* dat
 	}
 
 	id->type_w = w;
+	id->const_flag = d->const_flag;
+	d ->const_flag = 0;
 
 	return SCF_DFA_NEXT_WORD;
 }
@@ -168,6 +181,7 @@ static int _dfa_init_module_type(scf_dfa_t* dfa)
 	SCF_DFA_MODULE_ENTRY(dfa, type);
 
 	SCF_DFA_MODULE_NODE(dfa, type, _struct,   _type_is__struct,     NULL);
+	SCF_DFA_MODULE_NODE(dfa, type, _const,    scf_dfa_is_const,     _type_action_const);
 	SCF_DFA_MODULE_NODE(dfa, type, base_type, scf_dfa_is_base_type, _type_action_base_type);
 	SCF_DFA_MODULE_NODE(dfa, type, identity,  scf_dfa_is_identity,  _type_action_identity);
 	SCF_DFA_MODULE_NODE(dfa, type, star,      scf_dfa_is_star,      _type_action_star);
@@ -180,6 +194,7 @@ static int _dfa_init_syntax_type(scf_dfa_t* dfa)
 {
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     entry,     entry);
 
+	SCF_DFA_GET_MODULE_NODE(dfa, type,     _const,    _const);
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     _struct,   _struct);
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     base_type, base_type);
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     identity,  var_name);
@@ -191,9 +206,14 @@ static int _dfa_init_syntax_type(scf_dfa_t* dfa)
 
 	scf_vector_add(dfa->syntaxes,     entry);
 
+	scf_dfa_node_add_child(entry,     _const);
 	scf_dfa_node_add_child(entry,     _struct);
 	scf_dfa_node_add_child(entry,     base_type);
 	scf_dfa_node_add_child(entry,     type_name);
+
+	scf_dfa_node_add_child(_const,    _struct);
+	scf_dfa_node_add_child(_const,    base_type);
+	scf_dfa_node_add_child(_const,    type_name);
 
 	scf_dfa_node_add_child(_struct,   type_name);
 

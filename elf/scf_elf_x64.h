@@ -25,7 +25,6 @@ typedef struct {
 } scf_elf_x64_sym_t;
 
 typedef struct {
-	FILE*           fp;
 
 	Elf64_Ehdr      eh;
 

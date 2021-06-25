@@ -10,6 +10,15 @@
 typedef struct scf_parse_s		scf_parse_t;
 typedef struct dfa_parse_data_s dfa_parse_data_t;
 
+#define SCF_SHNDX_TEXT   1
+#define SCF_SHNDX_RODATA 2
+#define SCF_SHNDX_DATA   3
+
+#define SCF_SHNDX_DEBUG_ABBREV 4
+#define SCF_SHNDX_DEBUG_INFO   5
+#define SCF_SHNDX_DEBUG_LINE   6
+#define SCF_SHNDX_DEBUG_STR    7
+
 struct scf_parse_s {
 	scf_list_t		   word_list_head; // word list head
 	scf_list_t		   error_list_head; // error list head
@@ -24,16 +33,9 @@ struct scf_parse_s {
 	dfa_parse_data_t*  dfa_data;
 
 	scf_vector_t*      symtab;
+	scf_vector_t*      global_consts;
 
 	scf_dwarf_debug_t* debug;
-
-	int sh_text;
-	int sh_data;
-
-	int sh_debug_abbrev;
-	int sh_debug_info;
-	int sh_debug_line;
-	int sh_debug_str;
 };
 
 typedef struct {
@@ -88,6 +90,8 @@ struct dfa_parse_data_s {
 
 	scf_node_t*          current_return;
 	scf_node_t*          current_goto;
+
+	int                  const_flag;
 
 	int              nb_lbs;
 	int              nb_rbs;

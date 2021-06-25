@@ -1514,6 +1514,10 @@ static int _scf_op_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, v
 
 	scf_node_t* parent = nodes[0]->parent;
 
+	scf_variable_t* v = _scf_operand_get(parent);
+
+	v->tmp_flag = 1;
+
 	return _scf_3ac_code_2(d->_3ac_list_head, SCF_OP_TYPE_CAST, parent, nodes[1]);
 }
 

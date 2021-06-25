@@ -1342,8 +1342,6 @@ static int _scf_op_semantic_call(scf_ast_t* ast, scf_node_t** nodes, int nb_node
 	scf_type_t*     t;
 	scf_node_t*     node;
 
-	scf_loge("\n");
-
 	if (f->rets->size > 0) {
 		if (!parent->result_nodes) {
 
@@ -2051,9 +2049,13 @@ static int _scf_op_semantic_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 	assert(v0);
 	assert(v1);
 
-	if (v0->const_flag || v0->nb_dimentions > 0) {
+	if (v0->const_literal_flag || v0->nb_dimentions > 0) {
+
 		scf_loge("const var '%s' can't be assigned\n", v0->w->text->data);
 		return -1;
+
+	} else if (v0->const_flag) {
+		scf_logw("const var '%s' can't be assigned\n", v0->w->text->data);
 	}
 
 	if (scf_variable_is_struct(v0) || scf_variable_is_struct(v1)) {

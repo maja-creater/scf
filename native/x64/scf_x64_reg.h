@@ -133,9 +133,8 @@ int                 x64_save_var(scf_dag_node_t* dn, scf_3ac_code_t* c, scf_func
 int                 x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f);
 
 int                 x64_push_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs);
-//int                 x64_pop_regs (scf_vector_t* instructions, uint32_t* regs, int nb_regs);
-int                 x64_pop_regs (scf_vector_t* instructions, uint32_t* regs, int nb_regs, scf_register_x64_t** updated_regs, int nb_updated);
-int                 x64_caller_save_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs, int stack_size);
+int                 x64_pop_regs (scf_vector_t* instructions, scf_register_x64_t** regs, int nb_regs, scf_register_x64_t** updated_regs, int nb_updated);
+int                 x64_caller_save_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs, int stack_size, scf_register_x64_t** saved_regs);
 
 int                 x64_save_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f);
 
@@ -152,6 +151,25 @@ int                 x64_dereference_reg(x64_sib_t* sib, scf_dag_node_t* base, sc
 int                 x64_pointer_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* member, scf_3ac_code_t* c, scf_function_t* f);
 
 int                 x64_array_index_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* index, scf_dag_node_t* scale, scf_3ac_code_t* c, scf_function_t* f);
+
+static inline int   x64_inst_data_is_reg(scf_inst_data_t* id)
+{
+	scf_register_t* rsp = (scf_register_t*)x64_find_register("rsp");
+	scf_register_t* rbp = (scf_register_t*)x64_find_register("rbp");
+
+	if (!id->flag && id->base && id->base != rsp && id->base != rbp)
+		return 1;
+	return 0;
+}
+
+static inline int   x64_inst_data_is_local(scf_inst_data_t* id)
+{
+	scf_register_t* rbp = (scf_register_t*)x64_find_register("rbp");
+
+	if (id->flag && id->base == rbp)
+		return 1;
+	return 0;
+}
 
 #endif
 

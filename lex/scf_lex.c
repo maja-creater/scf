@@ -35,18 +35,18 @@ static scf_lex_key_word_t	key_words[] = {
 	{"double",    SCF_LEX_WORD_KEY_DOUBLE},
 	{"complex",   SCF_LEX_WORD_KEY_COMPLEX},
 
-	{"int8",      SCF_LEX_WORD_KEY_INT8},
-	{"int16",     SCF_LEX_WORD_KEY_INT16},
-	{"int32",     SCF_LEX_WORD_KEY_INT32},
-	{"int64",     SCF_LEX_WORD_KEY_INT64},
+	{"int8_t",    SCF_LEX_WORD_KEY_INT8},
+	{"int16_t",   SCF_LEX_WORD_KEY_INT16},
+	{"int32_t",   SCF_LEX_WORD_KEY_INT32},
+	{"int64_t",   SCF_LEX_WORD_KEY_INT64},
 
-	{"uint8",     SCF_LEX_WORD_KEY_UINT8},
-	{"uint16",    SCF_LEX_WORD_KEY_UINT16},
-	{"uint32",    SCF_LEX_WORD_KEY_UINT32},
-	{"uint64",    SCF_LEX_WORD_KEY_UINT64},
+	{"uint8_t",   SCF_LEX_WORD_KEY_UINT8},
+	{"uint16_t",  SCF_LEX_WORD_KEY_UINT16},
+	{"uint32_t",  SCF_LEX_WORD_KEY_UINT32},
+	{"uint64_t",  SCF_LEX_WORD_KEY_UINT64},
 
-	{"intptr",    SCF_LEX_WORD_KEY_INTPTR},
-	{"uintptr",   SCF_LEX_WORD_KEY_UINTPTR},
+	{"intptr_t",  SCF_LEX_WORD_KEY_INTPTR},
+	{"uintptr_t", SCF_LEX_WORD_KEY_UINTPTR},
 
 	{"void",      SCF_LEX_WORD_KEY_VOID},
 
@@ -68,7 +68,6 @@ static scf_lex_key_word_t	key_words[] = {
 	{"extern",    SCF_LEX_WORD_KEY_EXTERN},
 
 	{"async",     SCF_LEX_WORD_KEY_ASYNC},
-	{"await",     SCF_LEX_WORD_KEY_AWAIT},
 
 	{"union",     SCF_LEX_WORD_KEY_UNION},
 	{"struct",    SCF_LEX_WORD_KEY_STRUCT},

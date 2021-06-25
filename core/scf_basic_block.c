@@ -137,6 +137,21 @@ void scf_basic_block_free(scf_basic_block_t* bb)
 	}
 }
 
+scf_bb_group_t* scf_bb_group_alloc()
+{
+	scf_bb_group_t* bbg = calloc(1, sizeof(scf_bb_group_t));
+	if (!bbg)
+		return NULL;
+
+	bbg->body = scf_vector_alloc();
+	if (!bbg->body) {
+		free(bbg);
+		return NULL;
+	}
+
+	return bbg;
+}
+
 void scf_bb_group_free(scf_bb_group_t* bbg)
 {
 	if (bbg) {
@@ -174,6 +189,35 @@ void scf_basic_block_print(scf_basic_block_t* bb, scf_list_t* sentinel)
 	}
 }
 
+void scf_bb_group_print(scf_bb_group_t* bbg)
+{
+	scf_basic_block_t* bb;
+	int i;
+
+	printf("\033[33mbbg: %p\033[0m\n", bbg);
+
+	printf("entries:\n");
+	for (i = 0; i < bbg->entries->size; i++) {
+		bb =        bbg->entries->data[i];
+
+		printf("%p\n", bb);
+	}
+
+	printf("body:\n");
+	for (i = 0; i < bbg->body->size; i++) {
+		bb =        bbg->body->data[i];
+
+		printf("%p\n", bb);
+	}
+
+	printf("exits:\n");
+	for (i = 0; i < bbg->exits->size; i++) {
+		bb =        bbg->exits->data[i];
+
+		printf("%p\n", bb);
+	}
+}
+
 void scf_basic_block_print_list(scf_list_t* h)
 {
 	scf_list_t* l;
@@ -187,8 +231,8 @@ void scf_basic_block_print_list(scf_list_t* h)
 
 			scf_basic_block_t* bb = scf_list_data(l, scf_basic_block_t, list);
 
-			printf("\033[33mbasic_block: %p, index: %d, depth_first_order: %d, group_flag: %d\033[0m\n",
-					bb, bb->index, bb->depth_first_order, bb->group_flag);
+			printf("\033[33mbasic_block: %p, index: %d, dfo_normal: %d, dfo_reverse: %d, group_flag: %d, jmp_flag: %d\033[0m\n",
+					bb, bb->index, bb->dfo_normal, bb->dfo_reverse, bb->group_flag, bb->jmp_flag);
 
 			scf_basic_block_print(bb, sentinel);
 

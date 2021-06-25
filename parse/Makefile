@@ -80,8 +80,10 @@ CFILES += ../core/scf_optimizer_loads_saves.c
 CFILES += ../core/scf_optimizer_auto_gc_find.c
 CFILES += ../core/scf_optimizer_auto_gc.c
 CFILES += ../core/scf_optimizer_dominators.c
+CFILES += ../core/scf_optimizer_dominators_reverse.c
 CFILES += ../core/scf_optimizer_basic_block.c
 CFILES += ../core/scf_optimizer_loop.c
+CFILES += ../core/scf_optimizer_group.c
 CFILES += ../core/scf_optimizer_generate_loads_saves.c
 
 CFILES += ../core/scf_ast.c

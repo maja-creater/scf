@@ -8,6 +8,40 @@ scf_native_ops_t*	native_ops_array[] = {
 	NULL,
 };
 
+void scf_instruction_print(scf_instruction_t* inst)
+{
+	if (inst->OpCode)
+		printf("%s ", inst->OpCode->name);
+
+	if (1 == inst->src.flag) {
+		if (inst->src.index)
+			printf("%d(%s, %s, %d), ", inst->src.disp, inst->src.base->name,
+					inst->src.index->name, inst->src.scale);
+
+		else if (inst->src.base)
+			printf("%d(%s), ", inst->src.disp, inst->src.base->name);
+		else
+			printf("%d(rip), ", inst->dst.disp);
+
+	} else if (inst->src.base)
+		printf("%s, ", inst->src.base->name);
+
+	if (1 == inst->dst.flag) {
+		if (inst->dst.index)
+			printf("%d(%s, %s, %d), ", inst->dst.disp, inst->dst.base->name,
+					inst->dst.index->name, inst->dst.scale);
+
+		else if (inst->dst.base)
+			printf("%d(%s), ", inst->dst.disp, inst->dst.base->name);
+		else
+			printf("%d(rip), ", inst->dst.disp);
+
+	} else if (inst->dst.base)
+		printf("%s, ", inst->dst.base->name);
+
+	printf("\n");
+}
+
 int scf_native_open(scf_native_t** pctx, const char* name)
 {
 	scf_native_t* ctx = calloc(1, sizeof(scf_native_t));

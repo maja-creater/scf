@@ -340,6 +340,8 @@ static int _x64_call_update_dsts(scf_3ac_code_t* c, scf_function_t* f, scf_regis
 
 		if (dn->color > 0) {
 
+			X64_SELECT_REG_CHECK(&rd, dn, c, f, 0);
+
 			if (dn->color == rs->color) {
 
 				assert(nb_updated < max_updated);
@@ -347,8 +349,6 @@ static int _x64_call_update_dsts(scf_3ac_code_t* c, scf_function_t* f, scf_regis
 				updated_regs[nb_updated++] = rs;
 				continue;
 			}
-
-			X64_SELECT_REG_CHECK(&rd, dn, c, f, 0);
 
 			int valid = _x64_dst_reg_valid(rd, updated_regs, nb_updated, idx_int, nb_int);
 			if (valid) {
@@ -462,11 +462,14 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	inst = x64_make_inst_G2E(xor, rax, rax);
 	X64_INST_ADD_CHECK(c->instructions, inst);
 
-	int save_size = x64_caller_save_regs(c->instructions, x64_abi_caller_saves, X64_ABI_CALLER_SAVES_NB, stack_size);
+	scf_register_x64_t* saved_regs[X64_ABI_CALLER_SAVES_NB];
+
+	int save_size = x64_caller_save_regs(c->instructions, x64_abi_caller_saves, X64_ABI_CALLER_SAVES_NB, stack_size, saved_regs);
 	if (save_size < 0) {
 		scf_loge("\n");
 		return save_size;
 	}
+
 	if (stack_size > 0) {
 		int32_t size = stack_size + save_size;
 		assert(inst_rsp);
@@ -532,13 +535,12 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	}
 
 	if (save_size > 0) {
-		ret = x64_pop_regs(c->instructions, x64_abi_caller_saves, X64_ABI_CALLER_SAVES_NB, updated_regs, nb_updated);
+		ret = x64_pop_regs(c->instructions, saved_regs, save_size >> 3, updated_regs, nb_updated);
 		if (ret < 0) {
 			scf_loge("\n");
 			return ret;
 		}
 	}
-
 
 	return 0;
 }

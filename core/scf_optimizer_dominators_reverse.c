@@ -12,9 +12,9 @@ static int __bb_dfs_tree(scf_basic_block_t* root, scf_vector_t* edges, int* tota
 
 	root->visited_flag = 1;
 
-	for (i = 0; i < root->nexts->size; ++i) {
+	for (i = 0; i < root->prevs->size; ++i) {
 
-		bb = root->nexts->data[i];
+		bb = root->prevs->data[i];
 
 		if (bb->visited_flag)
 			continue;
@@ -35,7 +35,7 @@ static int __bb_dfs_tree(scf_basic_block_t* root, scf_vector_t* edges, int* tota
 			return ret;
 	}
 
-	root->dfo_normal = --*total;
+	root->dfo_reverse = --*total;
 	return 0;
 }
 
@@ -52,8 +52,8 @@ static int _bb_dfs_tree(scf_list_t* bb_list_head, scf_function_t* f)
 
 	int total = 0;
 
-	for (l = scf_list_tail(bb_list_head); l != scf_list_sentinel(bb_list_head);
-			l = scf_list_prev(l)) {
+	for (l = scf_list_head(bb_list_head); l != scf_list_sentinel(bb_list_head);
+			l = scf_list_next(l)) {
 
 		bb = scf_list_data(l, scf_basic_block_t, list);
 
@@ -62,9 +62,9 @@ static int _bb_dfs_tree(scf_list_t* bb_list_head, scf_function_t* f)
 		if (!bb->jmp_flag)
 			++total;
 	}
-	assert(&bb->list == scf_list_head(bb_list_head));
+	assert(&bb->list == scf_list_tail(bb_list_head));
 
-	f->max_dfo = total - 1;
+	f->max_dfo_reverse = total - 1;
 
 	return __bb_dfs_tree(bb, f->dfs_tree, &total);
 }
@@ -74,9 +74,9 @@ static int _bb_cmp_dfo(const void* p0, const void* p1)
 	scf_basic_block_t* bb0 = *(scf_basic_block_t**)p0;
 	scf_basic_block_t* bb1 = *(scf_basic_block_t**)p1;
 
-	if (bb0->dfo_normal < bb1->dfo_normal)
+	if (bb0->dfo_reverse < bb1->dfo_reverse)
 		return -1;
-	if (bb0->dfo_normal > bb1->dfo_normal)
+	if (bb0->dfo_reverse > bb1->dfo_reverse)
 		return 1;
 	return 0;
 }
@@ -91,7 +91,7 @@ static int _bb_intersection(scf_vector_t* dst, scf_vector_t* src)
 		scf_basic_block_t* bb0 = dst->data[k0];
 		scf_basic_block_t* bb1 = src->data[k1];
 
-		if (bb0->dfo_normal < bb1->dfo_normal) {
+		if (bb0->dfo_reverse < bb1->dfo_reverse) {
 
 			int ret = scf_vector_del(dst, bb0);
 			if (ret < 0)
@@ -99,7 +99,7 @@ static int _bb_intersection(scf_vector_t* dst, scf_vector_t* src)
 			continue;
 		}
 
-		if (bb0->dfo_normal > bb1->dfo_normal) {
+		if (bb0->dfo_reverse > bb1->dfo_reverse) {
 			++k1;
 			continue;
 		}
@@ -113,7 +113,7 @@ static int _bb_intersection(scf_vector_t* dst, scf_vector_t* src)
 	return 0;
 }
 
-static int _bb_find_dominators_normal(scf_list_t* bb_list_head)
+static int _bb_find_dominators_reverse(scf_list_t* bb_list_head)
 {
 	if (!bb_list_head)
 		return -EINVAL;
@@ -134,8 +134,8 @@ static int _bb_find_dominators_normal(scf_list_t* bb_list_head)
 	if (!all)
 		return -ENOMEM;
 
-	for (l = scf_list_head(bb_list_head); l != scf_list_sentinel(bb_list_head);
-			l = scf_list_next(l)) {
+	for (l = scf_list_tail(bb_list_head); l != scf_list_sentinel(bb_list_head);
+			l = scf_list_prev(l)) {
 
 		bb = scf_list_data(l, scf_basic_block_t, list);
 		if (bb->jmp_flag)
@@ -154,37 +154,36 @@ static int _bb_find_dominators_normal(scf_list_t* bb_list_head)
 		scf_vector_qsort(bb->prevs, _bb_cmp_dfo);
 		scf_vector_qsort(bb->nexts, _bb_cmp_dfo);
 
-		if (0 == bb->dfo_normal) {
+		if (0 == bb->dfo_reverse) {
 
-			if (!bb->dominators_normal) {
-				bb->dominators_normal = scf_vector_alloc();
-				if (!bb->dominators_normal) {
+			if (!bb->dominators_reverse) {
+				bb->dominators_reverse = scf_vector_alloc();
+				if (!bb->dominators_reverse) {
 					ret = -ENOMEM;
 					goto error;
 				}
 			} else
-				scf_vector_clear(bb->dominators_normal, NULL);
+				scf_vector_clear(bb->dominators_reverse, NULL);
 
-			ret = scf_vector_add(bb->dominators_normal, bb);
+			ret = scf_vector_add(bb->dominators_reverse, bb);
 			if (ret < 0)
 				goto error;
 
-			scf_logd("bb: %p_%d, dom size: %d\n", bb, bb->dfo_normal, bb->dominators_normal->size);
+			scf_logd("bb: %p_%d, dom size: %d\n", bb, bb->dfo_reverse, bb->dominators_reverse->size);
 			continue;
 		}
 
-		if (bb->dominators_normal)
-			scf_vector_free(bb->dominators_normal);
+		if (bb->dominators_reverse)
+			scf_vector_free(bb->dominators_reverse);
 
-		bb->dominators_normal = scf_vector_clone(all);
-		if (!bb->dominators_normal) {
+		bb->dominators_reverse = scf_vector_clone(all);
+		if (!bb->dominators_reverse) {
 			ret = -ENOMEM;
 			goto error;
 		}
 
-		scf_logd("bb: %p_%d, dom size: %d\n", bb, bb->dfo_normal, bb->dominators_normal->size);
+		scf_logd("bb: %p_%d, dom size: %d\n", bb, bb->dfo_reverse, bb->dominators_reverse->size);
 	}
-	printf("\n\n");
 
 	do {
 		changed = 0;
@@ -192,24 +191,24 @@ static int _bb_find_dominators_normal(scf_list_t* bb_list_head)
 		for (i = 1; i < all->size; i++) {
 			bb = all->data[i];
 
-			scf_vector_t* dominators_normal = NULL;
+			scf_vector_t* dominators_reverse = NULL;
 
-			for (j = 0; j < bb->prevs->size; j++) {
-				scf_basic_block_t* prev = bb->prevs->data[j];
-				scf_logd("bb: %p_%d, prev: %p_%d\n", bb, bb->dfo_normal, prev, prev->dfo_normal);
+			for (j = 0; j < bb->nexts->size; j++) {
+				scf_basic_block_t* next = bb->nexts->data[j];
+				scf_logd("bb: %p_%d, next: %p_%d\n", bb, bb->dfo_normal, next, next->dfo_normal);
 
-				if (!dominators_normal) {
-					dominators_normal = scf_vector_clone(prev->dominators_normal);
-					if (!dominators_normal) {
+				if (!dominators_reverse) {
+					dominators_reverse = scf_vector_clone(next->dominators_reverse);
+					if (!dominators_reverse) {
 						ret = -ENOMEM;
 						goto error;
 					}
 					continue;
 				}
 
-				ret = _bb_intersection(dominators_normal, prev->dominators_normal);
+				ret = _bb_intersection(dominators_reverse, next->dominators_reverse);
 				if (ret < 0) {
-					scf_vector_free(dominators_normal);
+					scf_vector_free(dominators_reverse);
 					goto error;
 				}
 			}
@@ -217,48 +216,48 @@ static int _bb_find_dominators_normal(scf_list_t* bb_list_head)
 			scf_basic_block_t* dom  = NULL;
 			scf_basic_block_t* dom1 = bb;
 
-			for (j = 0; j < dominators_normal->size; j++) {
-				dom = dominators_normal->data[j];
+			for (j = 0; j < dominators_reverse->size; j++) {
+				dom = dominators_reverse->data[j];
 
-				if (bb->dfo_normal == dom->dfo_normal)
+				if (bb->dfo_reverse == dom->dfo_reverse)
 					break;
 
-				if (bb->dfo_normal < dom->dfo_normal)
+				if (bb->dfo_reverse < dom->dfo_reverse)
 					break;
 			}
-			if (bb->dfo_normal < dom->dfo_normal) {
+			if (bb->dfo_reverse < dom->dfo_reverse) {
 
-				for (; j < dominators_normal->size; j++) {
-					dom                 = dominators_normal->data[j];
-					dominators_normal->data[j] = dom1;
+				for (; j < dominators_reverse->size; j++) {
+					dom                 = dominators_reverse->data[j];
+					dominators_reverse->data[j] = dom1;
 					dom1                = dom;
 				}
 			}
-			if (j == dominators_normal->size) {
-				ret = scf_vector_add(dominators_normal, dom1);
+			if (j == dominators_reverse->size) {
+				ret = scf_vector_add(dominators_reverse, dom1);
 				if (ret < 0) {
-					scf_vector_free(dominators_normal);
+					scf_vector_free(dominators_reverse);
 					goto error;
 				}
 			}
 
-			if (dominators_normal->size != bb->dominators_normal->size) {
-				scf_vector_free(bb->dominators_normal);
-				bb->dominators_normal = dominators_normal;
-				dominators_normal     = NULL;
+			if (dominators_reverse->size != bb->dominators_reverse->size) {
+				scf_vector_free(bb->dominators_reverse);
+				bb->dominators_reverse = dominators_reverse;
+				dominators_reverse     = NULL;
 				++changed;
 			} else {
 				int k0 = 0;
 				int k1 = 0;
 
-				while (k0 < dominators_normal->size && k1 < bb->dominators_normal->size) {
+				while (k0 < dominators_reverse->size && k1 < bb->dominators_reverse->size) {
 
-					scf_basic_block_t* dom0 =     dominators_normal->data[k0];
-					scf_basic_block_t* dom1 = bb->dominators_normal->data[k1];
+					scf_basic_block_t* dom0 =     dominators_reverse->data[k0];
+					scf_basic_block_t* dom1 = bb->dominators_reverse->data[k1];
 
-					if (dom0->dfo_normal < dom1->dfo_normal)
+					if (dom0->dfo_reverse < dom1->dfo_reverse)
 						++k0;
-					else if (dom0->dfo_normal > dom1->dfo_normal)
+					else if (dom0->dfo_reverse > dom1->dfo_reverse)
 						++k1;
 					else {
 						++k0;
@@ -267,12 +266,12 @@ static int _bb_find_dominators_normal(scf_list_t* bb_list_head)
 				}
 
 				if (k0 == k1) {
-					scf_vector_free(dominators_normal);
-					dominators_normal = NULL;
+					scf_vector_free(dominators_reverse);
+					dominators_reverse = NULL;
 				} else {
-					scf_vector_free(bb->dominators_normal);
-					bb->dominators_normal = dominators_normal;
-					dominators_normal     = NULL;
+					scf_vector_free(bb->dominators_reverse);
+					bb->dominators_reverse = dominators_reverse;
+					dominators_reverse     = NULL;
 					++changed;
 				}
 			}
@@ -283,10 +282,10 @@ static int _bb_find_dominators_normal(scf_list_t* bb_list_head)
 		bb = all->data[i];
 
 		int j;
-		for (j = 0; j < bb->dominators_normal->size; j++) {
+		for (j = 0; j < bb->dominators_reverse->size; j++) {
 
-			scf_basic_block_t* dom = bb->dominators_normal->data[j];
-			scf_logw("bb: %p_%d, dom: %p_%d\n", bb, bb->dfo_normal, dom, dom->dfo_normal);
+			scf_basic_block_t* dom = bb->dominators_reverse->data[j];
+			scf_logd("bb: %p_%d, dom: %p_%d\n", bb, bb->dfo_reverse, dom, dom->dfo_reverse);
 		}
 		printf("\n");
 	}
@@ -298,7 +297,7 @@ error:
 	return ret;
 }
 
-static int _optimize_dominators_normal(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head, scf_vector_t* functions)
+static int _optimize_dominators_reverse(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head, scf_vector_t* functions)
 {
 	if (!f || !bb_list_head)
 		return -EINVAL;
@@ -322,11 +321,11 @@ static int _optimize_dominators_normal(scf_ast_t* ast, scf_function_t* f, scf_li
 		scf_bb_edge_t* edge = f->dfs_tree->data[i];
 
 		scf_logd("bb_%p_%d --> bb_%p_%d\n",
-				edge->start, edge->start->dfo_normal,
-				edge->end,   edge->end->dfo_normal);
+				edge->start, edge->start->dfo_reverse,
+				edge->end,   edge->end->dfo_reverse);
 	}
 
-	ret = _bb_find_dominators_normal(bb_list_head);
+	ret = _bb_find_dominators_reverse(bb_list_head);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -336,10 +335,10 @@ static int _optimize_dominators_normal(scf_ast_t* ast, scf_function_t* f, scf_li
 	return 0;
 }
 
-scf_optimizer_t  scf_optimizer_dominators_normal =
+scf_optimizer_t  scf_optimizer_dominators_reverse =
 {
-	.name     =  "dominators_normal",
+	.name     =  "dominators_reverse",
 
-	.optimize =  _optimize_dominators_normal,
+	.optimize =  _optimize_dominators_reverse,
 };
 

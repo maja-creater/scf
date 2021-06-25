@@ -21,7 +21,21 @@ struct scf_OpCode_s {
 
 typedef struct {
 
+	scf_register_t* base;
+	scf_register_t* index;
+	int             scale;
+	int             disp;
+	uint8_t         flag;
+} scf_inst_data_t;
+
+typedef struct {
+
+	scf_3ac_code_t* c;
+
 	scf_OpCode_t*	OpCode;
+
+	scf_inst_data_t src;
+	scf_inst_data_t dst;
 
 	uint8_t			code[32];
 	int				len;
@@ -34,7 +48,7 @@ typedef struct {
 	scf_variable_t*     var;
 	scf_string_t*       name;
 
-	int                 inst_index;  // index in code->instructions
+	scf_instruction_t*  inst;
 	int                 inst_offset; // byte offset in instruction
 	int64_t             text_offset; // byte offset in .text segment
 	uint64_t            type;
@@ -57,6 +71,19 @@ struct scf_native_ops_s {
 
 	int					(*write_elf)(scf_native_t* ctx, const char* path);
 };
+
+static inline int scf_inst_data_same(scf_inst_data_t* id0, scf_inst_data_t* id1)
+{
+	if (id0->base == id1->base
+			&& id0->scale == id1->scale
+			&& id0->index == id1->index
+			&& id0->disp  == id1->disp
+			&& id0->flag  == id1->flag)
+		return 1;
+	return 0;
+}
+
+void scf_instruction_print(scf_instruction_t* inst);
 
 int scf_native_open(scf_native_t** pctx, const char* name);
 int scf_native_close(scf_native_t* ctx);

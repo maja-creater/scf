@@ -226,6 +226,9 @@ int scf_dwarf_abbrev_add_cu(scf_vector_t* abbrevs)
 
 int scf_dwarf_debug_encode(scf_dwarf_debug_t* debug, scf_vector_t* file_names)
 {
+	if (0 == debug->infos->size)
+		return 0;
+
 	scf_dwarf_info_entry_t* ie;
 	scf_vector_t*           infos;
 

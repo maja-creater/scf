@@ -78,7 +78,7 @@ static int _optimize_generate_loads_saves(scf_ast_t* ast, scf_function_t* f, scf
 				if (scf_vector_find(bb->dn_resaves, dn))
 					continue;
 
-				if (bb->group_flag)
+				if (bb->loop_flag)
 					SCF_OPTIMIZER_SAVE(SCF_OP_3AC_SAVE, &bb->save_list_head);
 				else
 					SCF_OPTIMIZER_SAVE(SCF_OP_3AC_SAVE, &bb->code_list_head);
@@ -118,9 +118,6 @@ static int _optimize_generate_loads_saves(scf_ast_t* ast, scf_function_t* f, scf
 
 	for (i = 0; i < f->bb_loops->size; i++) {
 		bbg = f->bb_loops->data[i];
-
-//		if (bbg->loop_layers > 1)
-//			continue;
 
 		qsort(bbg->body->data, bbg->body->size, sizeof(void*), _bb_index_cmp);
 

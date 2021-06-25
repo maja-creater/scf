@@ -41,9 +41,15 @@ static int _inst_cmp(scf_dag_node_t* src0, scf_dag_node_t* src1, scf_3ac_code_t*
 	} else {
 		if (0 == src1->color) {
 			cmp  = x64_find_OpCode(SCF_X64_CMP, rs0->bytes, src1_size, SCF_X64_I2E);
-			inst = x64_make_inst_I2E(cmp, rs0, (uint8_t*)&src1->var->data, src1_size);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-			return 0;
+
+			if (cmp) {
+				inst = x64_make_inst_I2E(cmp, rs0, (uint8_t*)&src1->var->data, src1_size);
+				X64_INST_ADD_CHECK(c->instructions, inst);
+				return 0;
+			}
+
+			src1->color = -1;
+			src1->var->global_flag = 1;
 		}
 
 		cmp = x64_find_OpCode(SCF_X64_CMP, rs0->bytes, src1_size, SCF_X64_E2G);

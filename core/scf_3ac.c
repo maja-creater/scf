@@ -593,23 +593,25 @@ static int _3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag, int nb_operands0
 				ret = scf_dag_node_add_child(dn, src->dag_node);
 				if (ret < 0)
 					return ret;
-			} else {
-				int k;
-				for (k = 0; k < dn->childs->size && k < nb_operands1; k++) {
+				continue;
+			}
 
-					if (src->dag_node == dn->childs->data[j])
-						break;
-				}
+			int k;
+			for (k = 0; k < dn->childs->size && k < nb_operands1; k++) {
 
-				if (k == dn->childs->size) {
-					scf_loge("i: %d, c->op: %s, dag_dst->childs->size: %d, c->srcs->size: %d\n",
-							i, c->op->name, dn->childs->size, c->srcs->size);
-					scf_3ac_code_print(c, NULL);
-					return -1;
-				}
+				if (src->dag_node == dn->childs->data[k])
+					break;
+			}
+
+			if (k == dn->childs->size) {
+				scf_loge("i: %d, c->op: %s, dn->childs->size: %d, c->srcs->size: %d\n",
+						i, c->op->name, dn->childs->size, c->srcs->size);
+				scf_3ac_code_print(c, NULL);
+				return -1;
 			}
 		}
 	}
+
 	return 0;
 }
 

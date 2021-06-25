@@ -44,7 +44,7 @@ struct scf_elf_ops_s
 {
 	const char*		machine;
 
-	int				(*open )(scf_elf_context_t* elf, const char* path, const char* mode);
+	int				(*open )(scf_elf_context_t* elf);
 	int				(*close)(scf_elf_context_t* elf);
 
 	int				(*add_sym   )(scf_elf_context_t* elf, const scf_elf_sym_t*  sym);
@@ -67,12 +67,17 @@ struct scf_elf_context_s {
 	scf_elf_ops_t*	ops;
 
 	void*			priv;
+
+	FILE*           fp;
+	int64_t         start;
+	int64_t         end;
 };
 
 void scf_elf_rela_free(scf_elf_rela_t* rela);
 
 int scf_elf_open (scf_elf_context_t** pelf, const char* machine, const char* path, const char* mode);
-int scf_elf_close(scf_elf_context_t* elf);
+int scf_elf_open2(scf_elf_context_t*  elf,  const char* machine);
+int scf_elf_close(scf_elf_context_t*  elf);
 
 int scf_elf_add_sym (scf_elf_context_t* elf, const scf_elf_sym_t*     sym);
 

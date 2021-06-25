@@ -118,9 +118,20 @@ int scf_type_cast_check(scf_ast_t* ast, scf_variable_t* dst, scf_variable_t* src
 			goto failed;
 		}
 
-		if (dst->type != src->type
-				|| dst_nb_pointers != src_nb_pointers)
+		if (dst_nb_pointers != src_nb_pointers)
 			goto failed;
+
+		if (scf_type_is_integer(src->type) && scf_type_is_integer(dst->type)) {
+
+			scf_type_t* t0 = scf_ast_find_type_type(ast, src->type);
+			scf_type_t* t1 = scf_ast_find_type_type(ast, dst->type);
+
+			if (t0->size != t1->size)
+				goto failed;
+
+		} else if (src->type != dst->type)
+			goto failed;
+
 		return 0;
 	}
 

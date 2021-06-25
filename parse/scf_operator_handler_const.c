@@ -572,6 +572,30 @@ static int _scf_op_const_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 			parent->type = r->type;
 			parent->var  = r;
 		}
+
+		return 0;
+	}
+
+	if (scf_variable_interger(src) && scf_variable_interger(dst)) {
+
+		int size;
+		if (src ->nb_dimentions > 0)
+			size = sizeof(void*);
+		else
+			size = src->size;
+
+		assert(0 == dst->nb_dimentions);
+
+		if (scf_variable_size(dst) <= size) {
+
+			scf_node_t* child = nodes[1];
+
+			scf_loge("child: %d/%s\n", src->w->line, src->w->text->data);
+
+			nodes[1] = NULL;
+			scf_node_free_data(parent);
+			scf_node_move_data(parent, child);
+		}
 	}
 
 	return 0;

@@ -1207,8 +1207,8 @@ static int _auto_gc_last_free(scf_ast_t* ast, scf_function_t* f)
 			for (j  = 0; j < vec->size; j++) { \
 				bb1 =        vec->data[j]; \
 				\
-				if (bb1->depth_first_order > dfo) \
-					dfo = bb1->depth_first_order; \
+				if (bb1->dfo_normal > dfo) \
+					dfo = bb1->dfo_normal; \
 			} \
 		} while (0)
 		AUTO_GC_FIND_MAX_DFO();
@@ -1222,10 +1222,10 @@ static int _auto_gc_last_free(scf_ast_t* ast, scf_function_t* f)
 		}
 		AUTO_GC_FIND_MAX_DFO();
 
-		for (j = 0; j    < bb->dominators->size; j++) {
-			bb_dominator = bb->dominators->data[j];
+		for (j = 0; j    < bb->dominators_normal->size; j++) {
+			bb_dominator = bb->dominators_normal->data[j];
 
-			if (bb_dominator->depth_first_order > dfo)
+			if (bb_dominator->dfo_normal > dfo)
 				break;
 		}
 

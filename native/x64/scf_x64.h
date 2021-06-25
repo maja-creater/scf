@@ -28,7 +28,7 @@
 			(rela)->code = (c); \
 			(rela)->var  = (v); \
 			(rela)->func = (f); \
-			(rela)->inst_index = (c)->instructions->size - 1; \
+			(rela)->inst = (c)->instructions->data[(c)->instructions->size - 1]; \
 			(rela)->addend = -4; \
 			int ret = scf_vector_add((vec), (rela)); \
 			if (ret < 0) { \
@@ -38,6 +38,9 @@
 			} \
 		} \
 	} while (0)
+
+#define X64_PEEPHOLE_DEL 1
+#define X64_PEEPHOLE_OK  0
 
 typedef struct {
 

@@ -95,5 +95,12 @@ static int scf_dfa_is_vargs(scf_dfa_t* dfa, void* word)
 	return SCF_LEX_WORD_VAR_ARGS == w->type;
 }
 
+static int scf_dfa_is_const(scf_dfa_t* dfa, void* word)
+{
+	scf_lex_word_t* w = word;
+
+	return SCF_LEX_WORD_KEY_CONST == w->type;
+}
+
 #endif
 
