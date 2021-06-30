@@ -252,6 +252,10 @@ int scf_node_search_bfs(scf_node_t* root, void* arg, scf_vector_t* results, int 
 
 		for (j = 0; j < node->nb_nodes; j++) {
 			assert(node->nodes);
+
+			if (!node->nodes[j])
+				continue;
+
 			ret = scf_vector_add(queue, node->nodes[j]);
 			if (ret < 0)
 				goto failed;

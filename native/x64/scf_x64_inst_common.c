@@ -76,30 +76,65 @@ static int _x64_inst_op2_imm(int OpCode_type, scf_dag_node_t* dst, scf_dag_node_
 			X64_SELECT_REG_CHECK(&rd, dst, c, f, 1);
 
 		OpCode = x64_find_OpCode(OpCode_type, src_size, dst_size, SCF_X64_I2G);
-
-		if (!OpCode) {
-			OpCode = x64_find_OpCode(OpCode_type, src_size, dst_size, SCF_X64_I2E);
-			if (!OpCode)
-				return -EINVAL;
-
-			inst = x64_make_inst_I2E(OpCode, rd, (uint8_t*)&src->var->data, src_size);
-		} else {
+		if (OpCode) {
 			inst = x64_make_inst_I2G(OpCode, rd, (uint8_t*)&src->var->data, src_size);
+			X64_INST_ADD_CHECK(c->instructions, inst);
+			return 0;
 		}
+
+		OpCode = x64_find_OpCode(OpCode_type, src_size, dst_size, SCF_X64_I2E);
+		if (OpCode) {
+			inst = x64_make_inst_I2E(OpCode, rd, (uint8_t*)&src->var->data, src_size);
+			X64_INST_ADD_CHECK(c->instructions, inst);
+			return 0;
+		}
+
+		OpCode = x64_find_OpCode(OpCode_type, src_size, dst_size, SCF_X64_G2E);
+		if (!OpCode) {
+			scf_loge("\n");
+			return -EINVAL;
+		}
+
+		src->color = -1;
+		src->var->tmp_flag = 1;
+		X64_SELECT_REG_CHECK(&rs, src, c, f, 1);
+
+		inst = x64_make_inst_G2E(OpCode, rd, rs);
 		X64_INST_ADD_CHECK(c->instructions, inst);
+
+		src->color  = 0;
+		src->loaded = 0;
+		src->var->tmp_flag = 0;
+		assert(0 == scf_vector_del(rs->dag_nodes, src));
 		return 0;
 	}
 
 	OpCode = x64_find_OpCode(OpCode_type, src_size, dst_size, SCF_X64_I2E);
+	if (OpCode) {
+		inst = x64_make_inst_I2M(&rela, OpCode, dst->var, NULL, (uint8_t*)&src->var->data, src_size);
+		X64_INST_ADD_CHECK(c->instructions, inst);
+		X64_RELA_ADD_CHECK(f->data_relas, rela, c, dst->var, NULL);
+		return 0;
+	}
+
+	OpCode = x64_find_OpCode(OpCode_type, src_size, dst_size, SCF_X64_G2E);
 	if (!OpCode) {
 		scf_loge("\n");
 		return -EINVAL;
 	}
 
-	inst = x64_make_inst_I2M(&rela, OpCode, dst->var, NULL, (uint8_t*)&src->var->data, src_size);
+	src->color = -1;
+	src->var->tmp_flag = 1;
+	X64_SELECT_REG_CHECK(&rs, src, c, f, 1);
+
+	inst = x64_make_inst_G2M(&rela, OpCode, dst->var, NULL, rs);
 	X64_INST_ADD_CHECK(c->instructions, inst);
 	X64_RELA_ADD_CHECK(f->data_relas, rela, c, dst->var, NULL);
 
+	src->color  = 0;
+	src->loaded = 0;
+	src->var->tmp_flag = 0;
+	assert(0 == scf_vector_del(rs->dag_nodes, src));
 	return 0;
 }
 
@@ -114,9 +149,10 @@ int x64_inst_op2(int OpCode_type, scf_dag_node_t* dst, scf_dag_node_t* src, scf_
 	scf_rela_t*         rela   = NULL;
 
 	if (0 == src->color) {
-		if (!scf_variable_float(src->var))
+		if (!scf_variable_float(src->var)) {
+			scf_loge("\n");
 			return _x64_inst_op2_imm(OpCode_type, dst, src, c, f);
-
+		}
 		src->color = -1;
 		src->var->global_flag = 1;
 	}
@@ -135,6 +171,9 @@ int x64_inst_op2(int OpCode_type, scf_dag_node_t* dst, scf_dag_node_t* src, scf_
 
 	if (src->color > 0) {
 		X64_SELECT_REG_CHECK(&rs, src, c, f, 1);
+
+		if (SCF_X64_MOV == OpCode && src->color == dst->color)
+			return 0;
 
 		OpCode = x64_find_OpCode(OpCode_type, src_size, dst_size, SCF_X64_G2E);
 		if (OpCode) {

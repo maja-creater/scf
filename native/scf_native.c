@@ -26,6 +26,9 @@ void scf_instruction_print(scf_instruction_t* inst)
 	} else if (inst->src.base)
 		printf("%s, ", inst->src.base->name);
 
+	else if (inst->src.imm_size > 0)
+		printf("%d, ", (int)inst->src.imm);
+
 	if (1 == inst->dst.flag) {
 		if (inst->dst.index)
 			printf("%d(%s, %s, %d), ", inst->dst.disp, inst->dst.base->name,
@@ -38,6 +41,9 @@ void scf_instruction_print(scf_instruction_t* inst)
 
 	} else if (inst->dst.base)
 		printf("%s, ", inst->dst.base->name);
+
+	else if (inst->dst.imm_size > 0)
+		printf("%d, ", (int)inst->dst.imm);
 
 	printf("\n");
 }

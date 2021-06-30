@@ -82,10 +82,11 @@ int scf_graph_delete_node(scf_graph_t* graph, scf_graph_node_t* node)
 	if (!graph || !node)
 		return -EINVAL;
 
+	scf_graph_node_t* neighbor;
 	int j;
-	for (j = 0; j < node->neighbors->size; j++) {
 
-		scf_graph_node_t* neighbor = node->neighbors->data[j];
+	for (j = 0; j < node->neighbors->size; j++) {
+		neighbor  = node->neighbors->data[j];
 
 		scf_logd("node %p, neighbor: %p, %d\n", node, neighbor, neighbor->neighbors->size);
 

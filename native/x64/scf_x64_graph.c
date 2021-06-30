@@ -1,7 +1,7 @@
 #include"scf_graph.h"
 #include"scf_x64.h"
 
-static int _x64_color_select(scf_graph_node_t* node, scf_vector_t* colors)
+static intptr_t _x64_color_select(scf_graph_node_t* node, scf_vector_t* colors)
 {
 	x64_rcg_node_t* rn = node->data;
 
@@ -184,11 +184,16 @@ static int _x64_kcolor_find_not_neighbor(scf_graph_t* graph, int k, scf_graph_no
 {
 	assert(graph->nodes->size >= k);
 
+	scf_graph_node_t* node0;
+	scf_graph_node_t* node1;
+	x64_rcg_node_t*   rn0;
+	x64_rcg_node_t*   rn1;
+
 	int i;
 	for (i = 0; i < graph->nodes->size; i++) {
+		node0     = graph->nodes->data[i];
 
-		scf_graph_node_t* node0 = graph->nodes->data[i];
-		x64_rcg_node_t*   rn0   = node0->data;
+		rn0 = node0->data;
 
 		if (!rn0->dag_node) {
 			assert(rn0->reg);
@@ -199,12 +204,14 @@ static int _x64_kcolor_find_not_neighbor(scf_graph_t* graph, int k, scf_graph_no
 		if (node0->neighbors->size > k)
 			continue;
 
-		scf_graph_node_t* node1 = NULL;
-		x64_rcg_node_t*   rn1   = NULL;
+		node1 = NULL;
+		rn1   = NULL;
+
 		int j;
 		for (j = i + 1; j < graph->nodes->size; j++) {
-			node1 = graph->nodes->data[j];
-			rn1   = node1->data;
+			node1         = graph->nodes->data[j];
+
+			rn1 = node1->data;
 
 			if (!rn1->dag_node) {
 				assert(rn1->reg);
@@ -351,8 +358,9 @@ static int _x64_graph_kcolor(scf_graph_t* graph, int k, scf_vector_t* colors)
 	assert(graph->nodes->size > 0);
 	assert(graph->nodes->size >= k);
 
-	scf_graph_node_t* node0 = NULL;
-	scf_graph_node_t* node1 = NULL;
+	scf_graph_node_t* node_max = NULL;
+	scf_graph_node_t* node0    = NULL;
+	scf_graph_node_t* node1    = NULL;
 
 	if (0 == _x64_kcolor_find_not_neighbor(graph, k, &node0, &node1)) {
 		assert(node0);
@@ -373,19 +381,40 @@ static int _x64_graph_kcolor(scf_graph_t* graph, int k, scf_vector_t* colors)
 
 		if (reg_size0 > reg_size1) {
 
-			node0->color   = _x64_color_select(node0, colors2);
+			node0->color = _x64_color_select(node0, colors2);
+			if (0 == node0->color)
+				goto overflow;
 
 			intptr_t type  = X64_COLOR_TYPE(node0->color);
 			intptr_t id    = X64_COLOR_ID(node0->color);
 			intptr_t mask  = (1 << reg_size1) - 1;
-			node1->color = X64_COLOR(type, id, mask);
+			node1->color   = X64_COLOR(type, id, mask);
+
+			ret = _x64_color_del(colors2, node0->color);
+			if (ret < 0) {
+				scf_loge("\n");
+				goto error;
+			}
+
+			assert(!scf_vector_find(colors2, (void*)node1->color));
+
 		} else {
-			node1->color   = _x64_color_select(node1, colors2);
+			node1->color = _x64_color_select(node1, colors2);
+			if (0 == node1->color)
+				goto overflow;
 
 			intptr_t type  = X64_COLOR_TYPE(node0->color);
 			intptr_t id    = X64_COLOR_ID(node0->color);
 			intptr_t mask  = (1 << reg_size0) - 1;
 			node0->color   = X64_COLOR(type, id, mask);
+
+			ret = _x64_color_del(colors2, node1->color);
+			if (ret < 0) {
+				scf_loge("\n");
+				goto error;
+			}
+
+			assert(!scf_vector_find(colors2, (void*)node0->color));
 		}
 
 		ret = scf_graph_delete_node(graph, node0);
@@ -395,11 +424,6 @@ static int _x64_graph_kcolor(scf_graph_t* graph, int k, scf_vector_t* colors)
 		ret = scf_graph_delete_node(graph, node1);
 		if (ret < 0)
 			goto error;
-
-		ret = scf_vector_del(colors2, (void*)node0->color);
-		if (ret < 0)
-			goto error;
-		assert(!scf_vector_find(colors2, (void*)node1->color));
 
 		ret = scf_x64_graph_kcolor(graph, k - 1, colors2);
 		if (ret < 0)
@@ -416,7 +440,8 @@ static int _x64_graph_kcolor(scf_graph_t* graph, int k, scf_vector_t* colors)
 		scf_vector_free(colors2);
 		colors2 = NULL;
 	} else {
-		scf_graph_node_t* node_max = _x64_max_neighbors(graph);
+overflow:
+		node_max = _x64_max_neighbors(graph);
 		assert(node_max);
 
 		ret = scf_graph_delete_node(graph, node_max);
@@ -453,8 +478,10 @@ error:
 
 int scf_x64_graph_kcolor(scf_graph_t* graph, int k, scf_vector_t* colors)
 {
-	if (!graph || !colors || 0 == colors->size)
+	if (!graph || !colors || 0 == colors->size) {
+		scf_loge("\n");
 		return -EINVAL;
+	}
 
 	_x64_kcolor_process_conflict(graph);
 

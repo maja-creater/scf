@@ -63,8 +63,10 @@ struct scf_dn_status_s {
 
 	scf_dag_node_t*     alias;
 	scf_vector_t*       alias_indexes;
-	int                 alias_type;
 	scf_dag_node_t*     dereference;
+	int                 alias_type;
+
+	int                 refs;
 
 	intptr_t            color;
 
@@ -84,10 +86,13 @@ int               scf_dn_index_like(const scf_dn_index_t* di0, const scf_dn_inde
 
 int               scf_dn_status_is_like(const scf_dn_status_t* ds);
 
-scf_dn_status_t*  scf_dn_status_alloc(scf_dag_node_t*   dag_node);
-scf_dn_status_t*  scf_dn_status_clone(scf_dn_status_t* v);
-void              scf_dn_status_free (scf_dn_status_t* v);
-void              scf_dn_status_print(scf_dn_status_t* v);
+scf_dn_status_t*  scf_dn_status_null();
+scf_dn_status_t*  scf_dn_status_alloc(scf_dag_node_t*  dn);
+scf_dn_status_t*  scf_dn_status_clone(scf_dn_status_t* ds);
+scf_dn_status_t*  scf_dn_status_ref  (scf_dn_status_t* ds);
+
+void              scf_dn_status_free (scf_dn_status_t* ds);
+void              scf_dn_status_print(scf_dn_status_t* ds);
 
 int               scf_dn_status_copy_dn   (scf_dn_status_t* dst, scf_dn_status_t* src);
 int               scf_dn_status_copy_alias(scf_dn_status_t* dst, scf_dn_status_t* src);
@@ -156,6 +161,29 @@ static int scf_dn_status_cmp_dereference(const void* p0, const void* p1)
 	const scf_dn_status_t* ds1 = p1;
 
 	return dn0 != ds1->dereference;
+}
+
+static inline int scf_ds_is_pointer(scf_dn_status_t* ds)
+{
+	if (!ds->dn_indexes)
+		return ds->dag_node->var->nb_pointers > 0;
+
+	scf_dn_index_t* di;
+
+	int n = scf_variable_nb_pointers(ds->dag_node->var);
+	int i;
+
+	for (i = ds->dn_indexes->size - 1; i >= 0; i--) {
+		di = ds->dn_indexes->data[i];
+
+		if (di->member)
+			n = scf_variable_nb_pointers(di->member);
+		else
+			n--;
+	}
+
+	assert(n >= 0);
+	return n;
 }
 
 #define SCF_DN_STATUS_GET(ds, vec, dn) \

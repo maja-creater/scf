@@ -118,6 +118,10 @@ enum scf_lex_words {
 	SCF_LEX_WORD_KEY_INTPTR,    // intptr_t
 	SCF_LEX_WORD_KEY_UINTPTR,   // uintptr_t
 
+	SCF_LEX_WORD_KEY_VA_START,  // va_start
+	SCF_LEX_WORD_KEY_VA_ARG,    // va_arg
+	SCF_LEX_WORD_KEY_VA_END,    // va_end
+
 	SCF_LEX_WORD_KEY_VOID,      // void
 
 	// mat & vec
@@ -198,6 +202,7 @@ static inline int scf_lex_is_operator(scf_lex_word_t* w)
 {
 	return (w->type >= SCF_LEX_WORD_PLUS && w->type <= SCF_LEX_WORD_DOT)
 		|| SCF_LEX_WORD_KEY_SIZEOF == w->type
+		|| SCF_LEX_WORD_KEY_VA_ARG == w->type
 		|| SCF_LEX_WORD_KEY_CREATE == w->type;
 }
 

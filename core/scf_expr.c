@@ -82,7 +82,7 @@ static int _scf_expr_node_add_node(scf_node_t** pparent, scf_node_t* child)
 		}
 	}
 
-	printf("%s(),%d, error: \n", __func__, __LINE__);
+	scf_loge("\n");
 	return -1;
 }
 
@@ -92,25 +92,23 @@ int scf_expr_add_node(scf_expr_t* e, scf_node_t* node)
 	assert(node);
 
 	if (scf_type_is_var(node->type)) {
-		printf("%s(),%d, var\n", __func__, __LINE__);
 		node->priority = -1;
 
 	} else if (scf_type_is_operator(node->type)) {
 
 		node->op = scf_find_base_operator_by_type(node->type);
 		if (!node->op) {
-			printf("%s(),%d, error: \n", __func__, __LINE__);
+			scf_loge("\n");
 			return -1;
 		}
 		node->priority = node->op->priority;
-		printf("%s(),%d, op: %d, priority: %d\n", __func__, __LINE__, node->op->type, node->op->priority);
 	} else {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 
 	if (_scf_expr_node_add_node(&(e->nodes[0]), node) < 0) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 

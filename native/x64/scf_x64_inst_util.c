@@ -72,12 +72,14 @@ static int _x64_make_disp(scf_rela_t** prela, scf_instruction_t* inst, uint32_t 
 		scf_ModRM_setMod(&ModRM, SCF_X64_MOD_BASE);
 		inst->code[inst->len++] = ModRM;
 
-		scf_rela_t* rela = calloc(1, sizeof(scf_rela_t));
-		if (!rela)
-			return -ENOMEM;
+		if (prela) {
+			scf_rela_t* rela = calloc(1, sizeof(scf_rela_t));
+			if (!rela)
+				return -ENOMEM;
 
-		rela->inst_offset = inst->len;
-		*prela = rela;
+			rela->inst_offset = inst->len;
+			*prela = rela;
+		}
 
 		uint8_t* p = (uint8_t*)&disp;
 		int i;
@@ -179,9 +181,18 @@ scf_instruction_t* x64_make_inst_I2G(scf_x64_OpCode_t* OpCode, scf_register_x64_
 	assert(1 == OpCode->nb_OpCodes);
 	inst->code[inst->len - 1] += r_dst->id;
 
-	int i;
-	for (i = 0; i < size; i++)
-		inst->code[inst->len++] = imm[i]; 
+	uint8_t* p = (uint8_t*)&inst->src.imm;
+	int      i;
+
+	inst->src.imm = 0;
+
+	for (i = 0; i < size; i++) {
+		inst->code[inst->len++] = imm[i];
+		p[i] = imm[i];
+	}
+
+	inst->dst.base = (scf_register_t*)r_dst;
+	inst->src.imm_size = size;
 	return inst;
 }
 
@@ -210,9 +221,18 @@ scf_instruction_t* x64_make_inst_I2E(scf_x64_OpCode_t* OpCode, scf_register_x64_
 
 	size = size > r_dst->bytes ? r_dst->bytes : size;
 
-	int i;
-	for (i = 0; i < size; i++)
+	uint8_t* p = (uint8_t*)&inst->src.imm;
+	int      i;
+
+	inst->src.imm = 0;
+
+	for (i = 0; i < size; i++) {
 		inst->code[inst->len++] = imm[i];
+		p[i] = imm[i];
+	}
+
+	inst->dst.base = (scf_register_t*)r_dst;
+	inst->src.imm_size = size;
 	return inst;
 }
 
@@ -261,15 +281,64 @@ scf_instruction_t* x64_make_inst_M(scf_rela_t** prela, scf_x64_OpCode_t* OpCode,
 
 scf_instruction_t* x64_make_inst_I2M(scf_rela_t** prela, scf_x64_OpCode_t* OpCode, scf_variable_t* v_dst, scf_register_x64_t* r_base, uint8_t* imm, int32_t size)
 {
-	scf_instruction_t* inst = x64_make_inst_M(prela, OpCode, v_dst, r_base);
+	scf_register_x64_t* rbp = x64_find_register("rbp");
+
+	uint32_t base;
+	int32_t  offset;
+	uint8_t  reg = 0;
+
+	if (OpCode->ModRM_OpCode_used)
+		reg = OpCode->ModRM_OpCode;
+
+	if (!r_base) {
+		if (v_dst->local_flag || v_dst->tmp_flag) {
+
+			base   = SCF_X64_REG_RBP;
+			offset = v_dst->bp_offset;
+			r_base = rbp;
+
+		} else if (v_dst->global_flag) {
+			base   = -1;
+			offset = 0;
+		} else {
+			scf_loge("temp var should give a register\n");
+			return NULL;
+		}
+	} else {
+		base = r_base->id;
+
+		if (v_dst->local_flag || v_dst->tmp_flag)
+			offset = v_dst->bp_offset;
+		else
+			offset = v_dst->offset;
+	}
+
+	scf_instruction_t* inst = _x64_make_OpCode(OpCode, v_dst->size, NULL, NULL);
 	if (!inst)
 		return NULL;
 
+	if (_x64_make_disp(prela, inst, reg, base, offset) < 0) {
+		free(inst);
+		return NULL;
+	}
+
 	size = size > v_dst->size ? v_dst->size : size;
 
-	int i;
-	for (i = 0; i < size; i++)
+	uint8_t* p = (uint8_t*)&inst->src.imm;
+	int      i;
+
+	inst->src.imm = 0;
+
+	for (i = 0; i < size; i++) {
 		inst->code[inst->len++] = imm[i];
+		p[i] = imm[i];
+	}
+
+	inst->dst.base = (scf_register_t*)r_base;
+	inst->dst.disp = offset;
+	inst->dst.flag = 1;
+
+	inst->src.imm_size = size;
 	return inst;
 }
 
@@ -309,6 +378,7 @@ scf_instruction_t* x64_make_inst_G2M(scf_rela_t** prela, scf_x64_OpCode_t* OpCod
 			offset = v_dst->offset;
 	}
 
+	scf_loge("v_dst->size: %d\n", v_dst->size);
 	scf_instruction_t* inst = _x64_make_OpCode(OpCode, v_dst->size, r_src, NULL);
 	if (!inst)
 		return NULL;
@@ -409,11 +479,17 @@ scf_instruction_t* x64_make_inst_G2P(scf_x64_OpCode_t* OpCode, scf_register_x64_
 		return NULL;
 	}
 
+	uint32_t base;
+	if (r_base)
+		base = r_base->id;
+	else
+		base = -1;
+
 	scf_instruction_t* inst = _x64_make_OpCode(OpCode, r_src->bytes, r_src, NULL);
 	if (!inst)
 		return NULL;
 
-	if (_x64_make_disp(NULL, inst, r_src->id, r_base->id, offset) < 0) {
+	if (_x64_make_disp(NULL, inst, r_src->id, base, offset) < 0) {
 		free(inst);
 		return NULL;
 	}
@@ -451,9 +527,22 @@ scf_instruction_t* x64_make_inst_I2P(scf_x64_OpCode_t* OpCode, scf_register_x64_
 	if (!inst)
 		return NULL;
 
+	uint8_t* p = (uint8_t*)&inst->src.imm;
 	int i;
-	for (i = 0; i < size; i++)
+
+	inst->src.imm = 0;
+
+	for (i = 0; i < size; i++) {
 		inst->code[inst->len++] = imm[i];
+		p[i] = imm[i];
+	}
+
+	inst->src.imm_size = size;
+
+	inst->dst.base = (scf_register_t*)r_base;
+	inst->dst.disp = offset;
+	inst->dst.flag = 1;
+
 	return inst;
 }
 
@@ -629,9 +718,23 @@ scf_instruction_t* x64_make_inst_I2SIB(scf_x64_OpCode_t* OpCode, scf_register_x6
 	if (!inst)
 		return NULL;
 
+	uint8_t* p = (uint8_t*)&inst->src.imm;
 	int i;
-	for (i = 0; i < size; i++)
+
+	inst->src.imm = 0;
+
+	for (i = 0; i < size; i++) {
 		inst->code[inst->len++] = imm[i];
+		p[i] = imm[i];
+	}
+
+	inst->src.imm_size = size;
+
+	inst->dst.base  = (scf_register_t*)r_base;
+	inst->dst.index = (scf_register_t*)r_index;
+	inst->dst.scale = scale;
+	inst->dst.disp  = disp;
+	inst->dst.flag  = 1;
 
 	return inst;
 }

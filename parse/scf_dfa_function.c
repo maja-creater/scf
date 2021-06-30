@@ -349,6 +349,7 @@ static int _dfa_init_syntax_function(scf_dfa_t* dfa)
 	SCF_DFA_GET_MODULE_NODE(dfa, function, lp,        lp);
 	SCF_DFA_GET_MODULE_NODE(dfa, function, rp,        rp);
 
+	SCF_DFA_GET_MODULE_NODE(dfa, type,     _const,    _const);
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     base_type, base_type);
 	SCF_DFA_GET_MODULE_NODE(dfa, identity, identity,  type_name);
 
@@ -360,6 +361,7 @@ static int _dfa_init_syntax_function(scf_dfa_t* dfa)
 	scf_dfa_node_add_child(identity,  lp);
 
 	// function args
+	scf_dfa_node_add_child(lp,        _const);
 	scf_dfa_node_add_child(lp,        base_type);
 	scf_dfa_node_add_child(lp,        type_name);
 	scf_dfa_node_add_child(lp,        rp);
@@ -374,6 +376,7 @@ static int _dfa_init_syntax_function(scf_dfa_t* dfa)
 	scf_dfa_node_add_child(star,      comma);
 	scf_dfa_node_add_child(star,      rp);
 
+	scf_dfa_node_add_child(comma,     _const);
 	scf_dfa_node_add_child(comma,     base_type);
 	scf_dfa_node_add_child(comma,     type_name);
 	scf_dfa_node_add_child(comma,     vargs);

@@ -50,6 +50,10 @@ static scf_lex_key_word_t	key_words[] = {
 
 	{"void",      SCF_LEX_WORD_KEY_VOID},
 
+	{"va_start",  SCF_LEX_WORD_KEY_VA_START},
+	{"va_arg",    SCF_LEX_WORD_KEY_VA_ARG},
+	{"va_end",    SCF_LEX_WORD_KEY_VA_END},
+
 	{"vec2",      SCF_LEX_WORD_KEY_VEC2},
 	{"vec3",      SCF_LEX_WORD_KEY_VEC3},
 	{"vec4",      SCF_LEX_WORD_KEY_VEC4},

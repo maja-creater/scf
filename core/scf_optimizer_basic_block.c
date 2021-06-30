@@ -156,6 +156,16 @@ static int _bb_dag_update(scf_basic_block_t* bb, scf_function_t* f)
 				assert(dn->childs);
 				assert(2 == dn->childs->size);
 
+				dn_func = _func_dag_find_dn(&f->dag_list_head, dn);
+				if (!dn_func) {
+					scf_loge("\n");
+					return -1;
+				}
+
+				if (scf_vector_find(bb->dn_saves, dn_func)
+						|| scf_vector_find(bb->dn_resaves, dn_func))
+					continue;
+
 				for (i = 0; i < dn->childs->size; i++) {
 					dn_bb     = dn->childs->data[i];
 

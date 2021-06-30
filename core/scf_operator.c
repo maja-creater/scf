@@ -8,6 +8,10 @@ static scf_operator_t	base_operators[] = {
 	{SCF_OP_ARRAY_INDEX, 	"[", 		1, 2,	SCF_OP_ASSOCIATIVITY_LEFT},
 	{SCF_OP_POINTER,        "->",       1, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
 
+	{SCF_OP_VA_START,       "va_start", 1, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_VA_ARG,         "va_arg",   1, 2,   SCF_OP_ASSOCIATIVITY_LEFT},
+	{SCF_OP_VA_END,         "va_end",   1, 1,   SCF_OP_ASSOCIATIVITY_LEFT},
+
 	{SCF_OP_CREATE, 		"create", 	2, -1,	SCF_OP_ASSOCIATIVITY_RIGHT},
 	{SCF_OP_TYPE_CAST, 		"(", 		2, 2,	SCF_OP_ASSOCIATIVITY_RIGHT},
 	{SCF_OP_LOGIC_NOT, 		"!", 		2, 1,	SCF_OP_ASSOCIATIVITY_RIGHT},

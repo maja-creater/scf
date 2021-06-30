@@ -56,8 +56,10 @@ static int _for_action_for(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 	if (d->current_node)
 		scf_node_add_child(d->current_node, _for);
-	else
+	else {
 		scf_node_add_child((scf_node_t*)parse->ast->current_block, _for);
+		scf_loge("current_block: %p\n", parse->ast->current_block);
+	}
 
 	fd->parent_block = parse->ast->current_block;
 	fd->parent_node  = d->current_node;
@@ -83,6 +85,18 @@ static int _for_action_lp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_rp"),        SCF_DFA_HOOK_POST);
 	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_semicolon"), SCF_DFA_HOOK_POST);
 	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_comma"),     SCF_DFA_HOOK_POST);
+	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_lp_stat"),   SCF_DFA_HOOK_POST);
+
+	return SCF_DFA_NEXT_WORD;
+}
+
+static int _for_action_lp_stat(scf_dfa_t* dfa, scf_vector_t* words, void* data)
+{
+	dfa_parse_data_t* d  = data;
+	scf_stack_t*      s  = d->module_datas[dfa_module_for.index];
+	dfa_for_data_t*   fd = scf_stack_top(s);
+
+	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_lp_stat"), SCF_DFA_HOOK_POST);
 
 	fd->nb_lps++;
 
@@ -124,7 +138,8 @@ static int _for_action_comma(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 		return SCF_DFA_ERROR;
 	}
 
-	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_comma"), SCF_DFA_HOOK_POST);
+	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_comma"),   SCF_DFA_HOOK_POST);
+	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_lp_stat"), SCF_DFA_HOOK_POST);
 
 	return SCF_DFA_NEXT_WORD;
 }
@@ -164,7 +179,8 @@ static int _for_action_semicolon(scf_dfa_t* dfa, scf_vector_t* words, void* data
 	fd->nb_semicolons++;
 
 	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_semicolon"), SCF_DFA_HOOK_POST);
-	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_comma"), SCF_DFA_HOOK_POST);
+	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_comma"),     SCF_DFA_HOOK_POST);
+	SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_lp_stat"),   SCF_DFA_HOOK_POST);
 
 	return SCF_DFA_SWITCH_TO;
 }
@@ -230,8 +246,15 @@ static int _for_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 	fd->nb_rps++;
 
-	if (fd->nb_rps < fd->nb_lps)
+	if (fd->nb_rps < fd->nb_lps) {
+
+		SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_rp"),        SCF_DFA_HOOK_POST);
+		SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_semicolon"), SCF_DFA_HOOK_POST);
+		SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_comma"),     SCF_DFA_HOOK_POST);
+		SCF_DFA_PUSH_HOOK(scf_dfa_find_node(dfa, "for_lp_stat"),   SCF_DFA_HOOK_POST);
+
 		return SCF_DFA_NEXT_WORD;
+	}
 
 	if (2 == fd->nb_semicolons) {
 		if (!fd->update_exprs)
@@ -259,6 +282,8 @@ static int _for_action_end(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	scf_stack_t*      s         = d->module_datas[dfa_module_for.index];
 	dfa_for_data_t*  fd         = scf_stack_pop(s);
 
+	scf_loge("current_block: %p, parent_block: %p\n", parse->ast->current_block, fd->parent_block);
+
 	assert(parse->ast->current_block == fd->parent_block);
 
 	d->current_node = fd->parent_node;
@@ -281,6 +306,7 @@ static int _dfa_init_module_for(scf_dfa_t* dfa)
 	SCF_DFA_MODULE_NODE(dfa, for, end,       _for_is_end,           _for_action_end);
 
 	SCF_DFA_MODULE_NODE(dfa, for, lp,        scf_dfa_is_lp,         _for_action_lp);
+	SCF_DFA_MODULE_NODE(dfa, for, lp_stat,   scf_dfa_is_lp,         _for_action_lp_stat);
 	SCF_DFA_MODULE_NODE(dfa, for, rp,        scf_dfa_is_rp,         _for_action_rp);
 
 	SCF_DFA_MODULE_NODE(dfa, for, _for,      _for_is_for,           _for_action_for);
@@ -322,6 +348,7 @@ static int _dfa_init_syntax_for(scf_dfa_t* dfa)
 	SCF_DFA_GET_MODULE_NODE(dfa, for,   semicolon, semicolon);
 	SCF_DFA_GET_MODULE_NODE(dfa, for,   comma,     comma);
 	SCF_DFA_GET_MODULE_NODE(dfa, for,   lp,        lp);
+	SCF_DFA_GET_MODULE_NODE(dfa, for,   lp_stat,   lp_stat);
 	SCF_DFA_GET_MODULE_NODE(dfa, for,   rp,        rp);
 	SCF_DFA_GET_MODULE_NODE(dfa, for,   _for,    _for);
 	SCF_DFA_GET_MODULE_NODE(dfa, for,   end,       end);

@@ -189,9 +189,24 @@ static int _scf_dag_op_bit_not(scf_list_t* h, scf_dag_node_t* parent, scf_dag_no
 
 static int _scf_dag_op_address_of(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
 {
-	assert(1 == nb_nodes);
+	switch (nb_nodes) {
+		case 1:
+			return _scf_3ac_code_2(h, SCF_OP_ADDRESS_OF, parent, nodes[0]);
+			break;
 
-	return _scf_3ac_code_2(h, SCF_OP_ADDRESS_OF, parent, nodes[0]);
+		case 2:
+			return _scf_3ac_code_N(h, SCF_OP_3AC_ADDRESS_OF_POINTER, parent, nodes, nb_nodes);
+			break;
+
+		case 3:
+			return _scf_3ac_code_N(h, SCF_OP_3AC_ADDRESS_OF_ARRAY_INDEX, parent, nodes, nb_nodes);
+			break;
+		default:
+			break;
+	};
+
+	scf_loge("\n");
+	return -1;
 }
 
 static int _scf_dag_op_dereference(scf_list_t* h, scf_dag_node_t* parent, scf_dag_node_t** nodes, int nb_nodes)
@@ -234,6 +249,10 @@ static int _scf_dag_op_##name(scf_list_t* h, scf_dag_node_t* parent, scf_dag_nod
 }
 SCF_DAG_BINARY(add, ADD)
 SCF_DAG_BINARY(sub, SUB)
+
+SCF_DAG_BINARY(shl, SHL)
+SCF_DAG_BINARY(shr, SHR)
+
 SCF_DAG_BINARY(and, BIT_AND)
 SCF_DAG_BINARY(or,  BIT_OR)
 
@@ -251,6 +270,10 @@ static int _scf_dag_op_##name(scf_list_t* h, scf_dag_node_t* parent, scf_dag_nod
 SCF_DAG_BINARY_ASSIGN(assign,     ASSIGN)
 SCF_DAG_BINARY_ASSIGN(add_assign, ADD_ASSIGN)
 SCF_DAG_BINARY_ASSIGN(sub_assign, SUB_ASSIGN)
+
+SCF_DAG_BINARY_ASSIGN(shl_assign, SHL_ASSIGN)
+SCF_DAG_BINARY_ASSIGN(shr_assign, SHR_ASSIGN)
+
 SCF_DAG_BINARY_ASSIGN(and_assign, AND_ASSIGN)
 SCF_DAG_BINARY_ASSIGN(or_assign,  OR_ASSIGN)
 
@@ -330,6 +353,9 @@ scf_dag_operator_t	dag_operators[] =
 	{SCF_OP_ADD,            SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_add},
 	{SCF_OP_SUB,            SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_sub},
 
+	{SCF_OP_SHL,            SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_shl},
+	{SCF_OP_SHR,            SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_shr},
+
 	{SCF_OP_BIT_AND,        SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_and},
 	{SCF_OP_BIT_OR,         SCF_OP_ASSOCIATIVITY_LEFT, _scf_dag_op_or},
 
@@ -350,6 +376,10 @@ scf_dag_operator_t	dag_operators[] =
 	{SCF_OP_ASSIGN,         SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_assign},
 	{SCF_OP_ADD_ASSIGN,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_add_assign},
 	{SCF_OP_SUB_ASSIGN,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_sub_assign},
+
+	{SCF_OP_SHL_ASSIGN,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_shl_assign},
+	{SCF_OP_SHR_ASSIGN,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_shr_assign},
+
 	{SCF_OP_AND_ASSIGN,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_and_assign},
 	{SCF_OP_OR_ASSIGN,      SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_or_assign},
 

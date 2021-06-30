@@ -213,6 +213,9 @@ static int _bb_find_dominators_reverse(scf_list_t* bb_list_head)
 				}
 			}
 
+			scf_logd("bb: %p, dominators_reverse: %p, bb->nexts->size: %d\n",
+					bb, dominators_reverse, bb->nexts->size);
+
 			scf_basic_block_t* dom  = NULL;
 			scf_basic_block_t* dom1 = bb;
 

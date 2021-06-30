@@ -1230,6 +1230,32 @@ static int _x64_rcg_pop_rax_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_gr
 	return 0;
 }
 
+static int _x64_rcg_va_start_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+{
+	int ret = _x64_rcg_make2(c, NULL, NULL, NULL);
+	if (ret < 0)
+		return ret;
+	return _x64_rcg_make(c, g, NULL, NULL, NULL);
+}
+
+static int _x64_rcg_va_end_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+{
+	int ret = _x64_rcg_make2(c, NULL, NULL, NULL);
+	if (ret < 0)
+		return ret;
+	return _x64_rcg_make(c, g, NULL, NULL, NULL);
+}
+
+static int _x64_rcg_va_arg_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
+{
+	scf_3ac_operand_t* dst = c->dsts->data[0];
+
+	int ret = _x64_rcg_make2(c, dst->dag_node, NULL, NULL);
+	if (ret < 0)
+		return ret;
+	return _x64_rcg_make(c, g, dst->dag_node, NULL, NULL);
+}
+
 static x64_rcg_handler_t x64_rcg_handlers[] = {
 
 	{SCF_OP_CALL,			_x64_rcg_call_handler},
@@ -1239,6 +1265,10 @@ static x64_rcg_handler_t x64_rcg_handlers[] = {
 	{SCF_OP_LOGIC_NOT, 		_x64_rcg_logic_not_handler},
 	{SCF_OP_BIT_NOT,        _x64_rcg_bit_not_handler},
 	{SCF_OP_NEG, 			_x64_rcg_neg_handler},
+
+	{SCF_OP_VA_START,       _x64_rcg_va_start_handler},
+	{SCF_OP_VA_ARG,         _x64_rcg_va_arg_handler},
+	{SCF_OP_VA_END,         _x64_rcg_va_end_handler},
 
 	{SCF_OP_INC,            _x64_rcg_inc_handler},
 	{SCF_OP_DEC,            _x64_rcg_dec_handler},

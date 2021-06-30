@@ -91,6 +91,10 @@ struct dfa_parse_data_s {
 	scf_node_t*          current_return;
 	scf_node_t*          current_goto;
 
+	scf_node_t*          current_va_start;
+	scf_node_t*          current_va_arg;
+	scf_node_t*          current_va_end;
+
 	int                  const_flag;
 
 	int              nb_lbs;

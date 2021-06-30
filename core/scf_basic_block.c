@@ -224,6 +224,7 @@ void scf_basic_block_print_list(scf_list_t* h)
 
 	if (!scf_list_empty(h)) {
 
+		scf_basic_block_t* bb2;
 		scf_basic_block_t* last_bb  = scf_list_data(scf_list_tail(h), scf_basic_block_t, list);
 		scf_list_t*        sentinel = scf_list_sentinel(&last_bb->code_list_head);
 
@@ -239,12 +240,18 @@ void scf_basic_block_print_list(scf_list_t* h)
 			printf("\n");
 			int i;
 			if (bb->prevs) {
-				for (i = 0; i < bb->prevs->size; i++)
-					printf("prev     : %p\n", bb->prevs->data[i]);
+				for (i = 0; i < bb->prevs->size; i++) {
+					bb2       = bb->prevs->data[i];
+
+					printf("prev     : %p, index: %d\n", bb2, bb2->index);
+				}
 			}
 			if (bb->nexts) {
-				for (i = 0; i < bb->nexts->size; i++)
-					printf("next     : %p\n", bb->nexts->data[i]);
+				for (i = 0; i < bb->nexts->size; i++) {
+					bb2       = bb->nexts->data[i];
+
+					printf("next     : %p, index: %d\n", bb2, bb2->index);
+				}
 			}
 #if 0
 			if (bb->dominators) {
@@ -592,7 +599,7 @@ static int _bb_init_pointer_aliases(scf_dn_status_t* ds_pointer, scf_dag_node_t*
 	for (i = 0; i < aliases->size; i++) {
 		ds = aliases->data[i];
 
-		ds2 = calloc(1, sizeof(scf_dn_status_t));
+		ds2 = scf_dn_status_null();
 		if (!ds2) {
 			ret = -ENOMEM;
 			break;
@@ -617,14 +624,7 @@ static int _bb_init_pointer_aliases(scf_dn_status_t* ds_pointer, scf_dag_node_t*
 			break;
 		}
 
-		scf_logw("\n");
-		scf_dn_status_print(ds2);
-
-		ds3 = scf_dn_status_clone(ds2);
-		if (!ds3) {
-			ret = -ENOMEM;
-			break;
-		}
+		ds3 = scf_dn_status_ref(ds2);
 
 		ret = scf_vector_add(bb->dn_status_initeds, ds3);
 		if (ret < 0) {
@@ -694,13 +694,13 @@ static int _bb_init_array_index(scf_3ac_code_t* c, scf_basic_block_t* bb, scf_li
 			return -ENOMEM;
 	}
 
-	ds = calloc(1, sizeof(scf_dn_status_t));
+	ds = scf_dn_status_null(); 
 	if (!ds)
 		return -ENOMEM;
 
 	ds->dn_indexes = scf_vector_alloc();
 	if (!ds->dn_indexes) {
-		free(ds);
+		scf_dn_status_free(ds);
 		return -ENOMEM;
 	}
 
@@ -756,30 +756,17 @@ static int _bb_init_array_index(scf_3ac_code_t* c, scf_basic_block_t* bb, scf_li
 	ds->dag_node = dn_base;
 	ds->inited   = 1;
 
-	ret = _bb_init_pointer_aliases(ds, dn_src, c, bb, bb_list_head);
+	printf("\n");
+	scf_loge("ds: \n");
+	scf_dn_status_print(ds);
+
+	if (scf_ds_is_pointer(ds) > 0)
+		ret = _bb_init_pointer_aliases(ds, dn_src, c, bb, bb_list_head);
+	else
+		ret = 0;
+
 	scf_dn_status_free(ds);
 	return ret;
-#if 0
-	scf_dn_status_vector_clear_by_ds(c ->dn_status_initeds, ds);
-	scf_dn_status_vector_clear_by_ds(bb->dn_status_initeds, ds);
-
-	ret = scf_vector_add(c->dn_status_initeds, ds);
-	if (ret < 0) {
-		scf_dn_status_free(ds);
-		return ret;
-	}
-
-	ds2= scf_dn_status_clone(ds);
-	if (!ds2)
-		return -ENOMEM;
-
-	ret = scf_vector_add(bb->dn_status_initeds, ds2);
-	if (ret < 0) {
-		scf_dn_status_free(ds2);
-		return ret;
-	}
-	return 0;
-#endif
 }
 
 int scf_basic_block_inited_vars(scf_basic_block_t* bb, scf_list_t* bb_list_head)

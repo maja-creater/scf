@@ -56,6 +56,10 @@ static scf_3ac_operator_t _3ac_operators[] = {
 	{SCF_OP_AND_ASSIGN,     "&="},
 	{SCF_OP_OR_ASSIGN,      "|="},
 
+	{SCF_OP_VA_START,       "va_start"},
+	{SCF_OP_VA_ARG,         "va_arg"},
+	{SCF_OP_VA_END,         "va_end"},
+
 	{SCF_OP_RETURN,			 "return"},
 	{SCF_OP_GOTO,			 "jmp"},
 
@@ -508,7 +512,7 @@ void scf_3ac_code_print(scf_3ac_code_t* c, scf_list_t* sentinel)
 					scf_3ac_code_print(dst->code, sentinel);
 				}
 			} else if (dst->bb)
-				printf(" bb: %p ", dst->bb);
+				printf(" bb: %p, index: %d ", dst->bb, dst->bb->index);
 
 			if (i < c->dsts->size - 1)
 				printf(", ");
@@ -769,8 +773,6 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 		if (c->dsts) {
 			scf_3ac_operand_t* dst0 = c->dsts->data[0];
 
-			scf_3ac_code_print(c, NULL);
-
 			assert(dst0->node->op);
 
 			nb_operands0 = dst0->node->op->nb_operands;
@@ -781,10 +783,13 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 				case SCF_OP_3AC_ADDRESS_OF_ARRAY_INDEX:
 				case SCF_OP_3AC_INC_POST_ARRAY_INDEX:
 				case SCF_OP_3AC_DEC_POST_ARRAY_INDEX:
+				case SCF_OP_VA_START:
+				case SCF_OP_VA_ARG:
 					nb_operands0 = 3;
 					break;
 
 				case SCF_OP_3AC_ADDRESS_OF_POINTER:
+				case SCF_OP_VA_END:
 					nb_operands0 = 2;
 					break;
 

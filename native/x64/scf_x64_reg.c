@@ -421,7 +421,9 @@ int x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf_3ac_code_t* c, 
 			printf("v_%#lx, bp_offset: %d\n", 0xffff & (uintptr_t)v, v->bp_offset);
 
 	} else {
-		scf_logw("save var: v_%d_%d/%s, bp_offset: %d, r: %s\n", v->w->line, v->w->pos, v->w->text->data, v->bp_offset, r->name);
+		scf_logw("save var: v_%d_%d/%s, size: %d, bp_offset: %d, r: %s\n",
+				v->w->line, v->w->pos, v->w->text->data,
+				var_size, v->bp_offset, r->name);
 	}
 
 	if (is_float) {
@@ -429,8 +431,10 @@ int x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf_3ac_code_t* c, 
 			mov  = x64_find_OpCode(SCF_X64_MOVSS, r->bytes, r->bytes, SCF_X64_G2E);
 		else if (SCF_VAR_DOUBLE == dn->var->type)
 			mov  = x64_find_OpCode(SCF_X64_MOVSD, r->bytes, r->bytes, SCF_X64_G2E);
-	} else
+	} else {
 		mov  = x64_find_OpCode(SCF_X64_MOV, r->bytes, r->bytes, SCF_X64_G2E);
+		scf_loge("v->size: %d\n", v->size);
+	}
 
 	inst = x64_make_inst_G2M(&rela, mov, v, NULL, r);
 	X64_INST_ADD_CHECK(c->instructions, inst);
@@ -442,10 +446,7 @@ end:
 	dn->color   = -1;
 	dn->loaded  =  0;
 
-	int ret = scf_vector_del(r->dag_nodes, dn);
-	if (ret < 0) {
-		//return ret;
-	}
+	scf_vector_del(r->dag_nodes, dn);
 	return 0;
 }
 
@@ -466,10 +467,9 @@ int x64_save_reg(scf_register_x64_t* r, scf_3ac_code_t* c, scf_function_t* f)
 
 		scf_dag_node_t* dn = r->dag_nodes->data[i];
 
-		scf_logw("r: %s, dn->var: %s\n", r->name, dn->var->w->text->data);
 		int ret = x64_save_var(dn, c, f);
 		if (ret < 0) {
-			scf_loge("\n");
+			scf_loge("i: %d, size: %d, r: %s, dn->var: %s\n", i, r->dag_nodes->size, r->name, dn->var->w->text->data);
 			return ret;
 		}
 	}
@@ -975,17 +975,22 @@ int x64_array_index_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* in
 	int32_t disp = 0;
 
 	if (vb->nb_pointers > 0 && 0 == vb->nb_dimentions) {
+
 		ret = x64_select_reg(&rb, base, c, f, 1);
 		if (ret < 0) {
 			scf_loge("\n");
 			return ret;
 		}
 	} else if (vb->local_flag || vb->tmp_flag) {
+
 		rb   = x64_find_register("rbp");
 		disp = vb->bp_offset;
 
 	} else if (vb->global_flag) {
 		scf_rela_t* rela = NULL;
+
+		if (0 == base->color)
+			base->color = -1;
 
 		ret  = x64_select_reg(&rb, base, c, f, 0);
 		if (ret < 0) {

@@ -157,7 +157,7 @@ static inline int   x64_inst_data_is_reg(scf_inst_data_t* id)
 	scf_register_t* rsp = (scf_register_t*)x64_find_register("rsp");
 	scf_register_t* rbp = (scf_register_t*)x64_find_register("rbp");
 
-	if (!id->flag && id->base && id->base != rsp && id->base != rbp)
+	if (!id->flag && id->base && id->base != rsp && id->base != rbp && 0 == id->imm_size)
 		return 1;
 	return 0;
 }
@@ -165,8 +165,23 @@ static inline int   x64_inst_data_is_reg(scf_inst_data_t* id)
 static inline int   x64_inst_data_is_local(scf_inst_data_t* id)
 {
 	scf_register_t* rbp = (scf_register_t*)x64_find_register("rbp");
+	scf_register_t* rsp = (scf_register_t*)x64_find_register("rsp");
 
-	if (id->flag && id->base == rbp)
+	if (id->flag && (id->base == rbp || id->base == rsp))
+		return 1;
+	return 0;
+}
+
+static inline int   x64_inst_data_is_global(scf_inst_data_t* id)
+{
+	if (id->flag && !id->base)
+		return 1;
+	return 0;
+}
+
+static inline int   x64_inst_data_is_const(scf_inst_data_t* id)
+{
+	if (!id->flag && id->imm_size > 0)
 		return 1;
 	return 0;
 }

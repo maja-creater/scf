@@ -56,6 +56,7 @@ extern scf_dfa_module_t  dfa_module_create;
 extern scf_dfa_module_t  dfa_module_call;
 extern scf_dfa_module_t  dfa_module_sizeof;
 extern scf_dfa_module_t  dfa_module_init_data;
+extern scf_dfa_module_t  dfa_module_va_arg;
 
 extern scf_dfa_module_t  dfa_module_union;
 extern scf_dfa_module_t  dfa_module_class;
@@ -91,6 +92,7 @@ scf_dfa_module_t* dfa_modules[] =
 	&dfa_module_call,
 	&dfa_module_sizeof,
 	&dfa_module_init_data,
+	&dfa_module_va_arg,
 
 	&dfa_module_union,
 	&dfa_module_class,
@@ -1433,7 +1435,7 @@ static int _fill_function_inst(scf_string_t* code, scf_function_t* f, int64_t of
 
 		f->code_bytes += bb->code_bytes;
 	}
-
+#if 0
 	if (f->code_bytes & 0x7) {
 
 		size_t n = 8 - (f->code_bytes & 0x7);
@@ -1444,7 +1446,7 @@ static int _fill_function_inst(scf_string_t* code, scf_function_t* f, int64_t of
 
 		f->code_bytes += n;
 	}
-
+#endif
 	uint64_t high_pc_ = offset + f->code_bytes;
 
 #define DEBUG_UPDATE_HIGH_PC(ie, high_pc) \

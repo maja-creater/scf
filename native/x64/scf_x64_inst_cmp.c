@@ -49,7 +49,16 @@ static int _inst_cmp(scf_dag_node_t* src0, scf_dag_node_t* src1, scf_3ac_code_t*
 			}
 
 			src1->color = -1;
-			src1->var->global_flag = 1;
+			X64_SELECT_REG_CHECK(&rs1, src1, c, f, 1);
+
+			cmp  = x64_find_OpCode(SCF_X64_CMP, rs0->bytes, src1_size, SCF_X64_G2E);
+			inst = x64_make_inst_G2E(cmp, rs0, rs1);
+			X64_INST_ADD_CHECK(c->instructions, inst);
+
+			src1->color = 0;
+			src1->var->tmp_flag = 0;
+			assert(0 == scf_vector_del(rs1->dag_nodes, src1));
+			return 0;
 		}
 
 		cmp = x64_find_OpCode(SCF_X64_CMP, rs0->bytes, src1_size, SCF_X64_E2G);

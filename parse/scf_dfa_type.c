@@ -234,6 +234,12 @@ static int _dfa_init_syntax_type(scf_dfa_t* dfa)
 	scf_dfa_node_add_child(comma,     base_type);
 	scf_dfa_node_add_child(comma,     type_name);
 
+	int i;
+	for (i = 0; i < base_type->childs->size; i++) {
+		scf_dfa_node_t* n = base_type->childs->data[i];
+
+		scf_logi("n->name: %s\n", n->name);
+	}
 
 	scf_logi("\n");
 	return SCF_DFA_OK;

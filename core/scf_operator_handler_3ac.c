@@ -177,9 +177,9 @@ static int _scf_3ac_code_NN(scf_list_t* h, int op_type, scf_node_t** dsts, int n
 
 	scf_3ac_operand_t* operand;
 	scf_3ac_code_t*    c;
-
 	scf_vector_t*      vsrc = NULL;
 	scf_vector_t*      vdst = NULL;
+	scf_node_t*        node;
 
 	int i;
 
@@ -189,7 +189,12 @@ static int _scf_3ac_code_NN(scf_list_t* h, int op_type, scf_node_t** dsts, int n
 
 			operand = scf_3ac_operand_alloc();
 
-			operand->node = srcs[i];
+			node    = srcs[i];
+
+			while (node && SCF_OP_EXPR == node->type)
+				node = node->nodes[0];
+
+			operand->node = node;
 			scf_vector_add(vsrc, operand);
 		}
 	}
@@ -200,7 +205,12 @@ static int _scf_3ac_code_NN(scf_list_t* h, int op_type, scf_node_t** dsts, int n
 
 			operand = scf_3ac_operand_alloc();
 
-			operand->node = dsts[i];
+			node    = dsts[i];
+
+			while (node && SCF_OP_EXPR == node->type)
+				node = node->nodes[0];
+
+			operand->node = node;
 			scf_vector_add(vdst, operand);
 		}
 	}
@@ -243,6 +253,108 @@ static int _scf_3ac_code_dst(scf_list_t* h, int op_type, scf_node_t* d)
 static int _scf_3ac_code_srcN(scf_list_t* h, int op_type, scf_node_t** nodes, int nb_nodes)
 {
 	return _scf_3ac_code_NN(h, op_type, NULL, 0, nodes, nb_nodes);
+}
+
+static int _scf_op_va_start(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	assert(2 == nb_nodes);
+
+	scf_handler_data_t* d = data;
+	scf_variable_t*     vptr;
+	scf_type_t*         tptr;
+	scf_node_t*         nptr;
+	scf_node_t*         parent = nodes[0]->parent;
+	scf_node_t*         srcs[3];
+
+	tptr = scf_ast_find_type_type(ast, SCF_VAR_UINTPTR);
+	vptr = SCF_VAR_ALLOC_BY_TYPE(NULL, tptr, 0, 0, NULL);
+	if (!vptr)
+		return -ENOMEM;
+	vptr->data.u64 = 0;
+	vptr->tmp_flag = 1;
+
+	nptr = scf_node_alloc(NULL, vptr->type, vptr);
+	if (!nptr)
+		return -ENOMEM;
+
+	if (scf_node_add_child(parent, nptr) < 0)
+		return -ENOMEM;
+
+	srcs[0] = parent->nodes[0];
+	srcs[1] = parent->nodes[1];
+	srcs[2] = nptr;
+
+	return _scf_3ac_code_srcN(d->_3ac_list_head, SCF_OP_VA_START, srcs, 3);
+}
+
+static int _scf_op_va_end(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	assert(1 == nb_nodes);
+
+	scf_handler_data_t* d = data;
+	scf_variable_t*     vptr;
+	scf_type_t*         tptr;
+	scf_node_t*         nptr;
+	scf_node_t*         parent = nodes[0]->parent;
+	scf_node_t*         srcs[2];
+
+	tptr = scf_ast_find_type_type(ast, SCF_VAR_UINTPTR);
+	vptr = SCF_VAR_ALLOC_BY_TYPE(NULL, tptr, 0, 0, NULL);
+	if (!vptr)
+		return -ENOMEM;
+	vptr->data.u64 = 0;
+	vptr->tmp_flag = 1;
+
+	nptr = scf_node_alloc(NULL, vptr->type, vptr);
+	if (!nptr)
+		return -ENOMEM;
+
+	if (scf_node_add_child(parent, nptr) < 0)
+		return -ENOMEM;
+
+	srcs[0] = parent->nodes[0];
+	srcs[1] = nptr;
+
+	return _scf_3ac_code_srcN(d->_3ac_list_head, SCF_OP_VA_END, srcs, 2);
+}
+
+static int _scf_op_va_arg(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	assert(2 == nb_nodes);
+
+	scf_handler_data_t* d = data;
+	scf_variable_t*     v;
+	scf_variable_t*     vptr;
+	scf_type_t*         tptr;
+	scf_node_t*         nptr;
+	scf_node_t*         parent = nodes[0]->parent;
+	scf_node_t*         srcs[3];
+
+	v = _scf_operand_get(parent);
+	v->tmp_flag = 1;
+
+	v = _scf_operand_get(nodes[1]);
+	v->const_flag = 1;
+
+	tptr = scf_ast_find_type_type(ast, SCF_VAR_UINTPTR);
+	vptr = SCF_VAR_ALLOC_BY_TYPE(NULL, tptr, 0, 0, NULL);
+	if (!vptr)
+		return -ENOMEM;
+	vptr->data.u64 = 0;
+	vptr->tmp_flag = 1;
+
+	nptr = scf_node_alloc(NULL, vptr->type, vptr);
+	if (!nptr)
+		return -ENOMEM;
+
+	if (scf_node_add_child(parent, nptr) < 0)
+		return -ENOMEM;
+
+	srcs[0] = parent->nodes[0];
+	srcs[1] = parent->nodes[1];
+	srcs[2] = nptr;
+
+	return _scf_3ac_code_NN(d->_3ac_list_head, SCF_OP_VA_ARG, &parent, 1, srcs, 3);
 }
 
 static int _scf_op_pointer(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
@@ -410,7 +522,6 @@ static int _scf_op_block(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void*
 	}
 
 	ast->current_block = prev_block;
-	scf_logi("b: %p ok\n\n", b);
 	return 0;
 }
 
@@ -2123,6 +2234,10 @@ scf_operator_handler_t _3ac_operator_handlers[] = {
 
 	{{NULL, NULL}, SCF_OP_ARRAY_INDEX,    -1,   -1, -1, _scf_op_array_index},
 	{{NULL, NULL}, SCF_OP_POINTER,        -1,   -1, -1, _scf_op_pointer},
+
+	{{NULL, NULL}, SCF_OP_VA_START,       -1,   -1, -1, _scf_op_va_start},
+	{{NULL, NULL}, SCF_OP_VA_ARG,         -1,   -1, -1, _scf_op_va_arg},
+	{{NULL, NULL}, SCF_OP_VA_END,         -1,   -1, -1, _scf_op_va_end},
 
 	{{NULL, NULL}, SCF_OP_TYPE_CAST,      -1,   -1, -1, _scf_op_type_cast},
 	{{NULL, NULL}, SCF_OP_LOGIC_NOT,      -1,   -1, -1, _scf_op_logic_not},

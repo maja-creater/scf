@@ -119,6 +119,7 @@ static int _alias_dereference(scf_vector_t** paliases, scf_dag_node_t* dn_pointe
 	if (!aliases)
 		return -ENOMEM;
 
+	scf_loge("\n");
 	ret = __alias_dereference(aliases, dn_pointer, c, bb, bb_list_head);
 	if (ret < 0) {
 		scf_loge("\n");
@@ -196,6 +197,12 @@ static int __optimize_alias_bb(scf_list_t** pend, scf_list_t* start, scf_basic_b
 			continue;
 		}
 
+		if (dn_pointer->var->global_flag) {
+			scf_variable_t* v = dn_pointer->var;
+			scf_logw("global: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+			continue;
+		}
+
 		if (SCF_OP_DEREFERENCE == c->op->type) {
 
 			assert(c->dsts && 1 == c->dsts->size);
@@ -212,6 +219,10 @@ static int __optimize_alias_bb(scf_list_t** pend, scf_list_t* start, scf_basic_b
 			return ret;
 
 		if (aliases) {
+			scf_loge("bb: %p, bb->index: %d, aliases->size: %d\n", bb, bb->index, aliases->size);
+			scf_variable_t* v = dn_pointer->var;
+			scf_logw("v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+
 			ret = _bb_copy_aliases(bb, dn_pointer, dn_dereference, aliases);
 			scf_vector_free(aliases);
 			aliases = NULL;
@@ -238,6 +249,7 @@ static int _optimize_alias_bb(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 		end   = scf_list_sentinel(&bb->code_list_head);
 
 		ret   = __optimize_alias_bb(&end, start, bb, bb_list_head);
+
 		if (ret < 0) {
 			scf_loge("\n");
 			return ret;

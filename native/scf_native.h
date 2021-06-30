@@ -25,6 +25,10 @@ typedef struct {
 	scf_register_t* index;
 	int             scale;
 	int             disp;
+
+	uint64_t        imm;
+	int             imm_size;
+
 	uint8_t         flag;
 } scf_inst_data_t;
 
@@ -39,6 +43,8 @@ typedef struct {
 
 	uint8_t			code[32];
 	int				len;
+
+	int             nb_used;
 
 } scf_instruction_t;
 
@@ -74,11 +80,17 @@ struct scf_native_ops_s {
 
 static inline int scf_inst_data_same(scf_inst_data_t* id0, scf_inst_data_t* id1)
 {
+	// global var, are considered as different.
+	if ((id0->flag && !id0->base) || (id1->flag && !id1->base))
+		return 0;
+
 	if (id0->base == id1->base
 			&& id0->scale == id1->scale
 			&& id0->index == id1->index
 			&& id0->disp  == id1->disp
-			&& id0->flag  == id1->flag)
+			&& id0->flag  == id1->flag
+			&& id0->imm   == id1->imm
+			&& id0->imm_size == id1->imm_size)
 		return 1;
 	return 0;
 }

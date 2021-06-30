@@ -23,8 +23,10 @@
 	if (!dst || !dst->dag_node) \
 		return -EINVAL; \
 	\
-	if (src0->dag_node->var->size != src1->dag_node->var->size) \
+	if (src0->dag_node->var->size != src1->dag_node->var->size) {\
+		scf_loge("size: %d, %d\n", src0->dag_node->var->size, src1->dag_node->var->size); \
 		return -EINVAL; \
+	}
 
 static int _x64_inst_float_op2(int OpCode_type, scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t* c, scf_function_t* f)
 {
@@ -163,6 +165,21 @@ static int _x64_inst_call_argv(scf_3ac_code_t* c, scf_function_t* f)
 						inst = x64_make_inst_G2E(xor, rabi, rabi);
 						X64_INST_ADD_CHECK(c->instructions, inst);
 					}
+
+				} else if (scf_variable_const_string(v)) {
+
+					scf_rela_t* rela = NULL;
+
+					v->global_flag = 1;
+					v->local_flag  = 0;
+					v->tmp_flag    = 0;
+
+					lea  = x64_find_OpCode(SCF_X64_LEA, size, size, SCF_X64_E2G);
+
+					inst = x64_make_inst_M2G(&rela, lea, rabi, NULL, v);
+					X64_INST_ADD_CHECK(c->instructions, inst);
+					X64_RELA_ADD_CHECK(f->data_relas, rela, c, v, NULL);
+
 				} else {
 					mov  = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_I2G);
 					inst = x64_make_inst_I2G(mov, rabi, (uint8_t*)&v->data, size);
@@ -484,6 +501,8 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		inst = x64_make_inst_I(call, (uint8_t*)&offset, 4);
 		X64_INST_ADD_CHECK(c->instructions, inst);
 
+		inst->OpCode = (scf_OpCode_t*)call;
+
 		scf_rela_t* rela = calloc(1, sizeof(scf_rela_t));
 		if (!rela)
 			return -ENOMEM;
@@ -507,12 +526,16 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 
 			inst = x64_make_inst_E(call, r_pf);
 			X64_INST_ADD_CHECK(c->instructions, inst);
+
+			inst->OpCode = (scf_OpCode_t*)call;
 		} else {
 			scf_rela_t* rela = NULL;
 
 			inst = x64_make_inst_M(&rela, call, var_pf, NULL);
 			X64_INST_ADD_CHECK(c->instructions, inst);
 			X64_RELA_ADD_CHECK(f->text_relas, rela, c, NULL, pf);
+
+			inst->OpCode = (scf_OpCode_t*)call;
 		}
 	}
 
@@ -1042,9 +1065,16 @@ static int _x64_inst_op3(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type)
 	}
 
 	int ret = x64_inst_op2(SCF_X64_MOV, dst->dag_node, src0->dag_node, c, f);
-	if (ret < 0)
+	if (ret < 0) {
+		scf_loge("\n");
 		return ret;
-	return x64_inst_op2(OpCode_type, dst->dag_node, src1->dag_node, c, f);
+	}
+	ret = x64_inst_op2(OpCode_type, dst->dag_node, src1->dag_node, c, f);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+	return ret;
 }
 
 #define X64_INST_OP3(name, op) \
@@ -1509,6 +1539,7 @@ static int _x64_inst_load_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 
 	if (x64_reg_used(r, dn)) {
 		dn->color = -1;
+		scf_vector_del(r->dag_nodes, dn);
 		return 0;
 	}
 
@@ -1723,6 +1754,249 @@ static int _x64_inst_pop_rax_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	return 0;
 }
 
+/*
+
+struct va_list
+{
+	uint8_t*  iptr;
+	uint8_t*  fptr;
+	uint8_t*  optr;
+
+	intptr_t  ireg;
+	intptr_t  freg;
+};
+*/
+
+static int _x64_inst_va_start_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	scf_x64_context_t*  x64 = ctx->priv;
+	scf_function_t*     f   = x64->f;
+
+	if (!c->instructions) {
+		c->instructions = scf_vector_alloc();
+		if (!c->instructions)
+			return -ENOMEM;
+	}
+
+	scf_loge("c->srcs->size: %d\n", c->srcs->size);
+	assert(3 == c->srcs->size);
+
+	scf_register_x64_t* rbp   = x64_find_register("rbp");
+	scf_register_x64_t* rptr  = NULL;
+	scf_register_x64_t* rap   = NULL;
+	scf_instruction_t*  inst  = NULL;
+	scf_3ac_operand_t*  ap    = c->srcs->data[0];
+	scf_3ac_operand_t*  ptr   = c->srcs->data[2];
+	scf_x64_OpCode_t*   mov   = x64_find_OpCode(SCF_X64_MOV, 8, 8, SCF_X64_G2E);
+	scf_x64_OpCode_t*   lea   = x64_find_OpCode(SCF_X64_LEA, 8, 8, SCF_X64_E2G);
+	scf_variable_t*     v     = ap->dag_node->var;
+
+	int offset_int            = -f->args_int   * 8 - 8;
+	int offset_float          = -f->args_float * 8 - X64_ABI_NB * 8 - 8;
+	int offset_others         = 16;
+
+	if (v->bp_offset >= 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	X64_SELECT_REG_CHECK(&rap,  ap ->dag_node, c, f, 1);
+	X64_SELECT_REG_CHECK(&rptr, ptr->dag_node, c, f, 0);
+
+	inst = x64_make_inst_P2G(lea, rptr, rbp, offset_int);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	inst = x64_make_inst_G2P(mov, rap,  0, rptr);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+
+	inst = x64_make_inst_P2G(lea, rptr, rbp, offset_float);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	inst = x64_make_inst_G2P(mov, rap,  8, rptr);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+
+	inst = x64_make_inst_P2G(lea, rptr, rbp, offset_others);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	inst = x64_make_inst_G2P(mov, rap,  16, rptr);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+
+	mov  = x64_find_OpCode(SCF_X64_MOV, 4, 8, SCF_X64_I2E);
+
+	inst = x64_make_inst_I2P(mov, rap,  24, (uint8_t*)&f->args_int, 4);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	inst = x64_make_inst_I2P(mov, rap,  32, (uint8_t*)&f->args_float, 4);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+	return 0;
+}
+
+static int _x64_inst_va_end_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	scf_x64_context_t*  x64 = ctx->priv;
+	scf_function_t*     f   = x64->f;
+
+	if (!c->instructions) {
+		c->instructions = scf_vector_alloc();
+		if (!c->instructions)
+			return -ENOMEM;
+	}
+
+	assert(2 == c->srcs->size);
+
+	scf_register_x64_t* rbp  = x64_find_register("rbp");
+	scf_register_x64_t* rptr = NULL;
+	scf_register_x64_t* rap  = NULL;
+	scf_instruction_t*  inst = NULL;
+	scf_3ac_operand_t*  ap   = c->srcs->data[0];
+	scf_3ac_operand_t*  ptr  = c->srcs->data[1];
+	scf_x64_OpCode_t*   mov  = x64_find_OpCode(SCF_X64_MOV, 8, 8, SCF_X64_G2E);
+	scf_x64_OpCode_t*   xor  = x64_find_OpCode(SCF_X64_XOR, 8, 8, SCF_X64_G2E);
+	scf_variable_t*     v    = ap->dag_node->var;
+
+	if (v->bp_offset >= 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	X64_SELECT_REG_CHECK(&rap,  ap ->dag_node, c, f, 1);
+	X64_SELECT_REG_CHECK(&rptr, ptr->dag_node, c, f, 0);
+
+	inst = x64_make_inst_G2E(xor, rptr, rptr);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	inst = x64_make_inst_G2P(mov, rap, 0, rptr);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	inst = x64_make_inst_G2P(mov, rap, 8, rptr);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	inst = x64_make_inst_G2P(mov, rap, 16, rptr);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	inst = x64_make_inst_G2P(mov, rap, 24, rptr);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	inst = x64_make_inst_G2P(mov, rap, 32, rptr);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+	return 0;
+}
+
+static int _x64_inst_va_arg_handler(scf_native_t* ctx, scf_3ac_code_t* c)
+{
+	scf_x64_context_t*  x64 = ctx->priv;
+	scf_function_t*     f   = x64->f;
+
+	if (!c->instructions) {
+		c->instructions = scf_vector_alloc();
+		if (!c->instructions)
+			return -ENOMEM;
+	}
+
+	assert(1 == c->dsts->size && 3 == c->srcs->size);
+
+	scf_register_x64_t* rbp  = x64_find_register("rbp");
+	scf_register_x64_t* rd   = NULL; // result
+	scf_register_x64_t* rap  = NULL; // ap
+	scf_register_x64_t* rptr = NULL; // ptr
+	scf_instruction_t*  inst = NULL;
+
+	scf_instruction_t*  inst_jge = NULL;
+	scf_instruction_t*  inst_jmp = NULL;
+
+	scf_3ac_operand_t*  dst  = c->dsts->data[0];
+	scf_3ac_operand_t*  ap   = c->srcs->data[0];
+	scf_3ac_operand_t*  src  = c->srcs->data[1];
+	scf_3ac_operand_t*  ptr  = c->srcs->data[2];
+	scf_variable_t*     v    = src->dag_node->var;
+
+	scf_x64_OpCode_t*   inc  = x64_find_OpCode(SCF_X64_INC, 8, 8, SCF_X64_E);
+	scf_x64_OpCode_t*   add  = x64_find_OpCode(SCF_X64_ADD, 4, 8, SCF_X64_I2E);
+	scf_x64_OpCode_t*   sub  = x64_find_OpCode(SCF_X64_SUB, 4, 8, SCF_X64_I2E);
+	scf_x64_OpCode_t*   cmp  = x64_find_OpCode(SCF_X64_CMP, 4, 8, SCF_X64_I2E);
+	scf_x64_OpCode_t*   mov  = x64_find_OpCode(SCF_X64_MOV, 8, 8, SCF_X64_E2G);
+	scf_x64_OpCode_t*   jge  = x64_find_OpCode(SCF_X64_JGE, 4, 4, SCF_X64_I);
+	scf_x64_OpCode_t*   jmp  = x64_find_OpCode(SCF_X64_JMP, 4, 4, SCF_X64_I);
+	scf_x64_OpCode_t*   mov2 = NULL;
+
+	X64_SELECT_REG_CHECK(&rd,   dst->dag_node, c, f, 0);
+	X64_SELECT_REG_CHECK(&rap,  ap ->dag_node, c, f, 1);
+	X64_SELECT_REG_CHECK(&rptr, ptr->dag_node, c, f, 0);
+
+	int is_float = scf_variable_float(v);
+	int size     = x64_variable_size(v);
+
+	uint32_t nints   = X64_ABI_NB;
+	uint32_t nfloats = X64_ABI_NB;
+	uint32_t offset  = 0;
+	uint32_t incptr  = 8;
+
+	int idx_offset   = 24;
+	int ptr_offset   = 0;
+
+	if (is_float) {
+		idx_offset   = 32;
+		ptr_offset   = 8;
+	}
+
+	inst = x64_make_inst_I2P(cmp, rap, idx_offset, (uint8_t*)&nints, 4);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	inst_jge = x64_make_inst_I(jge, (uint8_t*)&offset, sizeof(offset));
+	X64_INST_ADD_CHECK(c->instructions, inst_jge);
+
+
+	inst = x64_make_inst_P2G(mov, rptr, rap, ptr_offset);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+	offset += inst->len;
+
+	inst = x64_make_inst_I2P(sub, rap, ptr_offset, (uint8_t*)&incptr, 4);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+	offset += inst->len;
+
+	inst_jmp = x64_make_inst_I(jmp, (uint8_t*)&offset, sizeof(offset));
+	X64_INST_ADD_CHECK(c->instructions, inst_jmp);
+	offset += inst_jmp->len;
+
+	uint8_t* p = (uint8_t*)&offset;
+	int i;
+	for (i = 0; i < 4; i++)
+		inst_jge->code[jge->nb_OpCodes + i] = p[i];
+
+	offset = 0;
+	inst = x64_make_inst_P2G(mov, rptr, rap, 16);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+	offset += inst->len;
+
+	inst = x64_make_inst_I2P(add, rap, 16, (uint8_t*)&incptr, 4);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+	offset += inst->len;
+
+	for (i = 0; i < 4; i++)
+		inst_jmp->code[jmp->nb_OpCodes + i] = p[i];
+
+	inst = x64_make_inst_P(inc, rap, idx_offset, 8);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	if (is_float) {
+		if (4 == size)
+			mov2 = x64_find_OpCode(SCF_X64_MOVSS, 4, 4, SCF_X64_E2G);
+		else if (8 == size)
+			mov2 = x64_find_OpCode(SCF_X64_MOVSD, 8, 8, SCF_X64_E2G);
+		else
+			assert(0);
+	} else
+		mov2 = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_E2G);
+
+	inst = x64_make_inst_P2G(mov2, rd, rptr, 0);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	return 0;
+}
+
 static x64_inst_handler_t x64_inst_handlers[] = {
 
 	{SCF_OP_CALL,			_x64_inst_call_handler},
@@ -1733,6 +2007,10 @@ static x64_inst_handler_t x64_inst_handlers[] = {
 	{SCF_OP_LOGIC_NOT, 		_x64_inst_logic_not_handler},
 	{SCF_OP_BIT_NOT,        _x64_inst_bit_not_handler},
 	{SCF_OP_NEG, 			_x64_inst_neg_handler},
+
+	{SCF_OP_VA_START,       _x64_inst_va_start_handler},
+	{SCF_OP_VA_ARG,         _x64_inst_va_arg_handler},
+	{SCF_OP_VA_END,         _x64_inst_va_end_handler},
 
 	{SCF_OP_INC,            _x64_inst_inc_handler},
 	{SCF_OP_DEC,            _x64_inst_dec_handler},

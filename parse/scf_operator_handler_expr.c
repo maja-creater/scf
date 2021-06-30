@@ -170,11 +170,15 @@ static int _scf_op_expr_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_nod
 				scf_loge("\n");
 				return ret;
 			}
-			r->const_flag = 1;
+			r->const_flag  = 1;
+			r->type        = dst->type;
+			r->nb_pointers = scf_variable_nb_pointers(dst);
+			r->const_literal_flag = 1;
 
 			if (parent->w)
 				SCF_XCHG(r->w, parent->w);
 
+			scf_loge("parent: %p\n", parent);
 			scf_node_free_data(parent);
 			parent->type = r->type;
 			parent->var  = r;
@@ -527,7 +531,7 @@ static int _scf_op_expr_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 	scf_member_t*   m0  = NULL;
 	scf_member_t*   m1  = NULL;
 
-	scf_loge("v0->type: %d, v1->type: %d, SCF_VAR_U8: %d\n",
+	scf_logw("v0->type: %d, v1->type: %d, SCF_VAR_U8: %d\n",
 			v0->type, v1->type, SCF_VAR_U8);
 
 	if (!scf_variable_const_string(v1))
@@ -557,10 +561,10 @@ static int _scf_op_expr_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 
 		if (scf_variable_const(m1->base)) {
 
-			if (SCF_FUNCTION_PTR == m1->base->type)
+			if (SCF_FUNCTION_PTR == m1->base->type) {
 
 				ret = _expr_init_address(ast, m0, m1);
-			else {
+			} else {
 				ret = _expr_init_const(m0, m1->base);
 
 				scf_member_free(m0);
@@ -570,6 +574,10 @@ static int _scf_op_expr_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 		} else if (scf_variable_const_string(m1->base)) {
 
 			ret = _expr_init_address(ast, m0, m1);
+		} else {
+			scf_variable_t* v = m1->base;
+			scf_loge("v: %d/%s\n", v->w->line, v->w->text->data);
+			return -1;
 		}
 	} else {
 		scf_index_t* idx;

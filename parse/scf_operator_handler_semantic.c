@@ -862,7 +862,7 @@ static int _scf_op_semantic_block(scf_ast_t* ast, scf_node_t** nodes, int nb_nod
 
 			scf_operator_handler_t* h = scf_find_semantic_operator_handler(op->type, -1, -1, -1);
 			if (!h) {
-				scf_loge("\n");
+				scf_loge("op->type: %d, va: %d, %d, %d\n", op->type, SCF_OP_VA_START, SCF_OP_VA_ARG, SCF_OP_VA_END);
 				return -1;
 			}
 
@@ -1125,7 +1125,7 @@ static int _scf_op_semantic_if(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 		scf_operator_t* op   = node->op;
 
 		if (node->w) {
-			scf_logi("node: %p, w: %s, line:%d\n", node, node->w->text->data, node->w->line);
+			scf_logd("node: %p, w: %s, line:%d\n", node, node->w->text->data, node->w->line);
 		}
 		if (!op) {
 			op = scf_find_base_operator_by_type(node->type);
@@ -1326,7 +1326,8 @@ static int _scf_op_semantic_call(scf_ast_t* ast, scf_node_t** nodes, int nb_node
 			continue;
 
 		if (scf_type_cast_check(ast, v0, v1) < 0) {
-			scf_loge("f: %s, arg var not same type, i: %d\n", f->node.w->text->data, i);
+			scf_loge("f: %s, arg var not same type, i: %d, line: %d\n",
+					f->node.w->text->data, i, parent->debug_w->line);
 			return -1;
 		}
 
@@ -1628,14 +1629,14 @@ static int _scf_op_semantic_sizeof(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 	if (size < 0)
 		return size;
 
-	scf_type_t* t = scf_ast_find_type_type(ast, SCF_VAR_INT);
+	scf_type_t* t = scf_ast_find_type_type(ast, SCF_VAR_INTPTR);
 
 	scf_lex_word_t* w = parent->w;
 	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, 1, 0, NULL);
 	if (!r)
 		return -ENOMEM;
 
-	r->data.i     = size;
+	r->data.i64   = size;
 	r->const_flag = 1;
 
 	SCF_XCHG(r->w, parent->w);
@@ -1909,7 +1910,7 @@ static int _scf_op_semantic_binary_interger(scf_ast_t* ast, scf_node_t** nodes, 
 
 		t = scf_ast_find_type_type(ast, v0->type);
 
-		r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, v0->nb_pointers, v0->func_ptr);
+		r = SCF_VAR_ALLOC_BY_TYPE(w, t, const_flag, v0->nb_pointers, v0->func_ptr);
 		if (!r) {
 			scf_loge("var alloc failed\n");
 			return -ENOMEM;
@@ -2426,6 +2427,46 @@ static int _scf_op_semantic_logic_or(scf_ast_t* ast, scf_node_t** nodes, int nb_
 	return _scf_op_semantic_binary_interger(ast, nodes, nb_nodes, data, SCF_VAR_INT);
 }
 
+static int _scf_op_semantic_va_start(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	if (2 != nb_nodes) {
+		scf_loge("\n");
+		return -1;
+	}
+	return 0;
+}
+
+static int _scf_op_semantic_va_arg(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	if (2 != nb_nodes) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	scf_handler_data_t* d = data;
+
+	if (d->pret) {
+		scf_variable_t* v = _scf_operand_get(nodes[1]);
+		scf_type_t*     t = scf_ast_find_type_type(ast, v->type);
+		scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(nodes[0]->parent->w, t, 0, v->nb_pointers, v->func_ptr);
+
+		if (!r)
+			return -ENOMEM;
+
+		*d->pret = r;
+	}
+	return 0;
+}
+
+static int _scf_op_semantic_va_end(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	if (1 != nb_nodes) {
+		scf_loge("\n");
+		return -1;
+	}
+	return 0;
+}
+
 scf_operator_handler_t semantic_operator_handlers[] = {
 	{{NULL, NULL}, SCF_OP_EXPR,           -1,   -1, -1, _scf_op_semantic_expr},
 	{{NULL, NULL}, SCF_OP_CALL,           -1,   -1, -1, _scf_op_semantic_call},
@@ -2433,6 +2474,10 @@ scf_operator_handler_t semantic_operator_handlers[] = {
 	{{NULL, NULL}, SCF_OP_ARRAY_INDEX,    -1,   -1, -1, _scf_op_semantic_array_index},
 	{{NULL, NULL}, SCF_OP_POINTER,        -1,   -1, -1, _scf_op_semantic_pointer},
 	{{NULL, NULL}, SCF_OP_CREATE,         -1,   -1, -1, _scf_op_semantic_create},
+
+	{{NULL, NULL}, SCF_OP_VA_START,       -1,   -1, -1, _scf_op_semantic_va_start},
+	{{NULL, NULL}, SCF_OP_VA_ARG,         -1,   -1, -1, _scf_op_semantic_va_arg},
+	{{NULL, NULL}, SCF_OP_VA_END,         -1,   -1, -1, _scf_op_semantic_va_end},
 
 	{{NULL, NULL}, SCF_OP_SIZEOF,         -1,   -1, -1, _scf_op_semantic_sizeof},
 	{{NULL, NULL}, SCF_OP_TYPE_CAST,      -1,   -1, -1, _scf_op_semantic_type_cast},

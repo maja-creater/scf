@@ -77,6 +77,8 @@ int scf_x64_open(scf_native_t* ctx);
 int scf_x64_close(scf_native_t* ctx);
 int scf_x64_select(scf_native_t* ctx);
 
+int x64_optimize_peephole(scf_native_t* ctx, scf_function_t* f);
+
 int scf_x64_graph_kcolor(scf_graph_t* graph, int k, scf_vector_t* colors);
 
 

@@ -152,7 +152,6 @@ static int _dfa_init_module_block(scf_dfa_t* dfa)
 	SCF_DFA_GET_MODULE_NODE(dfa, while,    _while,    _while);
 	SCF_DFA_GET_MODULE_NODE(dfa, for,      _for,      _for);
 
-#if 1
 	SCF_DFA_GET_MODULE_NODE(dfa, break,    _break,    _break);
 	SCF_DFA_GET_MODULE_NODE(dfa, continue, _continue, _continue);
 	SCF_DFA_GET_MODULE_NODE(dfa, return,   _return,   _return);
@@ -160,18 +159,23 @@ static int _dfa_init_module_block(scf_dfa_t* dfa)
 	SCF_DFA_GET_MODULE_NODE(dfa, label,    label,     label);
 	SCF_DFA_GET_MODULE_NODE(dfa, error,    error,     error);
 	SCF_DFA_GET_MODULE_NODE(dfa, async,    async,     async);
-#endif
+
+	SCF_DFA_GET_MODULE_NODE(dfa, va_arg,   start,     va_start);
+	SCF_DFA_GET_MODULE_NODE(dfa, va_arg,   end,       va_end);
+
 	// block could includes these statements
 	scf_dfa_node_add_child(entry, lb);
 	scf_dfa_node_add_child(entry, rb);
 
+	scf_dfa_node_add_child(entry, va_start);
+	scf_dfa_node_add_child(entry, va_end);
 	scf_dfa_node_add_child(entry, expr);
 	scf_dfa_node_add_child(entry, type);
 
 	scf_dfa_node_add_child(entry, _if);
 	scf_dfa_node_add_child(entry, _while);
 	scf_dfa_node_add_child(entry, _for);
-#if 1
+
 	scf_dfa_node_add_child(entry, _break);
 	scf_dfa_node_add_child(entry, _continue);
 	scf_dfa_node_add_child(entry, _return);
@@ -179,7 +183,7 @@ static int _dfa_init_module_block(scf_dfa_t* dfa)
 	scf_dfa_node_add_child(entry, label);
 	scf_dfa_node_add_child(entry, error);
 	scf_dfa_node_add_child(entry, async);
-#endif
+
 
 	scf_parse_t*      parse = dfa->priv;
 	dfa_parse_data_t* d     = parse->dfa_data;

@@ -383,6 +383,11 @@ static int _expr_action_rp_cast(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 		return SCF_DFA_NEXT_SYNTAX;
 	}
 
+	if (d->current_va_arg) {
+		scf_logw("SCF_DFA_NEXT_SYNTAX\n");
+		return SCF_DFA_NEXT_SYNTAX;
+	}
+
 	scf_variable_t* var       = NULL;
 	scf_node_t*     node_var  = NULL;
 	scf_node_t*     node_cast = NULL;
@@ -840,6 +845,10 @@ static int _dfa_init_syntax_expr(scf_dfa_t* dfa)
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     base_type,   base_type);
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     star,        star);
 
+	SCF_DFA_GET_MODULE_NODE(dfa, va_arg,   arg,         va_arg);
+	SCF_DFA_GET_MODULE_NODE(dfa, va_arg,   rp,          va_rp);
+
+
 	// add expr to syntaxes
 	scf_vector_add(dfa->syntaxes, expr);
 
@@ -852,6 +861,13 @@ static int _dfa_init_syntax_expr(scf_dfa_t* dfa)
 	scf_dfa_node_add_child(expr,       unary_post);
 	scf_dfa_node_add_child(expr,       lp);
 	scf_dfa_node_add_child(expr,       semicolon);
+
+	// va_arg(ap, type)
+	scf_dfa_node_add_child(expr,       va_arg);
+	scf_dfa_node_add_child(va_rp,      rp);
+	scf_dfa_node_add_child(va_rp,      binary_op);
+	scf_dfa_node_add_child(va_rp,      comma);
+	scf_dfa_node_add_child(va_rp,      semicolon);
 
 	// sizeof()
 	scf_dfa_node_add_child(expr,       _sizeof);

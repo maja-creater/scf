@@ -590,7 +590,8 @@ static int _scf_op_const_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 			scf_node_t* child = nodes[1];
 
-			scf_loge("child: %d/%s\n", src->w->line, src->w->text->data);
+			scf_logd("child: %d/%s, size: %d, dst size: %d\n", src->w->line, src->w->text->data,
+					size, scf_variable_size(dst));
 
 			nodes[1] = NULL;
 			scf_node_free_data(parent);
@@ -704,10 +705,6 @@ static int _scf_op_const_binary(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 		scf_node_free_data(parent);
 		parent->type = r->type;
 		parent->var  = r;
-
-	} else {
-		scf_loge("type %d, %d not support\n", v0->type, v1->type);
-		return -1;
 	}
 
 	return 0;
@@ -890,6 +887,21 @@ static int _scf_op_const_bit_or(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 	return _scf_op_const_binary(ast, nodes, nb_nodes, data);
 }
 
+static int _scf_op_const_va_start(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	return 0;
+}
+
+static int _scf_op_const_va_arg(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	return 0;
+}
+
+static int _scf_op_const_va_end(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	return 0;
+}
+
 scf_operator_handler_t const_operator_handlers[] = {
 	{{NULL, NULL}, SCF_OP_EXPR,			  -1, 	-1, -1, _scf_op_const_expr},
 	{{NULL, NULL}, SCF_OP_CALL,			  -1, 	-1, -1, _scf_op_const_call},
@@ -897,6 +909,10 @@ scf_operator_handler_t const_operator_handlers[] = {
 	{{NULL, NULL}, SCF_OP_ARRAY_INDEX,	  -1, 	-1, -1, _scf_op_const_array_index},
 	{{NULL, NULL}, SCF_OP_POINTER,        -1,   -1, -1, _scf_op_const_pointer},
 	{{NULL, NULL}, SCF_OP_CREATE,         -1,   -1, -1, _scf_op_const_create},
+
+	{{NULL, NULL}, SCF_OP_VA_START,       -1,   -1, -1, _scf_op_const_va_start},
+	{{NULL, NULL}, SCF_OP_VA_ARG,         -1,   -1, -1, _scf_op_const_va_arg},
+	{{NULL, NULL}, SCF_OP_VA_END,         -1,   -1, -1, _scf_op_const_va_end},
 
 	{{NULL, NULL}, SCF_OP_SIZEOF,         -1,   -1, -1, _scf_op_const_sizeof},
 	{{NULL, NULL}, SCF_OP_TYPE_CAST,	  -1, 	-1, -1, _scf_op_const_type_cast},

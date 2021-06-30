@@ -84,7 +84,11 @@ enum scf_core_types {
 
 	SCF_OP_VAR_ARGS,    // ... variable args
 
-	// 46
+	SCF_OP_VA_START,
+	SCF_OP_VA_ARG,
+	SCF_OP_VA_END,
+
+	// 49
 	SCF_OP_BLOCK,		// statement block, first in fisr run
 	SCF_OP_IF,			// if statement
 	SCF_OP_FOR,			// for statement
@@ -95,7 +99,7 @@ enum scf_core_types {
 	SCF_OP_ASYNC,       // async statement
 	SCF_OP_ERROR,       // error statement
 
-	// 54
+	// 57
 	SCF_OP_3AC_TEQ,		// test if = 0
 	SCF_OP_3AC_CMP,		// cmp > 0, < 0, = 0, etc
 
@@ -180,6 +184,7 @@ enum scf_core_types {
 	SCF_VAR_I64,
 	SCF_VAR_INTPTR = SCF_VAR_I64,
 
+	// 119
 	SCF_VAR_U8,
 	SCF_VAR_U16,
 	SCF_VAR_U32,

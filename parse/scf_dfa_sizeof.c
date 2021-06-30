@@ -82,6 +82,9 @@ static int _sizeof_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	scf_stack_t*       s     = d->module_datas[dfa_module_sizeof.index];
 	dfa_sizeof_data_t* sd    = scf_stack_top(s);
 
+	if (d->current_va_arg)
+		return SCF_DFA_NEXT_SYNTAX;
+
 	if (!sd) {
 		scf_loge("\n");
 		return SCF_DFA_ERROR;

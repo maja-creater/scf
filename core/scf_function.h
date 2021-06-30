@@ -18,6 +18,9 @@ struct scf_function_s {
 	scf_vector_t*     rets; // return values
 	scf_vector_t*     argv; // args   vector
 
+	int               args_int;
+	int               args_float;
+
 	int               op_type; // overloaded operator type
 
 	scf_vector_t*     callee_functions;

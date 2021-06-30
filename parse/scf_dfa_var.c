@@ -218,8 +218,16 @@ static int _var_action_semicolon(scf_dfa_t* dfa, scf_vector_t* words, void* data
 	if (d->current_var)
 		scf_variable_size(d->current_var);
 
-	if (d->expr_local_flag > 0 && _var_init_expr(dfa, d) < 0)
-		return SCF_DFA_ERROR;
+
+	if (d->expr_local_flag > 0) {
+
+		if (_var_init_expr(dfa, d) < 0)
+			return SCF_DFA_ERROR;
+
+	} else if (d->expr) {
+		scf_expr_free(d->expr);
+		d->expr = NULL;
+	}
 
 	return SCF_DFA_OK;
 }

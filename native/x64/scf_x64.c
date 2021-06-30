@@ -28,27 +28,73 @@ int scf_x64_close(scf_native_t* ctx)
 	return 0;
 }
 
+static void _x64_argv_rabi(scf_function_t* f)
+{
+	scf_variable_t* v;
+
+	f->args_int   = 0;
+	f->args_float = 0;
+
+	int bp_int    = -8;
+	int bp_floats = -8 - (int)X64_ABI_NB * 8;
+	int bp_others = 16;
+
+	int i;
+	for (i = 0; i < f->argv->size; i++) {
+		v  =        f->argv->data[i];
+
+		assert(v->arg_flag);
+
+		int is_float = scf_variable_float(v);
+		int size     = x64_variable_size(v);
+
+		if (is_float) {
+
+			if (f->args_float < X64_ABI_NB) {
+
+				v->rabi       = x64_find_register_type_id_bytes(is_float, x64_abi_float_regs[f->args_float], size);
+				v->bp_offset  = bp_floats;
+				bp_floats    -= 8;
+				f->args_float++;
+				continue;
+			}
+		} else if (f->args_int < X64_ABI_NB) {
+
+			v->rabi       = x64_find_register_type_id_bytes(is_float, x64_abi_regs[f->args_int], size);
+			v->bp_offset  = bp_int;
+			bp_int       -= 8;
+			f->args_int++;
+			continue;
+		}
+
+		v->rabi       = NULL;
+		v->bp_offset  = bp_others;
+		bp_others    += 8;
+	}
+}
+
 static int _x64_function_init(scf_function_t* f, scf_vector_t* local_vars)
 {
+	scf_variable_t* v;
+
 	int ret = x64_registers_init();
 	if (ret < 0)
 		return ret;
 
+	_x64_argv_rabi(f);
+
 	int i;
-	int local_vars_size = 0;
+	int local_vars_size = 8 + X64_ABI_NB * 8 * 2;
 
 	for (i = 0; i < local_vars->size; i++) {
-		scf_variable_t* v = local_vars->data[i];
+		v  =        local_vars->data[i];
 
 		int size = scf_variable_size(v);
 		if (size < 0)
 			return size;
 
-		// local var in the low memory address based on rbp
-		// (rbp) is old rbp, -8(rbp) is 1st local var
 		local_vars_size	+= size;
 
-		// align 8 bytes
 		if (local_vars_size & 0x7)
 			local_vars_size = (local_vars_size + 7) >> 3 << 3;
 
@@ -57,6 +103,62 @@ static int _x64_function_init(scf_function_t* f, scf_vector_t* local_vars)
 	}
 
 	return local_vars_size;
+}
+
+static int _x64_save_rabi(scf_function_t* f)
+{
+	scf_register_x64_t* rbp;
+	scf_instruction_t*  inst;
+	scf_x64_OpCode_t*   mov;
+
+	scf_register_x64_t* rdi;
+	scf_register_x64_t* rsi;
+	scf_register_x64_t* rdx;
+	scf_register_x64_t* rcx;
+
+	scf_register_x64_t* xmm0;
+	scf_register_x64_t* xmm1;
+	scf_register_x64_t* xmm2;
+	scf_register_x64_t* xmm3;
+
+	if (f->vargs_flag) {
+
+		inst = NULL;
+		mov  = x64_find_OpCode(SCF_X64_MOV, 8,8, SCF_X64_G2E);
+
+		rbp  = x64_find_register("rbp");
+
+		rdi  = x64_find_register("rdi");
+		rsi  = x64_find_register("rsi");
+		rdx  = x64_find_register("rdx");
+		rcx  = x64_find_register("rcx");
+
+#define X64_SAVE_RABI(offset, rabi) \
+		do { \
+			inst = x64_make_inst_G2P(mov, rbp, offset, rabi); \
+			X64_INST_ADD_CHECK(f->init_insts, inst); \
+			f->init_code_bytes += inst->len; \
+		} while (0)
+
+		X64_SAVE_RABI(-8,  rdi);
+		X64_SAVE_RABI(-16, rsi);
+		X64_SAVE_RABI(-24, rdx);
+		X64_SAVE_RABI(-32, rcx);
+
+		mov  = x64_find_OpCode(SCF_X64_MOVSD, 8,8, SCF_X64_G2E);
+
+		xmm0 = x64_find_register("xmm0");
+		xmm1 = x64_find_register("xmm1");
+		xmm2 = x64_find_register("xmm2");
+		xmm3 = x64_find_register("xmm3");
+
+		X64_SAVE_RABI(-40, xmm0);
+		X64_SAVE_RABI(-48, xmm1);
+		X64_SAVE_RABI(-56, xmm2);
+		X64_SAVE_RABI(-64, xmm3);
+	}
+
+	return 0;
 }
 
 static int _x64_function_finish(scf_function_t* f)
@@ -90,7 +192,12 @@ static int _x64_function_finish(scf_function_t* f)
 		inst = x64_make_inst_I2E(sub, rsp, (uint8_t*)&f->local_vars_size, 4);
 		X64_INST_ADD_CHECK(f->init_insts, inst);
 		f->init_code_bytes += inst->len;
-	}
+
+		int ret = _x64_save_rabi(f);
+		if (ret < 0)
+			return ret;
+	} else
+		f->init_code_bytes = 0;
 
 	x64_registers_clear();
 	return 0;
@@ -102,13 +209,19 @@ static void _x64_rcg_node_printf(x64_rcg_node_t* rn)
 		scf_variable_t* v = rn->dag_node->var;
 
 		if (v->w) {
-			scf_logw("v_%d_%d/%s, bp_offset: -%#x, color: %ld, type: %ld, id: %ld, mask: %ld",
-					v->w->line, v->w->pos, v->w->text->data,
-					-v->bp_offset,
+			scf_logw("v_%d_%d/%s, ", v->w->line, v->w->pos, v->w->text->data);
+
+			if (v->bp_offset < 0)
+				printf("bp_offset: -%#x, ", -v->bp_offset);
+			else
+				printf("bp_offset:  %#x, ",  v->bp_offset);
+
+			printf("color: %ld, type: %ld, id: %ld, mask: %ld",
 					rn->dag_node->color,
 					X64_COLOR_TYPE(rn->dag_node->color),
 					X64_COLOR_ID(rn->dag_node->color),
 					X64_COLOR_MASK(rn->dag_node->color));
+
 		} else {
 			scf_logw("v_%#lx, color: %ld, type: %ld, id: %ld, mask: %ld",
 					(uintptr_t)v & 0xffff, rn->dag_node->color,
@@ -150,33 +263,16 @@ static void _x64_inst_printf(scf_3ac_code_t* c)
 
 static int _x64_argv_prepare(scf_graph_t* g, scf_basic_block_t* bb, scf_function_t* f)
 {
+	scf_graph_node_t* gn;
+	scf_dag_node_t*   dn;
+	scf_variable_t*   v;
+	scf_list_t*       l;
+
 	int i;
-	int nb_ints   = 0;
-	int nb_floats = 0;
-
 	for (i = 0; i < f->argv->size; i++) {
-		scf_variable_t*     v = f->argv->data[i];
+		v  =        f->argv->data[i];
 
-		if (!v->arg_flag)
-			continue;
-
-		scf_list_t*         l;
-		scf_graph_node_t*   gn;
-		scf_dag_node_t*     dn;
-		scf_register_x64_t* rabi = NULL;
-
-		int is_float = scf_variable_float(v);
-		int size     = x64_variable_size(v);
-
-		if (is_float) {
-			if (nb_floats < X64_ABI_NB) {
-				rabi = x64_find_register_type_id_bytes(is_float, x64_abi_float_regs[nb_floats], size);
-				nb_floats++;
-			}
-		} else if (nb_ints < X64_ABI_NB) {
-			rabi = x64_find_register_type_id_bytes(is_float, x64_abi_regs[nb_ints], size);
-			nb_ints++;
-		}
+		assert(v->arg_flag);
 
 		for (l = scf_list_head(&f->dag_list_head); l != scf_list_sentinel(&f->dag_list_head);
 				l = scf_list_next(l)) {
@@ -190,11 +286,11 @@ static int _x64_argv_prepare(scf_graph_t* g, scf_basic_block_t* bb, scf_function
 		if (l == scf_list_sentinel(&f->dag_list_head))
 			continue;
 
-		int ret = _x64_rcg_make_node(&gn, g, dn, rabi, NULL);
+		int ret = _x64_rcg_make_node(&gn, g, dn, v->rabi, NULL);
 		if (ret < 0)
 			return ret;
 
-		dn->rabi   = rabi;
+		dn->rabi = v->rabi;
 
 		if (dn->rabi)
 			dn->loaded =  1;
@@ -235,8 +331,7 @@ static int _x64_argv_save(scf_basic_block_t* bb, scf_function_t* f)
 	for (i = 0; i < f->argv->size; i++) {
 		scf_variable_t*     v = f->argv->data[i];
 
-		if (!v->arg_flag)
-			continue;
+		assert(v->arg_flag);
 
 		scf_dag_node_t*     dn;
 		scf_dag_node_t*     dn2;
@@ -477,17 +572,6 @@ static int _x64_make_insts_for_list(scf_native_t* ctx, scf_list_t* h, int bb_off
 		if (!c->instructions)
 			continue;
 
-		int inst_bytes = 0;
-		int i;
-		for (i = 0; i < c->instructions->size; i++) {
-			scf_instruction_t* inst = c->instructions->data[i];
-
-			inst_bytes += inst->len;
-		}
-		c->inst_bytes  = inst_bytes;
-		c->bb_offset   = bb_offset;
-		bb_offset     += inst_bytes;
-
 		scf_3ac_code_print(c, NULL);
 		_x64_inst_printf(c);
 	}
@@ -693,8 +777,6 @@ static int _x64_bb_save_dn(intptr_t color, scf_dag_node_t* dn, scf_3ac_code_t* c
 			return -ENOMEM;
 	}
 
-	inst_bytes = c->inst_bytes;
-
 	r   = x64_find_register_color(color);
 
 	ret = x64_save_var2(dn, r, c, f);
@@ -703,12 +785,6 @@ static int _x64_bb_save_dn(intptr_t color, scf_dag_node_t* dn, scf_3ac_code_t* c
 		return ret;
 	}
 
-	c->inst_bytes = 0;
-	for (i = 0; i < c->instructions->size; i++) {
-		inst      = c->instructions->data[i];
-		c->inst_bytes += inst->len;
-	}
-	bb->code_bytes += c->inst_bytes - inst_bytes;
 	return 0;
 }
 
@@ -845,361 +921,49 @@ static void _x64_bbg_fix_loads(scf_bb_group_t* bbg)
 			if (dst->dag_node == dn) {
 				scf_list_del(&c->list);
 				scf_list_add_front(&bb->code_list_head, &c->list);
-
-				pre->code_bytes -= c->inst_bytes;
-				bb ->code_bytes += c->inst_bytes;
-
-				scf_3ac_code_t* c2;
-				scf_list_t*     l2;
-
-				for (l2 = scf_list_next(&c->list); l2 != scf_list_sentinel(&bb->code_list_head); ) {
-					c2  = scf_list_data(l2, scf_3ac_code_t, list);
-					l2  = scf_list_next(l2);
-
-					c2->bb_offset += c->inst_bytes;
-				}
 				break;
 			}
 		}
 	}
 }
 
-
-static int _peephole_common(scf_vector_t* std_insts, scf_instruction_t* inst)
+static void _x64_set_offsets(scf_function_t* f)
 {
-	scf_3ac_code_t*    c  = inst->c;
-	scf_basic_block_t* bb = c->basic_block;
+	scf_instruction_t* inst;
+	scf_basic_block_t* bb;
+	scf_3ac_code_t*    c;
+	scf_list_t*        l;
+	scf_list_t*        l2;
 
-	scf_instruction_t* inst2;
-	scf_instruction_t* std;
-
-	int j;
-	for (j  = 0; j < std_insts->size; ) {
-		std =        std_insts->data[j];
-
-		if (scf_inst_data_same(&std->dst, &inst->dst)) {
-
-			if (scf_inst_data_same(&std->src, &inst->src)) {
-
-				assert(0 == scf_vector_del(inst->c->instructions, inst));
-				free(inst);
-				inst = NULL;
-				return X64_PEEPHOLE_DEL;
-			}
-
-			assert(0 == scf_vector_del(std_insts, std));
-
-		} else if (scf_inst_data_same(&std->src, &inst->src)) {
-			j++;
-			continue;
-		} else if (scf_inst_data_same(&std->dst, &inst->src)) {
-
-			if (scf_inst_data_same(&std->src, &inst->dst)) {
-
-				assert(0 == scf_vector_del(inst->c->instructions, inst));
-				free(inst);
-				inst = NULL;
-				return X64_PEEPHOLE_DEL;
-			}
-
-			if (inst->src.flag) {
-				assert(std->dst.flag);
-
-				inst2 = x64_make_inst_E2G((scf_x64_OpCode_t*)inst->OpCode,
-						(scf_register_x64_t*)inst->dst.base,
-						(scf_register_x64_t*)std->src.base);
-				if (!inst2)
-					return -ENOMEM;
-
-				int diff = inst->len - inst2->len;
-
-				c ->inst_bytes -= diff;
-				bb->code_bytes -= diff;
-
-				memcpy(inst->code, inst2->code, inst2->len);
-				inst->len = inst2->len;
-
-				inst->src.base  = std->src.base;
-				inst->src.index = NULL;
-				inst->src.scale = 0;
-				inst->src.disp  = 0;
-				inst->src.flag  = 0;
-			}
-			j++;
-
-		} else if (scf_inst_data_same(&std->src, &inst->dst))
-			assert(0 == scf_vector_del(std_insts, std));
-		else
-			j++;
-	}
-
-	assert(0 == scf_vector_add_unique(std_insts, inst));
-	return 0;
-}
-
-static int _peephole_cmp(scf_vector_t* std_insts, scf_instruction_t* inst)
-{
-	if (0 == inst->src.flag && 0 == inst->dst.flag)
-		return 0;
-
-	scf_3ac_code_t*    c  = inst->c;
-	scf_basic_block_t* bb = c->basic_block;
-
-	scf_instruction_t* inst2;
-	scf_instruction_t* std;
-
-	int j;
-	for (j  = 0; j < std_insts->size; j++) {
-		std =        std_insts->data[j];
-
-		if (inst->src.flag) {
-
-			if (scf_inst_data_same(&inst->src, &std->src)) {
-
-				inst2 = x64_make_inst_E2G((scf_x64_OpCode_t*) inst->OpCode,
-						(scf_register_x64_t*) inst->dst.base,
-						(scf_register_x64_t*) std->dst.base);
-				if (!inst2)
-					return -ENOMEM;
-				inst->src.base  = std->dst.base;
-
-			} else if (scf_inst_data_same(&inst->src, &std->dst)) {
-
-				inst2 = x64_make_inst_E2G((scf_x64_OpCode_t*)inst->OpCode,
-						(scf_register_x64_t*)inst->dst.base,
-						(scf_register_x64_t*)std->src.base);
-				if (!inst2)
-					return -ENOMEM;
-				inst->src.base  = std->src.base;
-			} else
-				continue;
-
-		} else if (inst->dst.flag) {
-
-			if (scf_inst_data_same(&inst->dst, &std->src)) {
-
-				inst2 = x64_make_inst_G2E((scf_x64_OpCode_t*)inst->OpCode,
-						(scf_register_x64_t*)std->dst.base,
-						(scf_register_x64_t*)inst->src.base);
-				if (!inst2)
-					return -ENOMEM;
-				inst->src.base  = std->dst.base;
-
-			} else if (scf_inst_data_same(&inst->dst, &std->dst)) {
-
-				scf_loge("\n");
-				inst2 = x64_make_inst_G2E((scf_x64_OpCode_t*)inst->OpCode,
-						(scf_register_x64_t*)std->src.base,
-						(scf_register_x64_t*)inst->src.base);
-				if (!inst2)
-					return -ENOMEM;
-				inst->src.base  = std->src.base;
-			} else
-				continue;
-		} else
-			continue;
-
-		int diff = inst->len - inst2->len;
-
-		c ->inst_bytes -= diff;
-		bb->code_bytes -= diff;
-
-		memcpy(inst->code, inst2->code, inst2->len);
-		inst->len = inst2->len;
-
-		inst->src.index = NULL;
-		inst->src.scale = 0;
-		inst->src.disp  = 0;
-		inst->src.flag  = 0;
-	}
-	return 0;
-}
-
-static int _x64_optimize_peephole(scf_native_t* ctx, scf_function_t* f)
-{
-	scf_register_x64_t* rbp = x64_find_register("rbp");
-	scf_instruction_t*  std;
-	scf_instruction_t*  inst;
-	scf_instruction_t*  inst2;
-	scf_basic_block_t*  bb;
-	scf_3ac_code_t*     c;
-	scf_list_t*         l;
-	scf_list_t*         l2;
-
-	scf_vector_t*       std_insts;
-	scf_vector_t*       tmp_insts; // instructions for register or local variable
-
-	std_insts = scf_vector_alloc();
-	if (!std_insts)
-		return -ENOMEM;
-
-	tmp_insts = scf_vector_alloc();
-	if (!tmp_insts) {
-		scf_vector_free(tmp_insts);
-		return -ENOMEM;
-	}
-
-	int ret  = 0;
+	int i;
 
 	for (l = scf_list_head(&f->basic_block_list_head); l != scf_list_sentinel(&f->basic_block_list_head);
 			l = scf_list_next(l)) {
 
 		bb = scf_list_data(l, scf_basic_block_t, list);
 
-		if (bb->jmp_flag) {
-			scf_vector_clear(std_insts, NULL);
-			continue;
-		}
+		bb->code_bytes = 0;
 
 		for (l2 = scf_list_head(&bb->code_list_head); l2 != scf_list_sentinel(&bb->code_list_head);
 				l2 = scf_list_next(l2)) {
 
 			c = scf_list_data(l2, scf_3ac_code_t, list);
 
+			c->inst_bytes = 0;
+			c->bb_offset  = bb->code_bytes;
+
 			if (!c->instructions)
 				continue;
 
-			int i;
-			for (i = 0; i < c->instructions->size; ) {
+			for (i = 0; i < c->instructions->size; i++) {
 				inst      = c->instructions->data[i];
 
-				assert(inst->OpCode);
-
-				inst->c = c;
-
-				if (SCF_X64_MOV != inst->OpCode->type
-						&& SCF_X64_CMP  != inst->OpCode->type
-						&& SCF_X64_TEST != inst->OpCode->type
-						&& SCF_X64_PUSH != inst->OpCode->type
-						&& SCF_X64_POP  != inst->OpCode->type) {
-					scf_vector_clear(std_insts, NULL);
-					goto next;
-				}
-
-				if (SCF_X64_PUSH == inst->OpCode->type)
-					goto next;
-
-				if (SCF_X64_CMP == inst->OpCode->type || SCF_X64_TEST == inst->OpCode->type) {
-
-					ret = _peephole_cmp(std_insts, inst);
-					if (ret < 0) {
-						scf_loge("\n");
-						goto error;
-					}
-
-					goto next;
-				}
-
-				ret = _peephole_common(std_insts, inst);
-				if (ret < 0)
-					goto error;
-
-				if (X64_PEEPHOLE_DEL == ret)
-					continue;
-
-next:
-				if (x64_inst_data_is_reg(&inst->dst) || x64_inst_data_is_local(&inst->dst)) {
-
-					ret = scf_vector_add(tmp_insts, inst);
-					if (ret < 0)
-						goto error;
-				}
-				i++;
+				c->inst_bytes += inst->len;
 			}
+
+			bb->code_bytes += c->inst_bytes;
 		}
 	}
-#if 1
-	int i;
-	for (i = 0; i < tmp_insts->size; ) {
-		inst      = tmp_insts->data[i];
-
-		if (SCF_X64_PUSH == inst->OpCode->type
-				|| SCF_X64_XOR == inst->OpCode->type
-				|| SCF_X64_POP == inst->OpCode->type) {
-			i++;
-			continue;
-		}
-
-		int j;
-		for (j = 0; j < tmp_insts->size; j++) {
-			inst2     = tmp_insts->data[j];
-
-			if (inst == inst2)
-				continue;
-
-			if (SCF_X64_PUSH == inst2->OpCode->type
-					|| SCF_X64_XOR == inst->OpCode->type
-					|| SCF_X64_POP == inst2->OpCode->type)
-				continue;
-
-			if (scf_inst_data_same(&inst->dst, &inst2->src))
-				break;
-		}
-
-		if (j < tmp_insts->size) {
-			i++;
-			continue;
-		}
-
-		c  = inst->c;
-		bb = c->basic_block;
-
-		assert(0 == scf_vector_del(c->instructions, inst));
-		assert(0 == scf_vector_del(tmp_insts,       inst));
-
-		c ->inst_bytes -= inst->len;
-		bb->code_bytes -= inst->len;
-
-		free(inst);
-		inst = NULL;
-	}
-
-	int nb_locals = 0;
-
-	for (i = 0; i < tmp_insts->size; i++) {
-		inst      = tmp_insts->data[i];
-
-		if (x64_inst_data_is_local(&inst->src)
-				|| x64_inst_data_is_local(&inst->dst))
-			nb_locals++;
-	}
-
-	if (nb_locals > 0)
-		f->bp_used_flag = 1;
-	else {
-		f->bp_used_flag = 0;
-
-		l  = scf_list_tail(&f->basic_block_list_head);
-		bb = scf_list_data(l, scf_basic_block_t, list);
-
-		l = scf_list_tail(&bb->code_list_head);
-		c = scf_list_data(l, scf_3ac_code_t, list);
-
-		assert(SCF_OP_3AC_END == c->op->type);
-
-		for (i   = c->instructions->size - 2; i >= 0; i--) {
-			inst = c->instructions->data[i];
-
-			c ->inst_bytes -= inst->len;
-			bb->code_bytes -= inst->len;
-
-			assert(0 == scf_vector_del(c->instructions, inst));
-
-			free(inst);
-			inst = NULL;
-		}
-
-		assert(1 == c->instructions->size);
-
-		inst = c->instructions->data[0];
-		assert(SCF_X64_RET == inst->OpCode->type);
-	}
-#endif
-	ret = 0;
-error:
-	scf_vector_free(tmp_insts);
-	scf_vector_free(std_insts);
-	return ret;
 }
 
 int	_scf_x64_select_inst(scf_native_t* ctx)
@@ -1237,7 +1001,6 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 		ret = _x64_make_insts_for_list(ctx, &bb->code_list_head, 0);
 		if (ret < 0)
 			return ret;
-		bb->code_bytes  = ret;
 	}
 #if 1
 	for (i  = 0; i < f->bb_groups->size; i++) {
@@ -1265,7 +1028,6 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 			ret = _x64_make_insts_for_list(ctx, &bb->code_list_head, 0);
 			if (ret < 0)
 				return ret;
-			bb->code_bytes  = ret;
 			bb->native_flag = 1;
 
 			ret = _x64_save_bb_colors(bb, bbg);
@@ -1292,7 +1054,6 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 		ret = _x64_make_insts_for_list(ctx, &bbg->pre->code_list_head, 0);
 		if (ret < 0)
 			return ret;
-		bbg->pre->code_bytes  = ret;
 
 		int j;
 		for (j = 0; j < bbg->body->size; j++) {
@@ -1304,7 +1065,6 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 			ret = _x64_make_insts_for_list(ctx, &bb->code_list_head, 0);
 			if (ret < 0)
 				return ret;
-			bb->code_bytes  = ret;
 			bb->native_flag = 1;
 
 			ret = _x64_save_bb_colors(bb, bbg);
@@ -1318,8 +1078,13 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 		if (ret < 0)
 			return ret;
 	}
-
-	_x64_optimize_peephole(ctx, f);
+#if 1
+	if (x64_optimize_peephole(ctx, f) < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+#endif
+	_x64_set_offsets(f);
 
 	_x64_set_offset_for_jmps( ctx, f);
 
@@ -1359,43 +1124,11 @@ int scf_x64_select_inst(scf_native_t* ctx, scf_function_t* f)
 	if (ret < 0)
 		return ret;
 
-	// ABI: rdi rsi rdx rcx r8 r9
-	int i;
-	int nb_ints   = 0;
-	int nb_floats = 0;
-	int nb_locals = 0;
-
-	for (i = 0; i < f->argv->size; i++) {
-		scf_variable_t* v = f->argv->data[i];
-
-		int is_float = scf_variable_float(v);
-		int size     = x64_variable_size(v);
-
-		if (is_float) {
-			if (nb_floats < X64_ABI_NB) {
-				nb_floats++;
-
-				ret = scf_vector_add(local_vars, v);
-				if (ret < 0)
-					return ret;
-				continue;
-			}
-		} else if (nb_ints < X64_ABI_NB) {
-			nb_ints++;
-
-			ret = scf_vector_add(local_vars, v);
-			if (ret < 0)
-				return ret;
-			continue;
-		}
-
-		v->bp_offset = 16 + 8 * nb_locals++;
-	}
-
 	int local_vars_size = _x64_function_init(f, local_vars);
 	if (local_vars_size < 0)
 		return -1;
 
+	int i;
 	for (i = 0; i < local_vars->size; i++) {
 		scf_variable_t* v = local_vars->data[i];
 		assert(v->w);
@@ -1403,9 +1136,9 @@ int scf_x64_select_inst(scf_native_t* ctx, scf_function_t* f)
 				v, v->w->text->data, v->w->line, v->w->pos,
 				scf_variable_size(v), v->bp_offset, v->arg_flag);
 	}
-	scf_logi("local_vars_size: %d\n", local_vars_size);
 
 	f->local_vars_size = local_vars_size;
+	f->bp_used_flag    = 1;
 
 	ret = _scf_x64_select_inst(ctx);
 	if (ret < 0)

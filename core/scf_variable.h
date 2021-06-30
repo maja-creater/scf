@@ -27,6 +27,7 @@ struct scf_variable_s {
 	int					bp_offset;  // offset based on RBP / EBP register
 	int					sp_offset;  // offset based on RSP / ESP register
 	int					ds_offset;  // offset in data section
+	void*               rabi;
 
 	union {
 		int32_t         i;
@@ -103,6 +104,9 @@ int             scf_variable_size(scf_variable_t* v);
 static inline int scf_variable_const(scf_variable_t* v)
 {
 	if (SCF_FUNCTION_PTR == v->type)
+		return v->const_literal_flag;
+
+	if (v->nb_pointers + v->nb_dimentions > 0)
 		return v->const_literal_flag;
 
 	return v->const_flag && 0 == v->nb_pointers && 0 == v->nb_dimentions;
