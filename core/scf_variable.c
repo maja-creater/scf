@@ -160,10 +160,91 @@ scf_variable_t*	scf_variable_alloc(scf_lex_word_t* w, scf_type_t* t)
 	return var;
 }
 
-scf_variable_t*	scf_variable_clone(scf_variable_t* var)
+scf_variable_t*	scf_variable_clone(scf_variable_t* v)
 {
-	var->refs++;
-	return var;
+	scf_variable_t* v2 = calloc(1, sizeof(scf_variable_t));
+	if (!v2)
+		return NULL;
+
+	v2->refs = 1;
+
+	if (v->w) {
+		v2->w = scf_lex_word_clone(v->w);
+		if (!v2->w) {
+			scf_variable_free(v2);
+			return NULL;
+		}
+	}
+
+	v2->nb_pointers = v->nb_pointers;
+	v2->func_ptr    = v->func_ptr;
+
+	if (v->nb_dimentions > 0) {
+		v2->dimentions = calloc(v->nb_dimentions, sizeof(int));
+		if (!v2->dimentions) {
+			scf_variable_free(v2);
+			return NULL;
+		}
+
+		memcpy(v2->dimentions, v->dimentions, sizeof(int) * v->nb_dimentions);
+
+		v2->nb_dimentions = v->nb_dimentions;
+		v2->dim_index     = v->dim_index;
+		v2->capacity      = v->capacity;
+	}
+
+	v2->size      = v->size;
+	v2->data_size = v->data_size;
+	v2->offset    = v->offset;
+
+	if (SCF_VAR_STRING == v->type) {
+		v2->data.s = scf_string_clone(v->data.s);
+		if (!v2->data.s) {
+			scf_variable_free(v2);
+			return NULL;
+		}
+
+	} else if (SCF_STRUCT >= v->type) {
+		if (v->data.p) {
+			v2->data.p = malloc(v->size);
+			if (!v2->data.p) {
+				scf_variable_free(v2);
+				return NULL;
+			}
+
+			memcpy(v2->data.p, v->data.p, v->size);
+		}
+
+	} else if (v->nb_dimentions > 0) {
+
+		int size = scf_variable_size(v);
+
+		if (v->data.p) {
+			v2->data.p = malloc(size);
+			if (!v2->data.p) {
+				scf_variable_free(v2);
+				return NULL;
+			}
+
+			memcpy(v2->data.p, v->data.p, size);
+		}
+	} else
+		memcpy(&v2->data, &v->data, sizeof(v->data));
+
+	v2->type = v->type;
+
+	v2->const_literal_flag = v->const_literal_flag;
+	v2->const_flag         = v->const_flag;
+	v2->static_flag        = v->static_flag;
+	v2->alloc_flag         = v->alloc_flag;
+	v2->tmp_flag           = v->tmp_flag;
+	v2->local_flag         = v->local_flag;
+	v2->global_flag        = v->global_flag;
+	v2->member_flag        = v->member_flag;
+	v2->arg_flag           = v->arg_flag;
+	v2->auto_gc_flag       = v->auto_gc_flag;
+
+	return v2;
 }
 
 scf_variable_t*	scf_variable_ref(scf_variable_t* var)

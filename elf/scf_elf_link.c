@@ -746,7 +746,8 @@ int main()
 	char* inputs[] = {
 		"./_start.o",
 		"./scf_syscall.o",
-		"./scf_brk.o",
+		"./scf_write.o",
+//		"./scf_brk.o",
 		"./1.elf",
 	};
 

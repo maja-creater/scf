@@ -347,25 +347,7 @@ static int _x64_rcg_call(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 	int nb_ints   = 0;
 	int nb_floats = 0;
 
-	for (i  = 1; i < c->srcs->size; i++) {
-		src =        c->srcs->data[i];
-		dn  =        src->dag_node;
-
-		int is_float = scf_variable_float(dn->var);
-		int size     = x64_variable_size (dn->var);
-
-		if (is_float) {
-			if (nb_floats < X64_ABI_NB)
-				dn->rabi2 = x64_find_register_type_id_bytes(is_float, x64_abi_float_regs[nb_floats++], size);
-			else
-				dn->rabi2 = NULL;
-		} else {
-			if (nb_ints < X64_ABI_NB)
-				dn->rabi2 = x64_find_register_type_id_bytes(is_float, x64_abi_regs[nb_ints++], size);
-			else
-				dn->rabi2 = NULL;
-		}
-	}
+	x64_call_rabi(&nb_ints, &nb_floats, c);
 
 	for (i  = 1; i < c->srcs->size; i++) {
 		src =        c->srcs->data[i];

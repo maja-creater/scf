@@ -180,6 +180,17 @@ static int _x64_inst_call_argv(scf_3ac_code_t* c, scf_function_t* f)
 					X64_INST_ADD_CHECK(c->instructions, inst);
 					X64_RELA_ADD_CHECK(f->data_relas, rela, c, v, NULL);
 
+				} else if (v->nb_dimentions > 0) {
+					assert(v->const_literal_flag);
+
+					scf_rela_t* rela = NULL;
+
+					lea = x64_find_OpCode(SCF_X64_LEA, size, size, SCF_X64_E2G);
+
+					inst = x64_make_inst_M2G(&rela, lea, rabi, NULL, v);
+					X64_INST_ADD_CHECK(c->instructions, inst);
+					X64_RELA_ADD_CHECK(f->data_relas, rela, c, v, NULL);
+
 				} else {
 					mov  = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_I2G);
 					inst = x64_make_inst_I2G(mov, rabi, (uint8_t*)&v->data, size);
@@ -461,6 +472,8 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		scf_loge("\n");
 		return ret;
 	}
+
+	x64_call_rabi(NULL, NULL, c);
 
 	int32_t stack_size = _x64_inst_call_stack_size(c);
 	if (stack_size > 0) {
@@ -774,16 +787,21 @@ static int _x64_inst_assign_array_index(scf_native_t* ctx, scf_3ac_code_t* c, in
 			return -ENOMEM;
 	}
 
-	scf_variable_t*     vb   = base->dag_node->var;
-	scf_variable_t*     vs   = src ->dag_node->var;
+	scf_variable_t*     vscale = scale->dag_node->var;
+	scf_variable_t*     vb     = base->dag_node->var;
+	scf_variable_t*     vs     = src ->dag_node->var;
 
-	scf_register_x64_t* rs   = NULL;
-	x64_sib_t           sib  = {0};
+	scf_register_x64_t* rs     = NULL;
+	x64_sib_t           sib    = {0};
 
 	scf_x64_OpCode_t*   OpCode;
 	scf_instruction_t*  inst;
 
-	int size = x64_variable_size(vs);
+	int is_float = scf_variable_float(vs);
+	int size     = x64_variable_size (vs);
+
+	if (size > vscale->data.i)
+		size = vscale->data.i;
 
 	int ret  = x64_array_index_reg(&sib, base->dag_node, index->dag_node, scale->dag_node, c, f);
 	if (ret < 0) {
@@ -792,9 +810,8 @@ static int _x64_inst_assign_array_index(scf_native_t* ctx, scf_3ac_code_t* c, in
 	}
 
 	if (vb->nb_dimentions > 1) {
-		OpCode = x64_find_OpCode(SCF_X64_LEA, size, size, SCF_X64_E2G);
+		OpCode = x64_find_OpCode(SCF_X64_LEA, 8, 8, SCF_X64_E2G);
 	} else {
-		int is_float = scf_variable_float(vs);
 		if (is_float) {
 
 			OpCode_type = x64_float_OpCode_type(OpCode_type, vs->type);
@@ -834,6 +851,8 @@ static int _x64_inst_assign_array_index(scf_native_t* ctx, scf_3ac_code_t* c, in
 		scf_loge("\n");
 		return ret;
 	}
+
+	rs = x64_find_register_color_bytes(rs->color, size);
 
 	if (sib.index) {
 		inst = x64_make_inst_G2SIB(OpCode, sib.base, sib.index, sib.scale, sib.disp, rs);

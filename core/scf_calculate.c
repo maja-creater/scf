@@ -1,6 +1,7 @@
 #include"scf_calculate.h"
 
 #include"scf_calculate_i32.c"
+#include"scf_calculate_u32.c"
 #include"scf_calculate_i64.c"
 #include"scf_calculate_float.c"
 #include"scf_calculate_double.c"
@@ -36,6 +37,36 @@ scf_calculate_t  base_calculates[] =
 	{"i32", SCF_OP_NE,        SCF_VAR_I32, SCF_VAR_I32, SCF_VAR_I32, scf_i32_ne},
 	{"i32", SCF_OP_GE,        SCF_VAR_I32, SCF_VAR_I32, SCF_VAR_I32, scf_i32_ge},
 	{"i32", SCF_OP_LE,        SCF_VAR_I32, SCF_VAR_I32, SCF_VAR_I32, scf_i32_le},
+
+	// u32
+	{"u32", SCF_OP_ADD,       SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_add},
+	{"u32", SCF_OP_SUB,       SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_sub},
+	{"u32", SCF_OP_MUL,       SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_mul},
+	{"u32", SCF_OP_DIV,       SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_div},
+	{"u32", SCF_OP_MOD,       SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_mod},
+
+	{"u32", SCF_OP_SHL,       SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_shl},
+	{"u32", SCF_OP_SHR,       SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_shr},
+
+	{"u32", SCF_OP_INC,       SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_inc},
+	{"u32", SCF_OP_DEC,       SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_dec},
+
+	{"u32", SCF_OP_NEG,       SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_neg},
+
+	{"u32", SCF_OP_BIT_AND,   SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_bit_and},
+	{"u32", SCF_OP_BIT_OR,    SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_bit_or},
+	{"u32", SCF_OP_BIT_NOT,   SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_bit_not},
+
+	{"u32", SCF_OP_LOGIC_AND, SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_logic_and},
+	{"u32", SCF_OP_LOGIC_OR,  SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_logic_or},
+	{"u32", SCF_OP_LOGIC_NOT, SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_logic_not},
+
+	{"u32", SCF_OP_GT,        SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_gt},
+	{"u32", SCF_OP_LT,        SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_lt},
+	{"u32", SCF_OP_EQ,        SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_eq},
+	{"u32", SCF_OP_NE,        SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_ne},
+	{"u32", SCF_OP_GE,        SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_ge},
+	{"u32", SCF_OP_LE,        SCF_VAR_U32, SCF_VAR_U32, SCF_VAR_U32, scf_u32_le},
 
 	// i64
 	{"i64", SCF_OP_ADD,       SCF_VAR_I64, SCF_VAR_I64, SCF_VAR_I64, scf_i64_add},

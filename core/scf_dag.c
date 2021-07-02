@@ -309,7 +309,7 @@ scf_dag_node_t* scf_dag_node_alloc(int type, scf_variable_t* var, const scf_node
 
 	dag_node->type = type;
 	if (var)
-		dag_node->var = scf_variable_clone(var);
+		dag_node->var = scf_variable_ref(var);
 	else
 		dag_node->var = NULL;
 
@@ -529,8 +529,12 @@ int scf_dag_node_same(scf_dag_node_t* dag_node, const scf_node_t* node)
 	if (SCF_OP_TYPE_CAST == node->type) {
 		scf_dag_node_t* dn0 = dag_node->childs->data[0];
 		scf_variable_t* vn1 = _scf_operand_get(node->nodes[1]);
+		scf_node_t*     n1  = node->nodes[1];
 
-		if (dn0->var == vn1
+		while (SCF_OP_EXPR == n1->type)
+			n1 = n1->nodes[0];
+
+		if (scf_dag_node_same(dn0, n1)
 				&& scf_variable_same_type(dag_node->var, node->result))
 			return 1;
 		else {
@@ -615,9 +619,8 @@ cmp_childs:
 					|| SCF_OP_3AC_SETLT == parent->type
 					|| SCF_OP_3AC_SETLE == parent->type
 					|| SCF_OP_3AC_SETGT == parent->type
-					|| SCF_OP_3AC_SETGE == parent->type) {
+					|| SCF_OP_3AC_SETGE == parent->type)
 				return 0;
-			}
 		}
 	}
 
@@ -885,7 +888,10 @@ static int __ds_for_dn(scf_dn_status_t* ds, scf_dag_node_t* dn_base)
 
 		dn_base  = dn_base->childs->data[0];
 	}
-	assert(scf_type_is_var(dn_base->type));
+
+	assert(scf_type_is_var(dn_base->type)
+			|| SCF_OP_INC == dn_base->type || SCF_OP_INC_POST == dn_base->type
+			|| SCF_OP_DEC == dn_base->type || SCF_OP_DEC_POST == dn_base->type);
 
 	ds->dag_node = dn_base;
 	return 0;

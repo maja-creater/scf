@@ -364,6 +364,13 @@ scf_vector_t* x64_register_colors()
 		if (SCF_X64_REG_RSP == r->id || SCF_X64_REG_RBP == r->id)
 			continue;
 
+		// ah bh ch dh can't use
+		if (X64_COLOR(0, 0, 0x2) == r->color
+				|| X64_COLOR(0, 1, 0x2) == r->color
+				|| X64_COLOR(0, 2, 0x2) == r->color
+				|| X64_COLOR(0, 3, 0x2) == r->color)
+			continue;
+
 		int ret = scf_vector_add(colors, (void*)r->color);
 		if (ret < 0) {
 			scf_vector_free(colors);
@@ -421,9 +428,13 @@ int x64_save_var2(scf_dag_node_t* dn, scf_register_x64_t* r, scf_3ac_code_t* c, 
 			printf("v_%#lx, bp_offset: %d\n", 0xffff & (uintptr_t)v, v->bp_offset);
 
 	} else {
-		scf_logw("save var: v_%d_%d/%s, size: %d, bp_offset: %d, r: %s\n",
-				v->w->line, v->w->pos, v->w->text->data,
-				var_size, v->bp_offset, r->name);
+#if 1
+		if (v->w)
+			scf_logw("save var: v_%d_%d/%s, ", v->w->line, v->w->pos, v->w->text->data);
+		else
+			scf_logw("save var: v_%#lx, ", 0xffff & (uintptr_t)v);
+		printf("size: %d, bp_offset: %d, r: %s\n", var_size, v->bp_offset, r->name);
+#endif
 	}
 
 	if (is_float) {
@@ -679,6 +690,15 @@ scf_register_x64_t* x64_select_overflowed_reg(scf_dag_node_t* dn, scf_3ac_code_t
 		if (SCF_X64_REG_RSP == r->id || SCF_X64_REG_RBP == r->id)
 			continue;
 
+		if (1 == bytes) {
+			// ah bh ch dh can't use
+			if (X64_COLOR(0, 0, 0x2) == r->color
+					|| X64_COLOR(0, 1, 0x2) == r->color
+					|| X64_COLOR(0, 2, 0x2) == r->color
+					|| X64_COLOR(0, 3, 0x2) == r->color)
+				continue;
+		}
+
 		if (r->bytes < bytes || X64_COLOR_TYPE(r->color) != is_float)
 			continue;
 
@@ -714,6 +734,15 @@ scf_register_x64_t* x64_select_overflowed_reg(scf_dag_node_t* dn, scf_3ac_code_t
 
 		if (SCF_X64_REG_RSP == r->id || SCF_X64_REG_RBP == r->id)
 			continue;
+
+		if (1 == bytes) {
+			// ah bh ch dh can't use
+			if (X64_COLOR(0, 0, 0x2) == r->color
+					|| X64_COLOR(0, 1, 0x2) == r->color
+					|| X64_COLOR(0, 2, 0x2) == r->color
+					|| X64_COLOR(0, 3, 0x2) == r->color)
+				continue;
+		}
 
 		if (r->bytes < bytes || X64_COLOR_TYPE(r->color) != is_float)
 			continue;
@@ -1117,5 +1146,41 @@ int x64_array_index_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* in
 	sib->scale = s;
 	sib->disp  = disp;
 	return 0;
+}
+
+void x64_call_rabi(int* p_nints, int* p_nfloats, scf_3ac_code_t* c)
+{
+	scf_3ac_operand_t* src = NULL;
+	scf_dag_node_t*    dn  = NULL;
+
+	int nfloats = 0;
+	int nints   = 0;
+	int i;
+
+	for (i  = 1; i < c->srcs->size; i++) {
+		src =        c->srcs->data[i];
+		dn  =        src->dag_node;
+
+		int is_float = scf_variable_float(dn->var);
+		int size     = x64_variable_size (dn->var);
+
+		if (is_float) {
+			if (nfloats < X64_ABI_NB)
+				dn->rabi2 = x64_find_register_type_id_bytes(is_float, x64_abi_float_regs[nfloats++], size);
+			else
+				dn->rabi2 = NULL;
+		} else {
+			if (nints < X64_ABI_NB)
+				dn->rabi2 = x64_find_register_type_id_bytes(is_float, x64_abi_regs[nints++], size);
+			else
+				dn->rabi2 = NULL;
+		}
+	}
+
+	if (p_nints)
+		*p_nints = nints;
+
+	if (p_nfloats)
+		*p_nfloats = nfloats;
 }
 

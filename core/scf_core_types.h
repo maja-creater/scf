@@ -184,7 +184,7 @@ enum scf_core_types {
 	SCF_VAR_I64,
 	SCF_VAR_INTPTR = SCF_VAR_I64,
 
-	// 119
+	// 122
 	SCF_VAR_U8,
 	SCF_VAR_U16,
 	SCF_VAR_U32,

@@ -14,6 +14,8 @@ struct scf_optimizer_s
 	int         (*optimize)(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_head, scf_vector_t* functions);
 };
 
+int  bbg_find_entry_exit(scf_bb_group_t* bbg);
+void scf_loops_print(scf_vector_t* loops);
 
 int scf_optimize(scf_ast_t* ast, scf_vector_t* functions);
 

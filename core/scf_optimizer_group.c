@@ -1,6 +1,6 @@
 #include"scf_optimizer.h"
 
-static int _bbg_find_entry_exit(scf_bb_group_t* bbg)
+int bbg_find_entry_exit(scf_bb_group_t* bbg)
 {
 	scf_basic_block_t* bb;
 	scf_basic_block_t* bb2;

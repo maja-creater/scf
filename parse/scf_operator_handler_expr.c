@@ -189,7 +189,7 @@ static int _scf_op_expr_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_nod
 
 		assert(src == nodes[1]->var);
 
-		scf_variable_t* v = scf_variable_clone(src);
+		scf_variable_t* v = scf_variable_ref(src);
 		assert(v);
 
 		scf_node_free_data(parent);
@@ -741,7 +741,7 @@ int scf_expr_calculate(scf_ast_t* ast, scf_expr_t* e, scf_variable_t** pret)
 	}
 
 	if (pret)
-		*pret = scf_variable_clone(v);
+		*pret = scf_variable_ref(v);
 
 	return 0;
 }

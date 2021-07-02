@@ -209,7 +209,9 @@ static void _x64_rcg_node_printf(x64_rcg_node_t* rn)
 		scf_variable_t* v = rn->dag_node->var;
 
 		if (v->w) {
-			scf_logw("v_%d_%d/%s, ", v->w->line, v->w->pos, v->w->text->data);
+			scf_logw("v_%d_%d/%s, %p,%p, ",
+					v->w->line, v->w->pos, v->w->text->data,
+					v, rn->dag_node);
 
 			if (v->bp_offset < 0)
 				printf("bp_offset: -%#x, ", -v->bp_offset);
@@ -223,8 +225,9 @@ static void _x64_rcg_node_printf(x64_rcg_node_t* rn)
 					X64_COLOR_MASK(rn->dag_node->color));
 
 		} else {
-			scf_logw("v_%#lx, color: %ld, type: %ld, id: %ld, mask: %ld",
-					(uintptr_t)v & 0xffff, rn->dag_node->color,
+			scf_logw("v_%#lx, %p,%p,  color: %ld, type: %ld, id: %ld, mask: %ld",
+					(uintptr_t)v & 0xffff, v, rn->dag_node,
+					rn->dag_node->color,
 					X64_COLOR_TYPE(rn->dag_node->color),
 					X64_COLOR_ID(rn->dag_node->color),
 					X64_COLOR_MASK(rn->dag_node->color));
@@ -906,12 +909,14 @@ static void _x64_bbg_fix_loads(scf_bb_group_t* bbg)
 
 		if (ds->color == dn->color)
 			continue;
-
+#if 1
 		scf_variable_t* v = dn->var;
-		scf_logw("v_%d_%d/%s, ds->color: %ld, dn->color: %ld\n",
-				v->w->line, v->w->pos, v->w->text->data,
-				ds->color, dn->color);
-
+		if (v->w)
+			scf_logw("v_%d_%d/%s, ", v->w->line, v->w->pos, v->w->text->data);
+		else
+			scf_logw("v_%#lx, ", 0xffff & (uintptr_t)v);
+		printf("ds->color: %ld, dn->color: %ld\n", ds->color, dn->color);
+#endif
 		for (l = scf_list_head(&pre->code_list_head); l != scf_list_sentinel(&pre->code_list_head); ) {
 			c  = scf_list_data(l, scf_3ac_code_t, list);
 			l  = scf_list_next(l);

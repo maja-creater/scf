@@ -83,7 +83,7 @@ static int _semantic_add_type_cast(scf_ast_t* ast, scf_node_t** pp, scf_variable
 	}
 
 	cast->op     = op;
-	cast->result = scf_variable_clone(dst->var);
+	cast->result = scf_variable_ref(dst->var);
 	cast->parent = parent;
 	*pp = cast;
 	return 0;
@@ -509,10 +509,10 @@ static int _scf_expr_calculate(scf_ast_t* ast, scf_expr_t* e, scf_variable_t** p
 
 		_semantic_check_var_size(ast, root);
 
-		root->result = scf_variable_clone(root->var);
+		root->result = scf_variable_ref(root->var);
 
 		if (pret)
-			*pret = scf_variable_clone(root->var);
+			*pret = scf_variable_ref(root->var);
 		return 0;
 	}
 
@@ -525,7 +525,7 @@ static int _scf_expr_calculate(scf_ast_t* ast, scf_expr_t* e, scf_variable_t** p
 	}
 
 	if (pret) {
-		*pret = scf_variable_clone(root->result);
+		*pret = scf_variable_ref(root->result);
 	}
 	return 0;
 }
@@ -710,7 +710,7 @@ static int _scf_op_semantic_create(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 	nerr->split_parent  = parent;
 	nerr->split_flag    = 1;
 
-	*d->pret = scf_variable_clone(nthis->var);
+	*d->pret = scf_variable_ref(nthis->var);
 	return 0;
 }
 
@@ -1384,7 +1384,7 @@ static int _scf_op_semantic_call(scf_ast_t* ast, scf_node_t** nodes, int nb_node
 
 		r = _scf_operand_get(parent->result_nodes->data[0]);
 
-		*d->pret = scf_variable_clone(r);
+		*d->pret = scf_variable_ref(r);
 	}
 
 	scf_logw("f: %p ok\n", f);
@@ -1417,11 +1417,11 @@ static int _scf_op_semantic_expr(scf_ast_t* ast, scf_node_t** nodes, int nb_node
 	if (scf_type_is_var(n->type)) {
 		assert(n->var);
 		if (d->pret)
-			*d->pret = scf_variable_clone(n->var);
+			*d->pret = scf_variable_ref(n->var);
 
 	} else {
 		if (n->result && d->pret)
-			*d->pret = scf_variable_clone(n->result);
+			*d->pret = scf_variable_ref(n->result);
 	}
 
 	return 0;
@@ -1472,12 +1472,13 @@ static int _scf_op_semantic_inc(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 
 	scf_handler_data_t* d = data;
 
-	scf_variable_t* v0 = _scf_operand_get(nodes[0]);
+	scf_variable_t* v0     = _scf_operand_get(nodes[0]);
+	scf_node_t*     parent = nodes[0]->parent;
 
 	assert(v0);
 
-	if (v0->const_flag || v0->nb_dimentions > 0) {
-		scf_loge("\n");
+	if (scf_variable_const(v0) || scf_variable_const_string(v0)) {
+		scf_loge("line: %d\n", parent->w->line);
 		return -1;
 	}
 
@@ -1606,7 +1607,7 @@ static int _scf_op_semantic_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb
 	assert(src);
 
 	if (d->pret) {
-		*d->pret = scf_variable_clone(dst);
+		*d->pret = scf_variable_ref(dst);
 	}
 
 	return 0;
@@ -1901,7 +1902,7 @@ static int _scf_op_semantic_binary_interger(scf_ast_t* ast, scf_node_t** nodes, 
 
 			int ret = _semantic_do_type_cast(ast, nodes, nb_nodes, data);
 			if (ret < 0) {
-				scf_loge("semantic do type cast failed\n");
+				scf_loge("semantic do type cast failed, line: %d\n", parent->w->line);
 				return ret;
 			}
 		}

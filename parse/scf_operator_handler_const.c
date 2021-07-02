@@ -488,9 +488,8 @@ static int _scf_op_const_expr(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, 
 	scf_node_t* n      = nodes[0];
 	scf_node_t* parent = nodes[0]->parent;
 
-	while (SCF_OP_EXPR == n->type) {
+	while (SCF_OP_EXPR == n->type)
 		n = n->nodes[0];
-	}
 
 	n->parent->nodes[0] = NULL;
 	scf_node_free(nodes[0]);
@@ -502,6 +501,11 @@ static int _scf_op_const_expr(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, 
 		scf_loge("\n");
 		return -1;
 	}
+
+	if (parent->result)
+		scf_variable_free(parent->result);
+
+	parent->result = scf_variable_ref(_scf_operand_get(n));
 
 	return 0;
 }
@@ -531,6 +535,9 @@ static int _scf_op_const_positive(scf_ast_t* ast, scf_node_t** nodes, int nb_nod
 
 static int _scf_op_const_dereference(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
+	scf_variable_t* v = _scf_operand_get(nodes[0]->parent);
+
+	v->const_flag = 0;
 	return 0;
 }
 
@@ -543,11 +550,26 @@ static int _scf_op_const_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 {
 	assert(2 == nb_nodes);
 
+	scf_node_t* child  = nodes[1];
+	scf_node_t* parent = nodes[0]->parent;
+
 	scf_variable_t* dst    = _scf_operand_get(nodes[0]);
 	scf_variable_t* src    = _scf_operand_get(nodes[1]);
-	scf_node_t*     parent = nodes[0]->parent;
+	scf_variable_t* result = _scf_operand_get(parent);
+	scf_variable_t* r      = NULL;
 
 	if (scf_variable_const(src)) {
+
+		if (SCF_FUNCTION_PTR == src->type || src->nb_dimentions > 0) {
+
+			r = scf_variable_ref(src);
+
+			scf_node_free_data(parent);
+
+			parent->type = r->type;
+			parent->var  = r;
+			return 0;
+		}
 
 		int dst_type = dst->type;
 
@@ -556,8 +578,6 @@ static int _scf_op_const_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 		scf_type_cast_t* cast = scf_find_base_type_cast(src->type, dst_type);
 		if (cast) {
-			scf_variable_t* r = NULL;
-
 			int ret = cast->func(ast, &r, src);
 			if (ret < 0) {
 				scf_loge("\n");
@@ -574,7 +594,8 @@ static int _scf_op_const_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 		}
 
 		return 0;
-	}
+	} else
+		result->const_flag = 0;
 
 	if (scf_variable_interger(src) && scf_variable_interger(dst)) {
 
@@ -688,7 +709,7 @@ static int _scf_op_const_binary(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 
 		scf_calculate_t* cal = scf_find_base_calculate(parent->type, v0->type, v1->type);
 		if (!cal) {
-			scf_loge("type %d, %d not support\n", v0->type, v1->type);
+			scf_loge("type %d, %d not support, line: %d\n", v0->type, v1->type, parent->w->line);
 			return -EINVAL;
 		}
 

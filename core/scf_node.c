@@ -30,7 +30,7 @@ scf_node_t* scf_node_alloc(scf_lex_word_t* w, int type, scf_variable_t* var)
 	}
 
 	if (scf_type_is_var(type)) {
-		node->var = scf_variable_clone(var);
+		node->var = scf_variable_ref(var);
 		if (!node->var) {
 			scf_loge("node var clone failed\n");
 			goto _failed;

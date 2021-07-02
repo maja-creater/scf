@@ -138,6 +138,36 @@ static int _x64_inst_op2_imm(int OpCode_type, scf_dag_node_t* dst, scf_dag_node_
 	return 0;
 }
 
+static int _x64_inst_op2_imm_str(int OpCode_type, scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t* c, scf_function_t* f)
+{
+	if (SCF_X64_MOV != OpCode_type) {
+		scf_loge("\n");
+		return -EINVAL;
+	}
+
+	scf_register_x64_t* rd   = NULL;
+	scf_instruction_t*  inst = NULL;
+	scf_x64_OpCode_t*   lea  = x64_find_OpCode(SCF_X64_LEA, 8, 8, SCF_X64_E2G);
+	scf_rela_t*         rela = NULL;
+
+	int size0 = x64_variable_size(dst->var);
+	int size1 = x64_variable_size(src->var);
+
+	assert(8 == size0);
+	assert(8 == size1);
+
+	X64_SELECT_REG_CHECK(&rd, dst, c, f, 0);
+
+	src->var->global_flag = 1;
+	src->var->local_flag  = 0;
+	src->var->tmp_flag    = 0;
+
+	inst = x64_make_inst_M2G(&rela, lea, rd, NULL, src->var);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+	X64_RELA_ADD_CHECK(f->data_relas, rela, c, src->var, NULL);
+	return 0;
+}
+
 int x64_inst_op2(int OpCode_type, scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t* c, scf_function_t* f)
 {
 	assert(0 != dst->color);
@@ -149,6 +179,10 @@ int x64_inst_op2(int OpCode_type, scf_dag_node_t* dst, scf_dag_node_t* src, scf_
 	scf_rela_t*         rela   = NULL;
 
 	if (0 == src->color) {
+
+		if (scf_variable_const_string(src->var))
+			return _x64_inst_op2_imm_str(OpCode_type, dst, src, c, f);
+
 		if (!scf_variable_float(src->var)) {
 			scf_loge("\n");
 			return _x64_inst_op2_imm(OpCode_type, dst, src, c, f);

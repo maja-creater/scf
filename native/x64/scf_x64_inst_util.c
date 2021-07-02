@@ -210,6 +210,17 @@ scf_instruction_t* x64_make_inst_E(scf_x64_OpCode_t* OpCode, scf_register_x64_t*
 	scf_ModRM_setMod(&ModRM, SCF_X64_MOD_REGISTER);
 
 	inst->code[inst->len++] = ModRM;
+
+	if (SCF_X64_INC == OpCode->type || SCF_X64_INC == OpCode->type) {
+		inst->src.base = (scf_register_t*)r;
+		inst->dst.base = (scf_register_t*)r;
+
+	} else if (SCF_X64_MUL  == OpCode->type
+			|| SCF_X64_DIV  == OpCode->type
+			|| SCF_X64_IMUL == OpCode->type
+			|| SCF_X64_IDIV == OpCode->type)
+		inst->src.base = (scf_register_t*)r;
+
 	return inst;
 }
 
@@ -238,6 +249,8 @@ scf_instruction_t* x64_make_inst_I2E(scf_x64_OpCode_t* OpCode, scf_register_x64_
 
 scf_instruction_t* x64_make_inst_M(scf_rela_t** prela, scf_x64_OpCode_t* OpCode, scf_variable_t* v, scf_register_x64_t* r_base)
 {
+	scf_register_x64_t* rbp = x64_find_register("rbp");
+
 	uint32_t base;
 	int32_t  offset;
 	uint8_t  reg = 0;
@@ -250,6 +263,7 @@ scf_instruction_t* x64_make_inst_M(scf_rela_t** prela, scf_x64_OpCode_t* OpCode,
 
 			base   = SCF_X64_REG_RBP;
 			offset = v->bp_offset;
+			r_base = rbp;
 
 		} else if (v->global_flag) {
 			base   = -1;
@@ -274,6 +288,26 @@ scf_instruction_t* x64_make_inst_M(scf_rela_t** prela, scf_x64_OpCode_t* OpCode,
 	if (_x64_make_disp(prela, inst, reg, base, offset) < 0) {
 		free(inst);
 		return NULL;
+	}
+
+	if (SCF_X64_INC == OpCode->type || SCF_X64_INC == OpCode->type) {
+
+		inst->src.base = (scf_register_t*)r_base;
+		inst->src.disp = offset;
+		inst->src.flag = 1;
+
+		inst->dst.base = (scf_register_t*)r_base;
+		inst->dst.disp = offset;
+		inst->dst.flag = 1;
+
+	} else if (SCF_X64_MUL  == OpCode->type
+			|| SCF_X64_DIV  == OpCode->type
+			|| SCF_X64_IMUL == OpCode->type
+			|| SCF_X64_IDIV == OpCode->type) {
+
+		inst->src.base = (scf_register_t*)r_base;
+		inst->src.disp = offset;
+		inst->src.flag = 1;
 	}
 
 	return inst;

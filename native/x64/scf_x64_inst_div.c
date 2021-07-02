@@ -23,6 +23,17 @@ int x64_inst_int_div(scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t* c
 	else
 		rh   = x64_find_register_type_id_bytes(0, SCF_X64_REG_DX, size);
 
+	int      src_literal = src->var->const_literal_flag;
+	intptr_t src_color   = src->color;
+
+	if (0 == src->color) {
+		src->var->const_literal_flag = 0;
+		src->var->tmp_flag = 1;
+		src->color = -1;
+
+		X64_SELECT_REG_CHECK(&rs, src, c, f, 1);
+	}
+
 	if (dst->color > 0) {
 		X64_SELECT_REG_CHECK(&rd, dst, c, f, 1);
 
@@ -75,12 +86,6 @@ int x64_inst_int_div(scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t* c
 		inst = x64_make_inst_E(div, rs);
 		X64_INST_ADD_CHECK(c->instructions, inst);
 
-	} else if (0 == src->color) {
-		src->color = -1;
-		X64_SELECT_REG_CHECK(&rs, src, c, f, 1);
-		inst = x64_make_inst_E(div, rs);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-
 	} else {
 		scf_rela_t* rela = NULL;
 
@@ -108,6 +113,18 @@ int x64_inst_int_div(scf_dag_node_t* dst, scf_dag_node_t* src, scf_3ac_code_t* c
 		inst = x64_make_inst_G2M(&rela, mov, dst->var, NULL, result);
 		X64_INST_ADD_CHECK(c->instructions, inst);
 		X64_RELA_ADD_CHECK(f->data_relas, rela, c, dst->var, NULL);
+	}
+
+	if (0 == src_color) {
+		src->var->tmp_flag = 0;
+		src->var->const_literal_flag = src_literal;
+
+		if (src->color > 0) {
+			assert(0 == scf_vector_del(rs->dag_nodes, src));
+			src->loaded = 0;
+		}
+
+		src->color = 0;
 	}
 
 	return 0;

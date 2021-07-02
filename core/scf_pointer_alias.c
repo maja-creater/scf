@@ -143,6 +143,9 @@ static int _bb_pointer_initeds(scf_vector_t* initeds, scf_list_t* bb_list_head, 
 		dn = ds->dag_node;
 		v  = dn->var;
 
+		if (scf_variable_const(v) || scf_variable_const_string(v))
+			return 0;
+
 		if (v->arg_flag)
 			return 0;
 
@@ -521,6 +524,7 @@ error:
 
 int _dn_status_alias_dereference(scf_vector_t* aliases, scf_dn_status_t* ds_pointer, scf_3ac_code_t* c, scf_basic_block_t* bb, scf_list_t* bb_list_head)
 {
+	scf_dag_node_t*  dn = ds_pointer->dag_node;
 	scf_dn_status_t* ds = NULL;
 	scf_3ac_code_t*  c2;
 	scf_list_t*      l2;
@@ -535,17 +539,17 @@ int _dn_status_alias_dereference(scf_vector_t* aliases, scf_dn_status_t* ds_poin
 	scf_logw("dn_pointer: \n");
 	scf_dn_status_print(ds_pointer);
 
-	if (SCF_OP_DEREFERENCE == ds_pointer->dag_node->type) {
-
+	if (SCF_OP_DEREFERENCE == dn->type)
 		return _bb_dereference_aliases(aliases, ds_pointer, c, bb, bb_list_head);
-	}
 
-	if (!scf_type_is_var(ds_pointer->dag_node->type)) {
+	if (!scf_type_is_var(dn->type)
+			&& SCF_OP_INC != dn->type && SCF_OP_INC_POST != dn->type
+			&& SCF_OP_DEC != dn->type && SCF_OP_DEC_POST != dn->type)
 
 		return _bb_op_aliases(aliases, ds_pointer, c, bb, bb_list_head);
-	}
 
-	scf_variable_t* v = ds_pointer->dag_node->var;
+
+	scf_variable_t* v = dn->var;
 
 	if (v->arg_flag) {
 		scf_logw("arg: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);

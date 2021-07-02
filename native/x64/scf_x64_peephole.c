@@ -351,6 +351,13 @@ static void _x64_peephole_function(scf_vector_t* tmp_insts, scf_function_t* f, i
 						|| SCF_OP_VA_ARG == inst->c->op->type
 						|| SCF_OP_VA_END == inst->c->op->type)
 					break;
+
+				else if (SCF_X64_CMP    == inst2->OpCode->type
+						|| SCF_X64_TEST == inst2->OpCode->type) {
+
+					if (scf_inst_data_same(&inst->dst, &inst2->dst))
+						break;
+				}
 			}
 		}
 

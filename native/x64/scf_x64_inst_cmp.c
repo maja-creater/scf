@@ -148,7 +148,7 @@ int x64_inst_teq(scf_native_t* ctx, scf_3ac_code_t* c)
 	}
 
 	if (0 == src->dag_node->color) {
-		scf_loge("\n");
+		scf_loge("src->dag_node->var: %p\n", src->dag_node->var);
 		return -1;
 	}
 

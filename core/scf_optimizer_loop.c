@@ -75,6 +75,38 @@ static int _bb_loop_cmp(const void* p0, const void* p1)
 	return 0;
 }
 
+static int _bb_index_cmp(const void* p0, const void* p1)
+{
+	const scf_basic_block_t* bb0 = *(scf_basic_block_t**)p0;
+	const scf_basic_block_t* bb1 = *(scf_basic_block_t**)p1;
+
+	if (bb0->index < bb1->index)
+		return -1;
+
+	if (bb0->index > bb1->index)
+		return 1;
+	return 0;
+}
+
+static int _loop_index_cmp(const void* p0, const void* p1)
+{
+	scf_bb_group_t*    bbg0 = *(scf_bb_group_t**)p0;
+	scf_bb_group_t*    bbg1 = *(scf_bb_group_t**)p1;
+
+	assert(bbg0->body->size > 0);
+	assert(bbg1->body->size > 0);
+
+	scf_basic_block_t* bb0  = bbg0->body->data[0];
+	scf_basic_block_t* bb1  = bbg1->body->data[0];
+
+	if (bb0->index < bb1->index)
+		return -1;
+
+	if (bb0->index > bb1->index)
+		return 1;
+	return 0;
+}
+
 static int _bb_dfs_loop(scf_list_t* bb_list_head, scf_vector_t* loops)
 {
 	if (!bb_list_head || !loops)
@@ -133,35 +165,12 @@ static int _bb_dfs_loop(scf_list_t* bb_list_head, scf_vector_t* loops)
 			bbg->body        = loop;
 			loop             = NULL;
 
-			scf_basic_block_t* entry;
-			scf_basic_block_t* exit;
-			scf_basic_block_t* bb2;
-			int k;
-
-			for (k = 0; k < dom->prevs->size; k++) {
-				entry     = dom->prevs->data[k];
-
-				if (scf_vector_find(bbg->body, entry))
-					continue;
-
-				if (!bbg->entry || bbg->entry->dfo_normal > entry->dfo_normal)
-					bbg->entry = entry;
+			ret = bbg_find_entry_exit(bbg);
+			if (ret < 0) {
+				scf_bb_group_free(bbg);
+				return ret;
 			}
-
-			int n;
-			for (n  = 0; n < bbg->body->size; n++) {
-				bb2 =        bbg->body->data[n];
-
-				for (k = 0; k < bb2->nexts->size; k++) {
-					exit      = bb2->nexts->data[k];
-
-					if (scf_vector_find(bbg->body, exit))
-						continue;
-
-					if (!bbg->exit || bbg->exit->dfo_normal < exit->dfo_normal)
-						bbg->exit = exit;
-				}
-			}
+			scf_loge("bbg: %p, entries: %d, exits: %d\n", bbg, bbg->entries->size, bbg->exits->size);
 
 			ret = scf_vector_add(loops, bbg);
 			if (ret < 0) {
@@ -180,17 +189,21 @@ static int _bb_dfs_loop(scf_list_t* bb_list_head, scf_vector_t* loops)
 
 static int _bb_loop_layers(scf_function_t* f)
 {
+	scf_basic_block_t* entry;
+	scf_basic_block_t* exit;
+	scf_basic_block_t* bb;
+	scf_bb_group_t*    loop0;
+	scf_bb_group_t*    loop1;
+
 	int ret;
 	int i;
 	int j;
 
 	for (i = 0; i < f->bb_loops->size - 1; ) {
-
-		scf_bb_group_t* loop0 = f->bb_loops->data[i];
+		loop0     = f->bb_loops->data[i];
 
 		for (j = i + 1; j < f->bb_loops->size; j++) {
-
-			scf_bb_group_t* loop1 = f->bb_loops->data[j];
+			loop1         = f->bb_loops->data[j];
 
 			int k;
 			for (k = 0; k < loop0->body->size; k++) {
@@ -226,6 +239,127 @@ static int _bb_loop_layers(scf_function_t* f)
 			i++;
 	}
 
+	for (i = 0; i < f->bb_loops->size - 1; ) {
+		loop0     = f->bb_loops->data[i];
+
+		for (j = i + 1; j < f->bb_loops->size; j++) {
+			loop1         = f->bb_loops->data[j];
+
+			int k;
+			for (k = 0; k < loop0->entries->size; k++) {
+				entry     = loop0->entries->data[k];
+
+				if (scf_vector_find(loop1->entries, entry))
+					break;
+			}
+
+			if (k < loop0->entries->size)
+				break;
+		}
+
+		if (j == f->bb_loops->size) {
+			i++;
+			continue;
+		}
+
+		int entries0 = loop0->entries->size;
+		int entries1 = loop1->entries->size;
+		int exits0   = loop0->exits  ->size;
+		int exits1   = loop1->exits  ->size;
+
+		int k;
+		for (k = 0; k < loop0->entries->size; ) {
+			entry     = loop0->entries->data[k];
+
+			if (scf_vector_find(loop1->body,    entry))
+				scf_vector_del (loop0->entries, entry);
+			else
+				k++;
+		}
+
+		for (k = 0; k < loop1->entries->size; ) {
+			entry     = loop1->entries->data[k];
+
+			if (scf_vector_find(loop0->body,    entry))
+				scf_vector_del (loop1->entries, entry);
+			else
+				k++;
+		}
+
+		for (k = 0; k < loop0->exits->size; ) {
+			exit      = loop0->exits->data[k];
+
+			if (scf_vector_find(loop1->body,  exit))
+				scf_vector_del (loop0->exits, exit);
+			else
+				k++;
+		}
+
+		for (k = 0; k < loop1->exits->size; ) {
+			exit      = loop1->exits->data[k];
+
+			if (scf_vector_find(loop0->body,  exit))
+				scf_vector_del (loop1->exits, exit);
+			else
+				k++;
+		}
+
+		assert(loop0->entries->size < entries0);
+		assert(loop1->entries->size < entries1);
+
+		assert(loop0->exits->size < exits0);
+		assert(loop1->exits->size < exits1);
+
+		if (loop0->exits->size > 0) {
+			assert(1 == loop0->exits->size);
+			assert(0 == loop1->exits->size);
+
+			for (k = 0; k < loop1->body->size; k++) {
+				bb =        loop1->body->data[k];
+
+				assert(0 == scf_vector_add_unique(loop0->body, bb));
+			}
+
+			assert(0 == scf_vector_del(f->bb_loops, loop1));
+
+			scf_bb_group_free(loop1);
+			loop1 = NULL;
+
+			assert(0 == bbg_find_entry_exit(loop0));
+
+		} else if (loop1->exits->size > 0) {
+			assert(0 == loop0->exits->size);
+			assert(1 == loop1->exits->size);
+
+			for (k = 0; k < loop0->body->size; k++) {
+				bb =        loop0->body->data[k];
+
+				assert(0 == scf_vector_add_unique(loop1->body, bb));
+			}
+
+			assert(0 == scf_vector_del(f->bb_loops, loop0));
+
+			scf_bb_group_free(loop0);
+			loop0 = NULL;
+
+			assert(0 == bbg_find_entry_exit(loop1));
+		} else
+			assert(0);
+	}
+
+	for (i = 0; i < f->bb_loops->size; i++) {
+		loop0     = f->bb_loops->data[i];
+
+		assert(1 == loop0->entries->size);
+		assert(1 == loop0->exits  ->size);
+
+		loop0->entry = loop0->entries->data[0];
+		loop0->exit  = loop0->exits  ->data[0];
+
+		scf_vector_qsort(loop0->body, _bb_index_cmp);
+	}
+
+	scf_vector_qsort(f->bb_loops, _loop_index_cmp);
 	return 0;
 }
 
@@ -281,6 +415,8 @@ static int _bb_loop_add_pre_post(scf_function_t* f)
 			dst     = jcc->dsts->data[0];
 			dst->bb = bbg->exit;
 
+			scf_loge("jcc_last: %p\n", jcc_last);
+
 			scf_list_add_tail(&jcc_last->code_list_head, &jcc->list);
 
 			scf_list_add_tail(&bbg->exit->list, &jcc_last->list);
@@ -305,7 +441,7 @@ static int _bb_loop_add_pre_post(scf_function_t* f)
 		pre-> loop_flag = 1;
 		post->loop_flag = 1;
 
-		scf_logd("bbg: %p, entry: %p, exit: %p\n", bbg, bbg->entry, bbg->exit);
+		scf_loge("bbg: %p, entry: %p, exit: %p\n", bbg, bbg->entry, bbg->exit);
 
 		if (bbg->body->size > 0) {
 
@@ -347,8 +483,10 @@ static int _bb_loop_add_pre_post(scf_function_t* f)
 						l   = scf_list_head(&jcc->code_list_head);
 						c   = scf_list_data(l, scf_3ac_code_t, list);
 						dst = c->dsts->data[0];
-						if (dst->bb == first)
+						if (dst->bb == first) {
+							scf_loge("bb: %p, dst: %p -> %p\n", bb, dst->bb, pre);
 							dst->bb =  pre;
+						}
 					}
 				}
 
@@ -386,8 +524,10 @@ static int _bb_loop_add_pre_post(scf_function_t* f)
 					l2  = scf_list_head(&jcc->code_list_head);
 					c   = scf_list_data(l2, scf_3ac_code_t, list);
 					dst = c->dsts->data[0];
-					if (dst->bb == bbg->exit)
+					if (dst->bb == bbg->exit) {
+						scf_loge("bb: %p, dst: %p -> %p\n", bb, dst->bb, bbg->post);
 						dst->bb =  bbg->post;
+					}
 				}
 			}
 
@@ -571,7 +711,7 @@ static int _optimize_loop(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list
 		return ret;
 	}
 
-	scf_basic_block_print_list(bb_list_head);
+	//scf_basic_block_print_list(bb_list_head);
 	return 0;
 }
 

@@ -479,7 +479,7 @@ static void _3ac_print_dag_node(scf_dag_node_t* dn)
 		if (dn->var && dn->var->w)
 			printf("v_%d_%d/%s ", dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
 		else
-			printf("v_/%s ", op->name);
+			printf("v_%#lx/%s ", 0xffff & (uintptr_t)dn->var, op->name);
 	} else {
 		//printf("type: %d, v_%#lx\n", dn->type, 0xffff & (uintptr_t)dn->var);
 		//assert(0);
@@ -1325,6 +1325,13 @@ static int _3ac_split_basic_blocks(scf_list_t* h, scf_function_t* f)
 				continue;
 			}
 
+			if (SCF_OP_VA_START      == c->op->type
+					|| SCF_OP_VA_ARG == c->op->type
+					|| SCF_OP_VA_END == c->op->type) {
+				bb->varg_flag = 1;
+				continue;
+			}
+
 			if (scf_type_is_jmp(c->op->type)) {
 				bb->jmp_flag = 1;
 
@@ -1350,6 +1357,11 @@ static int _3ac_split_basic_blocks(scf_list_t* h, scf_function_t* f)
 
 			else if (SCF_OP_RETURN == c->op->type)
 				bb->ret_flag = 1;
+
+			else if (SCF_OP_VA_START == c->op->type
+					|| SCF_OP_VA_ARG == c->op->type
+					|| SCF_OP_VA_END == c->op->type)
+				bb->varg_flag = 1;
 
 			scf_list_del(&c->list);
 			scf_list_add_tail(&bb->code_list_head, &c->list);

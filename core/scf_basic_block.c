@@ -197,10 +197,12 @@ void scf_bb_group_print(scf_bb_group_t* bbg)
 	printf("\033[33mbbg: %p\033[0m\n", bbg);
 
 	printf("entries:\n");
-	for (i = 0; i < bbg->entries->size; i++) {
-		bb =        bbg->entries->data[i];
+	if (bbg->entries) {
+		for (i = 0; i < bbg->entries->size; i++) {
+			bb =        bbg->entries->data[i];
 
-		printf("%p\n", bb);
+			printf("%p\n", bb);
+		}
 	}
 
 	printf("body:\n");
@@ -211,10 +213,12 @@ void scf_bb_group_print(scf_bb_group_t* bbg)
 	}
 
 	printf("exits:\n");
-	for (i = 0; i < bbg->exits->size; i++) {
-		bb =        bbg->exits->data[i];
+	if (bbg->exits) {
+		for (i = 0; i < bbg->exits->size; i++) {
+			bb =        bbg->exits->data[i];
 
-		printf("%p\n", bb);
+			printf("%p\n", bb);
+		}
 	}
 }
 
@@ -232,8 +236,8 @@ void scf_basic_block_print_list(scf_list_t* h)
 
 			scf_basic_block_t* bb = scf_list_data(l, scf_basic_block_t, list);
 
-			printf("\033[33mbasic_block: %p, index: %d, dfo_normal: %d, dfo_reverse: %d, group_flag: %d, jmp_flag: %d\033[0m\n",
-					bb, bb->index, bb->dfo_normal, bb->dfo_reverse, bb->group_flag, bb->jmp_flag);
+			printf("\033[33mbasic_block: %p, index: %d, dfo_normal: %d, dfo_reverse: %d, group: %d, loop: %d\033[0m\n",
+					bb, bb->index, bb->dfo_normal, bb->dfo_reverse, bb->group_flag, bb->loop_flag);
 
 			scf_basic_block_print(bb, sentinel);
 
@@ -794,7 +798,9 @@ int scf_basic_block_inited_vars(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 			dst = c->dsts->data[0];
 			dn  = dst->dag_node;
 
-			if (scf_type_is_var(dn->type)
+			if ((scf_type_is_var(dn->type)
+						|| SCF_OP_INC == dn->type || SCF_OP_INC_POST == dn->type
+						|| SCF_OP_DEC == dn->type || SCF_OP_DEC_POST == dn->type)
 					&& (dn->var->global_flag || dn->var->local_flag || dn->var->tmp_flag)) {
 
 				scf_variable_t* v = dn->var;

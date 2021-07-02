@@ -271,6 +271,10 @@ SCF_DAG_BINARY_ASSIGN(assign,     ASSIGN)
 SCF_DAG_BINARY_ASSIGN(add_assign, ADD_ASSIGN)
 SCF_DAG_BINARY_ASSIGN(sub_assign, SUB_ASSIGN)
 
+SCF_DAG_BINARY_ASSIGN(mul_assign, MUL_ASSIGN)
+SCF_DAG_BINARY_ASSIGN(div_assign, DIV_ASSIGN)
+SCF_DAG_BINARY_ASSIGN(mod_assign, MOD_ASSIGN)
+
 SCF_DAG_BINARY_ASSIGN(shl_assign, SHL_ASSIGN)
 SCF_DAG_BINARY_ASSIGN(shr_assign, SHR_ASSIGN)
 
@@ -376,6 +380,10 @@ scf_dag_operator_t	dag_operators[] =
 	{SCF_OP_ASSIGN,         SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_assign},
 	{SCF_OP_ADD_ASSIGN,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_add_assign},
 	{SCF_OP_SUB_ASSIGN,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_sub_assign},
+
+	{SCF_OP_MUL_ASSIGN,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_mul_assign},
+	{SCF_OP_DIV_ASSIGN,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_div_assign},
+	{SCF_OP_MOD_ASSIGN,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_mod_assign},
 
 	{SCF_OP_SHL_ASSIGN,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_shl_assign},
 	{SCF_OP_SHR_ASSIGN,     SCF_OP_ASSOCIATIVITY_RIGHT, _scf_dag_op_shr_assign},

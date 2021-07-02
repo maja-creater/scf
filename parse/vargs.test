@@ -1,0 +1,85 @@
+struct va_list
+{
+	uint8_t*  iptr;
+	uint8_t*  fptr;
+	uint8_t*  optr;
+
+	intptr_t  ireg;
+	intptr_t  freg;
+	intptr_t  others;
+};
+
+int scf__write(int fd, uint8_t* buf, uint64_t size);
+
+int scf_ulong2a(char* buf, int* pn, int size, uint64_t num)
+{
+	int n = *pn;
+	int i = n;
+
+	while (n < size - 1) {
+
+		buf[n++] = num % 10 + '0';
+
+		num /= 10;
+		if (0 == num)
+			break;
+	}
+
+	*pn = n--;
+
+	while (i < n) {
+		char c   = buf[i];
+		buf[i++] = buf[n];
+		buf[n--] = c;
+	}
+	return *pn;
+}
+
+int scf_vsnprintf(char* buf, int size, const char* fmt, va_list* ap)
+{
+	int n = 0;
+
+	while (*fmt) {
+
+		if ('%' != *fmt) {
+			buf[n++] = *fmt++;
+			continue;
+		}
+
+		fmt++;
+		if ('%' == *fmt) {
+			buf[n++] = *fmt++;
+			continue;
+		}
+
+		if ('u' == *fmt)
+			scf_ulong2a(buf, &n, size, va_arg(ap, uint32_t));
+		fmt++;
+	}
+
+	buf[n] = '\0';
+	return n;
+}
+
+int scf_printf(const char* fmt, ...)
+{
+	va_list ap;
+
+	char buf[100];
+
+	va_start(ap, fmt);
+	int ret = scf_vsnprintf(buf, sizeof(buf) - 1, fmt, &ap);
+	va_end(ap);
+
+	if (ret > 0) {
+		ret = scf__write(1, buf, ret);
+	}
+
+	return ret;
+}
+
+int main()
+{
+	int ret = scf_printf("hello: %u, %u\n", 1, 2);
+	return ret;
+}

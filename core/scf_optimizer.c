@@ -85,11 +85,18 @@ static void __scf_loops_print(scf_bb_group_t* loop)
 	printf("loop_layers: %d\n\n", loop->loop_layers);
 }
 
-static void _scf_loops_print(scf_vector_t* loops)
+void scf_loops_print(scf_vector_t* loops)
 {
 	int i;
 	for (i = 0; i < loops->size; i++)
 		__scf_loops_print(loops->data[i]);
+}
+
+void scf_groups_print(scf_vector_t* groups)
+{
+	int i;
+	for (i = 0; i < groups->size; i++)
+		scf_bb_group_print(groups->data[i]);
 }
 
 static int __scf_optimize_local(scf_ast_t* ast, scf_vector_t* functions, scf_optimizer_t** optimizers, int nb_optimizers)
@@ -173,7 +180,8 @@ int scf_optimize(scf_ast_t* ast, scf_vector_t* functions)
 			continue;
 
 		scf_basic_block_print_list(&f->basic_block_list_head);
-		_scf_loops_print(f->bb_loops);
+		scf_loops_print(f->bb_loops);
+		scf_groups_print(f->bb_groups);
 	}
 #endif
 	return 0;

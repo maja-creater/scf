@@ -3,6 +3,7 @@
 static int type_update[] =
 {
 	SCF_VAR_I8,
+	SCF_VAR_CHAR,
 	SCF_VAR_U8,
 
 	SCF_VAR_I16,

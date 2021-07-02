@@ -84,6 +84,7 @@ struct scf_basic_block_s
 	uint32_t        jcc_flag    :1;
 	uint32_t        ret_flag    :1;
 	uint32_t        end_flag    :1;
+	uint32_t        varg_flag   :1;
 
 	uint32_t        dereference_flag:1;
 	uint32_t        array_index_flag:1;
