@@ -99,10 +99,11 @@ int               scf_dn_status_copy_alias(scf_dn_status_t* dst, scf_dn_status_t
 
 scf_dag_node_t*   scf_dag_node_alloc(int type, scf_variable_t* var, const scf_node_t* node);
 
-int				  scf_dag_node_add_child (scf_dag_node_t* parent, scf_dag_node_t* child);
+int               scf_dag_node_add_child (scf_dag_node_t* parent, scf_dag_node_t* child);
 
 int               scf_dag_node_same (scf_dag_node_t* dag_node, const scf_node_t* node);
-void			  scf_dag_node_free (scf_dag_node_t* dag_node);
+int               scf_dag_node_like (scf_dag_node_t* dag_node, const scf_node_t* node, scf_list_t* h);
+void              scf_dag_node_free (scf_dag_node_t* dag_node);
 
 void              scf_dag_node_free_list(scf_list_t* dag_list_head);
 

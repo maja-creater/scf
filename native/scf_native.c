@@ -102,14 +102,3 @@ int scf_native_select_inst(scf_native_t* ctx, scf_function_t* f)
 	return -1;
 }
 
-int scf_native_write_elf(scf_native_t* ctx, const char* path, scf_function_t* f)
-{
-	if (ctx && path && f) {
-		if (ctx->ops && ctx->ops->write_elf)
-			return ctx->ops->write_elf(ctx, path);
-	}
-
-	printf("%s(),%d, error: \n", __func__, __LINE__);
-	return -1;
-}
-

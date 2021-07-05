@@ -351,10 +351,8 @@ static int _bb_loop_layers(scf_function_t* f)
 		loop0     = f->bb_loops->data[i];
 
 		assert(1 == loop0->entries->size);
-		assert(1 == loop0->exits  ->size);
 
 		loop0->entry = loop0->entries->data[0];
-		loop0->exit  = loop0->exits  ->data[0];
 
 		scf_vector_qsort(loop0->body, _bb_index_cmp);
 	}
@@ -367,8 +365,8 @@ static int _bb_loop_add_pre_post(scf_function_t* f)
 {
 	scf_bb_group_t*    bbg;
 	scf_basic_block_t* bb;
-	scf_basic_block_t* jcc_first;
-	scf_basic_block_t* jcc_last;
+	scf_basic_block_t* jmp;
+	scf_basic_block_t* exit;
 	scf_basic_block_t* pre;
 	scf_basic_block_t* post;
 	scf_basic_block_t* first;
@@ -385,63 +383,71 @@ static int _bb_loop_add_pre_post(scf_function_t* f)
 		assert(bbg->body->size >= 1);
 
 		assert(sentinel != scf_list_next(&bbg->entry->list));
-		assert(sentinel != scf_list_prev(&bbg->exit ->list));
 
-		jcc_first = scf_list_data(scf_list_next(&bbg->entry->list), scf_basic_block_t, list);
-		jcc_last  = scf_list_data(scf_list_prev(&bbg->exit ->list), scf_basic_block_t, list);
+		jmp = scf_list_data(scf_list_next(&bbg->entry->list), scf_basic_block_t, list);
 
-		assert(jcc_first->jmp_flag);
+		assert(jmp->jmp_flag);
 
-		if (!jcc_first->jcc_flag) {
+		if (!jmp->jcc_flag) {
 			scf_loge("\n");
 			return -EINVAL;
-		}
-
-		if (!jcc_last->jmp_flag) {
-
-			scf_3ac_operand_t* dst;
-			scf_3ac_code_t*    jcc;
-
-			jcc_last = scf_basic_block_alloc();
-			if (!jcc_last)
-				return -ENOMEM;
-			jcc_last->jmp_flag = 1;
-
-			jcc = scf_branch_ops_code(SCF_OP_GOTO, NULL, NULL);
-			if (!jcc) {
-				scf_basic_block_free(jcc_last);
-				return -ENOMEM;
-			}
-			dst     = jcc->dsts->data[0];
-			dst->bb = bbg->exit;
-
-			scf_loge("jcc_last: %p\n", jcc_last);
-
-			scf_list_add_tail(&jcc_last->code_list_head, &jcc->list);
-
-			scf_list_add_tail(&bbg->exit->list, &jcc_last->list);
 		}
 
 		pre = scf_basic_block_alloc();
 		if (!pre)
 			return -ENOMEM;
+		scf_list_add_front(&jmp->list, &pre->list);
+		pre->loop_flag = 1;
+		bbg->pre       = pre;
 
-		post = scf_basic_block_alloc();
-		if (!post) {
-			scf_basic_block_free(pre);
+		assert(!bbg->posts);
+		bbg->posts = scf_vector_alloc();
+		if (!bbg->posts)
 			return -ENOMEM;
+
+		for (j = 0; j < bbg->exits->size; j++) {
+			exit      = bbg->exits->data[j];
+
+			jmp = scf_list_data(scf_list_prev(&exit->list), scf_basic_block_t, list);
+
+			if (!jmp->jmp_flag) {
+
+				scf_3ac_operand_t* dst;
+				scf_3ac_code_t*    c;
+
+				jmp = scf_basic_block_alloc();
+				if (!jmp)
+					return -ENOMEM;
+				jmp->jmp_flag = 1;
+
+				c = scf_branch_ops_code(SCF_OP_GOTO, NULL, NULL);
+				if (!c) {
+					scf_basic_block_free(jmp);
+					return -ENOMEM;
+				}
+				dst     = c->dsts->data[0];
+				dst->bb = exit;
+
+				scf_list_add_tail(&jmp->code_list_head, &c->list);
+
+				scf_list_add_tail(&exit->list, &jmp->list);
+			}
+
+			post = scf_basic_block_alloc();
+			if (!post)
+				return -ENOMEM;
+
+			if (scf_vector_add(bbg->posts, post) < 0) {
+				scf_basic_block_free(post);
+				return -ENOMEM;
+			}
+
+			scf_list_add_front(&jmp->list, &post->list);
+
+			post->loop_flag = 1;
 		}
 
-		scf_list_add_front(&jcc_first->list, &pre ->list);
-		scf_list_add_front(&jcc_last ->list, &post->list);
-
-		bbg->pre  = pre;
-		bbg->post = post;
-
-		pre-> loop_flag = 1;
-		post->loop_flag = 1;
-
-		scf_loge("bbg: %p, entry: %p, exit: %p\n", bbg, bbg->entry, bbg->exit);
+		assert(bbg->exits->size == bbg->posts->size);
 
 		if (bbg->body->size > 0) {
 
@@ -499,6 +505,7 @@ static int _bb_loop_add_pre_post(scf_function_t* f)
 			bb =        bbg->body->data[j];
 
 			for (k = 0; k < bb->nexts->size; k++) {
+				exit      = bb->nexts->data[k];
 
 				scf_3ac_operand_t* dst;
 				scf_basic_block_t* jcc;
@@ -506,13 +513,34 @@ static int _bb_loop_add_pre_post(scf_function_t* f)
 				scf_list_t*        l;
 				scf_list_t*        l2;
 
-				if (bb->nexts->data[k] != bbg->exit)
+				int n;
+				for (n = 0; n < bbg->exits->size; n++) {
+					if (exit == bbg->exits->data[n])
+						break;
+				}
+
+				if (n == bbg->exits->size)
 					continue;
 
-				bb->nexts->data[k] = bbg->post;
-				assert(0 == scf_vector_del(bbg->exit->prevs, bb));
+				post = bbg->posts->data[n];
 
-				if (scf_vector_add_unique(bbg->post->prevs, bb) < 0)
+				for (n = 0; n < exit->prevs->size; n++) {
+					if (bb   == exit->prevs->data[n])
+						break;
+				}
+				assert(n < exit->prevs->size);
+
+				bb  ->nexts->data[k] = post;
+
+				if (!scf_vector_find(exit->prevs, post))
+					exit->prevs->data[n] = post;
+				else
+					assert(0 == scf_vector_del(exit->prevs, bb));
+
+				if (scf_vector_add_unique(post->prevs, bb) < 0)
+					return -ENOMEM;
+
+				if (scf_vector_add_unique(post->nexts, exit) < 0)
 					return -ENOMEM;
 
 				for (l  = scf_list_next(&bb->list); l != sentinel; l = scf_list_next(l)) {
@@ -524,18 +552,13 @@ static int _bb_loop_add_pre_post(scf_function_t* f)
 					l2  = scf_list_head(&jcc->code_list_head);
 					c   = scf_list_data(l2, scf_3ac_code_t, list);
 					dst = c->dsts->data[0];
-					if (dst->bb == bbg->exit) {
-						scf_loge("bb: %p, dst: %p -> %p\n", bb, dst->bb, bbg->post);
-						dst->bb =  bbg->post;
-					}
+					if (dst->bb == exit)
+						dst->bb =  post;
 				}
 			}
 
 			bb->loop_flag = 1;
 		}
-
-		assert(0 == scf_vector_add_unique(bbg->post->nexts, bbg->exit));
-		assert(0 == scf_vector_add_unique(bbg->exit->prevs, bbg->post));
 	}
 
 	return 0;
@@ -554,20 +577,16 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 	int k;
 
 	for (i = 0; i < f->bb_loops->size; i++) {
-		bbg = f->bb_loops->data[i];
-
-//		if (bbg->loop_layers > 1)
-//			continue;
+		bbg       = f->bb_loops->data[i];
 
 		assert(bbg->body->size >= 1);
 
 		pre  = bbg->pre;
-		post = bbg->post;
 
 		for (j = 0; j < bbg->body->size; j++) {
 			bb =        bbg->body->data[j];
 
-			for (k = 0; k < bb->dn_loads->size; ) {
+			for (k = 0; k < bb->dn_loads->size; k++) {
 				dn =        bb->dn_loads->data[k];
 
 				if (dn->var->tmp_flag) {
@@ -577,13 +596,18 @@ static int _optimize_loop_loads_saves(scf_function_t* f)
 
 				if (scf_vector_add_unique(pre->dn_loads, dn) < 0)
 					return -1;
-
-				assert(0 == scf_vector_del(bb->dn_loads, dn));
 			}
 
-			for (k = 0; k < bb->dn_saves->size; k++) {
-				if (scf_vector_add_unique(post->dn_saves, bb->dn_saves->data[k]) < 0)
-					return -1;
+			for (k = 0; k < bbg->posts->size; k++) {
+				post      = bbg->posts->data[k];
+
+				int n;
+				for (n = 0; n < bb->dn_saves->size; n++) {
+					dn =        bb->dn_saves->data[n];
+
+					if (scf_vector_add_unique(post->dn_saves, dn) < 0)
+						return -1;
+				}
 			}
 		}
 	}
@@ -705,12 +729,13 @@ static int _optimize_loop(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list
 		return ret;
 	}
 
+#if 1
 	ret = _optimize_loop_loads_saves(f);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
 	}
-
+#endif
 	//scf_basic_block_print_list(bb_list_head);
 	return 0;
 }

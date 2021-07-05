@@ -11,6 +11,7 @@ scf_basic_block_t* scf_basic_block_alloc()
 
 	scf_list_init(&bb->list);
 	scf_list_init(&bb->dag_list_head);
+	scf_list_init(&bb->load_list_head);
 	scf_list_init(&bb->code_list_head);
 	scf_list_init(&bb->save_list_head);
 
@@ -184,6 +185,7 @@ void scf_basic_block_print(scf_basic_block_t* bb, scf_list_t* sentinel)
 			} \
 		} while (0)
 
+//		SCF_BB_PRINT(load_list_head);
 		SCF_BB_PRINT(code_list_head);
 		SCF_BB_PRINT(save_list_head);
 	}

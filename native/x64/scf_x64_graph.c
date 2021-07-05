@@ -160,7 +160,7 @@ static int _x64_kcolor_fill(scf_graph_t* graph, int k, scf_vector_t* colors,
 			node->color = _x64_color_select(node, colors2);
 			if (0 == node->color) {
 				node->color = -1;
-				scf_logw("colors2->size: %d\n", colors2->size);
+				scf_logd("colors2->size: %d\n", colors2->size);
 			}
 		}
 
@@ -169,7 +169,6 @@ static int _x64_kcolor_fill(scf_graph_t* graph, int k, scf_vector_t* colors,
 
 		scf_vector_free(colors2);
 		colors2 = NULL;
-		printf("\n");
 	}
 
 	return 0;

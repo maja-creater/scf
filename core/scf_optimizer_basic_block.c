@@ -1,6 +1,6 @@
 #include"scf_optimizer.h"
 
-static scf_dag_node_t* _func_dag_find_dn(scf_vector_t* dag, scf_dag_node_t* dn_bb)
+static scf_dag_node_t* _func_dag_find_dn(scf_vector_t* dag, scf_dag_node_t* dn_bb, scf_list_t* f_dag)
 {
 	scf_dag_node_t* dn_func = NULL;
 	scf_list_t*     l;
@@ -8,6 +8,8 @@ static scf_dag_node_t* _func_dag_find_dn(scf_vector_t* dag, scf_dag_node_t* dn_b
 	int i;
 	for (i = 0; i < dag->size; i++) {
 		dn_func   = dag->data[i];
+
+		scf_variable_t* v1 = dn_func->var;
 
 		if (dn_func->type == dn_bb->type) {
 
@@ -17,8 +19,10 @@ static scf_dag_node_t* _func_dag_find_dn(scf_vector_t* dag, scf_dag_node_t* dn_b
 			if (scf_dag_dn_same(dn_func, dn_bb))
 				break;
 
-			if (dn_bb->node && scf_dag_node_same(dn_func, dn_bb->node))
-				break;
+			if (dn_bb->node) {
+				if (scf_dag_node_like(dn_func, dn_bb->node, f_dag))
+					break;
+			}
 		}
 		dn_func = NULL;
 	}
@@ -26,7 +30,7 @@ static scf_dag_node_t* _func_dag_find_dn(scf_vector_t* dag, scf_dag_node_t* dn_b
 	return dn_func;
 }
 
-static int _bb_dag_update(scf_basic_block_t* bb, scf_vector_t* dag)
+static int _bb_dag_update(scf_basic_block_t* bb, scf_vector_t* dag, scf_list_t* f_dag)
 {
 	scf_dag_node_t* dn;
 	scf_dag_node_t* dn_bb;
@@ -74,7 +78,7 @@ static int _bb_dag_update(scf_basic_block_t* bb, scf_vector_t* dag)
 
 				dn_bb   = dn->childs->data[0];
 
-				dn_func = _func_dag_find_dn(dag, dn_bb);
+				dn_func = _func_dag_find_dn(dag, dn_bb, f_dag);
 				if (!dn_func) {
 					scf_loge("\n");
 					return -1;
@@ -122,7 +126,7 @@ static int _bb_dag_update(scf_basic_block_t* bb, scf_vector_t* dag)
 				assert(dn->childs);
 				assert(2 == dn->childs->size);
 
-				dn_func = _func_dag_find_dn(dag, dn);
+				dn_func = _func_dag_find_dn(dag, dn, f_dag);
 				if (!dn_func) {
 					scf_loge("\n");
 					return -1;
@@ -203,7 +207,7 @@ static int __optimize_basic_block(scf_basic_block_t* bb, scf_function_t* f)
 	if (ret < 0)
 		return ret;
 
-	ret = _bb_dag_update(bb, dag);
+	ret = _bb_dag_update(bb, dag, &f->dag_list_head);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -242,7 +246,7 @@ static int __optimize_basic_block(scf_basic_block_t* bb, scf_function_t* f)
 		if (c->dsts) {
 			dst = c->dsts->data[0];
 
-			dn = _func_dag_find_dn(dag, dst->dag_node);
+			dn = _func_dag_find_dn(dag, dst->dag_node, &f->dag_list_head);
 			if (!dn) {
 				scf_loge("\n");
 				return -1;
@@ -255,7 +259,7 @@ static int __optimize_basic_block(scf_basic_block_t* bb, scf_function_t* f)
 			for (i  = 0; i < c->srcs->size; i++) {
 				src = c->srcs->data[i];
 
-				dn = _func_dag_find_dn(dag, src->dag_node);
+				dn = _func_dag_find_dn(dag, src->dag_node, &f->dag_list_head);
 				if (!dn) {
 
 					scf_variable_t* v = src->dag_node->var;

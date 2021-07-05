@@ -57,6 +57,8 @@ static scf_optimizer_t*  scf_optimizers_local1[] =
 
 static void __scf_loops_print(scf_bb_group_t* loop)
 {
+	scf_basic_block_t* bb;
+
 	int j;
 	int k;
 
@@ -66,17 +68,32 @@ static void __scf_loops_print(scf_bb_group_t* loop)
 			__scf_loops_print(loop->loop_childs->data[k]);
 	}
 
-	printf("loop:  %p\n", loop);
-	printf("entry: %p\n", loop->entry);
-	printf("exit:  %p\n", loop->exit);
-	printf("body: ");
-	for (j = 0; j < loop->body->size; j++)
-		printf("%p ", loop->body->data[j]);
-	printf("\n");
+	printf("\033[33mloop:  %p\033[0m\n", loop);
+
+	printf("\033[34mentry:\033[0m\n");
+	for (j = 0; j < loop->entries->size; j++) {
+		bb =        loop->entries->data[j];
+
+		printf("%p, %d\n", bb, bb->index);
+	}
+
+	printf("\033[35mexit:\033[0m\n");
+	for (j = 0; j < loop->exits->size; j++) {
+		bb =        loop->exits->data[j];
+
+		printf("%p, %d\n", bb, bb->index);
+	}
+
+	printf("\033[36mbody:\033[0m\n");
+	for (j = 0; j < loop->body->size; j++) {
+		bb =        loop->body->data[j];
+
+		printf("%p, %d\n", bb, bb->index);
+	}
 
 	if (loop->loop_childs) {
 		printf("childs: ");
-		for (k = 0; k < loop->loop_childs->size; k++)
+		for (k = 0; k <   loop->loop_childs->size; k++)
 			printf("%p ", loop->loop_childs->data[k]);
 		printf("\n");
 	}

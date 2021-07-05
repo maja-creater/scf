@@ -68,14 +68,12 @@ typedef struct {
 } scf_native_t;
 
 struct scf_native_ops_s {
-	const char*			name;
+	const char*  name;
 
-	int					(*open)(scf_native_t* ctx);
-	int					(*close)(scf_native_t* ctx);
+	int        (*open )(scf_native_t* ctx);
+	int        (*close)(scf_native_t* ctx);
 
-	int 				(*select_inst)(scf_native_t* ctx, scf_function_t* f);
-
-	int					(*write_elf)(scf_native_t* ctx, const char* path);
+	int        (*select_inst)(scf_native_t* ctx, scf_function_t* f);
 };
 
 static inline int scf_inst_data_same(scf_inst_data_t* id0, scf_inst_data_t* id1)

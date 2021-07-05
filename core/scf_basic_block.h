@@ -19,10 +19,10 @@ struct scf_bb_edge_s
 struct scf_bb_group_s
 {
 	scf_basic_block_t*  entry;
-	scf_basic_block_t*  exit;
 
 	scf_basic_block_t*  pre;
-	scf_basic_block_t*  post;
+
+	scf_vector_t*       posts;
 
 	scf_vector_t*       entries;
 	scf_vector_t*       exits;
@@ -40,6 +40,7 @@ struct scf_basic_block_s
 
 	scf_list_t      dag_list_head;
 
+	scf_list_t      load_list_head;
 	scf_list_t      code_list_head;
 	scf_list_t      save_list_head;
 
@@ -85,6 +86,7 @@ struct scf_basic_block_s
 	uint32_t        ret_flag    :1;
 	uint32_t        end_flag    :1;
 	uint32_t        varg_flag   :1;
+	uint32_t        jmp_dst_flag:1;
 
 	uint32_t        dereference_flag:1;
 	uint32_t        array_index_flag:1;

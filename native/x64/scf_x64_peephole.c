@@ -50,7 +50,6 @@ static int _x64_peephole_common(scf_vector_t* std_insts, scf_instruction_t* inst
 		scf_instruction_print(std);
 
 		scf_loge("inst: \n");
-		scf_3ac_code_print(inst->c, NULL);
 		scf_instruction_print(inst);
 		printf("\n");
 #endif
@@ -148,7 +147,22 @@ static int _x64_peephole_common(scf_vector_t* std_insts, scf_instruction_t* inst
 				}
 			}
 		} else if (scf_inst_data_same(&std->src, &inst->dst)) {
+
 			assert(0 == scf_vector_del(std_insts, std));
+
+		} else if (x64_inst_data_is_reg(&std->src)) {
+
+			scf_register_x64_t* r0;
+			scf_register_x64_t* r1;
+
+			if (x64_inst_data_is_reg(&inst->dst)) {
+
+				r0 = (scf_register_x64_t*) std ->src.base;
+				r1 = (scf_register_x64_t*) inst->dst.base;
+
+				if (X64_COLOR_CONFLICT(r0->color, r1->color))
+					assert(0 == scf_vector_del(std_insts, std));
+			}
 
 		} else if (x64_inst_data_is_reg(&std->dst)) {
 
@@ -470,6 +484,9 @@ int x64_optimize_peephole(scf_native_t* ctx, scf_function_t* f)
 
 			continue;
 		}
+
+		if (bb->jmp_dst_flag)
+			scf_vector_clear(std_insts, NULL);
 
 		for (l2 = scf_list_head(&bb->code_list_head); l2 != scf_list_sentinel(&bb->code_list_head);
 				l2 = scf_list_next(l2)) {
