@@ -1551,8 +1551,6 @@ static int _scf_op_semantic_dereference(scf_ast_t* ast, scf_node_t** nodes, int 
 	scf_variable_t* v0 = _scf_operand_get(nodes[0]);
 	assert(v0);
 
-	scf_logi("v0->nb_pointers: %d\n", v0->nb_pointers);
-
 	if (v0->nb_pointers <= 0) {
 		scf_loge("var is not a pointer\n");
 		return -EINVAL;
@@ -1561,7 +1559,7 @@ static int _scf_op_semantic_dereference(scf_ast_t* ast, scf_node_t** nodes, int 
 	scf_type_t*	t = scf_ast_find_type_type(ast, v0->type);
 
 	scf_lex_word_t* w = nodes[0]->parent->w;
-	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, v0->nb_pointers - 1, v0->func_ptr);
+	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, v0->nb_pointers - 1, v0->func_ptr);
 	if (!r)
 		return -ENOMEM;
 

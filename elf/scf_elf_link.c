@@ -747,6 +747,7 @@ int main()
 		"./_start.o",
 		"./scf_syscall.o",
 		"./scf_write.o",
+		"./scf_printf.o",
 //		"./scf_brk.o",
 		"./1.elf",
 	};
