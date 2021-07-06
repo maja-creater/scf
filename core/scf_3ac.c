@@ -75,12 +75,22 @@ static scf_3ac_operator_t _3ac_operators[] = {
 	{SCF_OP_3AC_SETLT,       "setlt"},
 	{SCF_OP_3AC_SETLE,       "setle"},
 
+	{SCF_OP_3AC_SETA,        "seta"},
+	{SCF_OP_3AC_SETAE,       "setae"},
+	{SCF_OP_3AC_SETB,        "setb"},
+	{SCF_OP_3AC_SETBE,       "setbe"},
+
 	{SCF_OP_3AC_JZ,          "jz"},
 	{SCF_OP_3AC_JNZ,         "jnz"},
 	{SCF_OP_3AC_JGT,         "jgt"},
 	{SCF_OP_3AC_JGE,         "jge"},
 	{SCF_OP_3AC_JLT,         "jlt"},
 	{SCF_OP_3AC_JLE,         "jle"},
+
+	{SCF_OP_3AC_JA,          "ja"},
+	{SCF_OP_3AC_JAE,         "jae"},
+	{SCF_OP_3AC_JB,          "jb"},
+	{SCF_OP_3AC_JBE,         "jbe"},
 
 	{SCF_OP_3AC_NOP,         "nop"},
 	{SCF_OP_3AC_END,         "end"},
@@ -477,7 +487,8 @@ static void _3ac_print_dag_node(scf_dag_node_t* dn)
 	} else if (scf_type_is_operator(dn->type)) {
 		scf_3ac_operator_t* op = scf_3ac_find_operator(dn->type);
 		if (dn->var && dn->var->w)
-			printf("v_%d_%d/%s ", dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
+			printf("v_%d_%d/%s ",
+					dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
 		else
 			printf("v_%#lx/%s ", 0xffff & (uintptr_t)dn->var, op->name);
 	} else {
@@ -773,6 +784,9 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 		if (c->dsts) {
 			scf_3ac_operand_t* dst0 = c->dsts->data[0];
 
+			scf_loge("dst0: %p, %p, %d\n", dst0, dst0->node, c->dsts->size);
+			scf_3ac_code_print(c, NULL);
+
 			assert(dst0->node->op);
 
 			nb_operands0 = dst0->node->op->nb_operands;
@@ -997,6 +1011,20 @@ static int _3ac_filter_prev_teq(scf_list_t* h, scf_3ac_code_t* c, scf_3ac_code_t
 			case SCF_OP_3AC_SETLE:
 				jcc_type = SCF_OP_3AC_JGT;
 				break;
+
+			case SCF_OP_3AC_SETA:
+				jcc_type = SCF_OP_3AC_JBE;
+				break;
+			case SCF_OP_3AC_SETAE:
+				jcc_type = SCF_OP_3AC_JB;
+				break;
+
+			case SCF_OP_3AC_SETB:
+				jcc_type = SCF_OP_3AC_JAE;
+				break;
+			case SCF_OP_3AC_SETBE:
+				jcc_type = SCF_OP_3AC_JA;
+				break;
 			default:
 				return 0;
 				break;
@@ -1026,6 +1054,20 @@ static int _3ac_filter_prev_teq(scf_list_t* h, scf_3ac_code_t* c, scf_3ac_code_t
 
 			case SCF_OP_3AC_SETLE:
 				jcc_type = SCF_OP_3AC_JLE;
+				break;
+
+			case SCF_OP_3AC_SETA:
+				jcc_type = SCF_OP_3AC_JA;
+				break;
+			case SCF_OP_3AC_SETAE:
+				jcc_type = SCF_OP_3AC_JAE;
+				break;
+
+			case SCF_OP_3AC_SETB:
+				jcc_type = SCF_OP_3AC_JB;
+				break;
+			case SCF_OP_3AC_SETBE:
+				jcc_type = SCF_OP_3AC_JBE;
 				break;
 			default:
 				return 0;

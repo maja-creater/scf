@@ -258,6 +258,9 @@ scf_x64_OpCode_t	x64_OpCodes[] = {
 	{SCF_X64_MOVSD, "movsd", 8, {0xf2, 0x0f, 0x10},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
 	{SCF_X64_MOVSD, "movsd", 8, {0xf2, 0x0f, 0x11},3, 8,8, SCF_X64_G2E, 0,0, 0,{0,0}},
 
+	{SCF_X64_PXOR,  "pxor",  8, {0x0f, 0xef, 0   },2, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
+	{SCF_X64_PXOR,  "pxor",  8, {0x66, 0x0f, 0xef},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
+
 	{SCF_X64_UCOMISS, "ucomiss", 3, {0x0f, 0x2e, 0},   2, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
 	{SCF_X64_UCOMISD, "ucomisd", 4, {0x66, 0x0f, 0x2e},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
 
@@ -265,9 +268,13 @@ scf_x64_OpCode_t	x64_OpCodes[] = {
 	{SCF_X64_CVTSD2SS, "cvtsd2ss", 4, {0xf2, 0x0f, 0x5a},3, 8,4, SCF_X64_E2G, 0,0, 0,{0,0}},
 
 	{SCF_X64_CVTSI2SS, "cvtsi2ss", 4, {0xf3, 0x0f, 0x2a},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
+
+	{SCF_X64_CVTSI2SD, "cvtsi2sd", 4, {0xf2, 0x0f, 0x2a},3, 4,8, SCF_X64_E2G, 0,0, 0,{0,0}},
 	{SCF_X64_CVTSI2SD, "cvtsi2sd", 4, {0xf2, 0x0f, 0x2a},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
 
 	{SCF_X64_CVTTSS2SI, "cvttss2si", 4, {0xf3, 0x0f, 0x2c},3, 4,4, SCF_X64_E2G, 0,0, 0,{0,0}},
+
+	{SCF_X64_CVTTSD2SI, "cvttsd2si", 8, {0xf2, 0x0f, 0x2c},3, 8,4, SCF_X64_E2G, 0,0, 0,{0,0}},
 	{SCF_X64_CVTTSD2SI, "cvttsd2si", 8, {0xf2, 0x0f, 0x2c},3, 8,8, SCF_X64_E2G, 0,0, 0,{0,0}},
 
 	{SCF_X64_JZ,   "jz",   2, {0x74, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
@@ -287,6 +294,18 @@ scf_x64_OpCode_t	x64_OpCodes[] = {
 
 	{SCF_X64_JLE,  "jle",  2, {0x7e, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
 	{SCF_X64_JLE,  "jle",  6, {0x0f, 0x8e,0x0},2,  4,4, SCF_X64_I, 0,0, 0,{0,0}},
+
+	{SCF_X64_JA,   "ja",   2, {0x77, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
+	{SCF_X64_JA,   "ja",   6, {0x0f, 0x87,0x0},2,  4,4, SCF_X64_I, 0,0, 0,{0,0}},
+
+	{SCF_X64_JAE,  "jae",  2, {0x73, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
+	{SCF_X64_JAE,  "jae",  6, {0x0f, 0x83,0x0},2,  4,4, SCF_X64_I, 0,0, 0,{0,0}},
+
+	{SCF_X64_JB,   "jb",   2, {0x72, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
+	{SCF_X64_JB,   "jb",   6, {0x0f, 0x82,0x0},2,  4,4, SCF_X64_I, 0,0, 0,{0,0}},
+
+	{SCF_X64_JBE,  "jbe",  2, {0x76, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
+	{SCF_X64_JBE,  "jbe",  6, {0x0f, 0x86,0x0},2,  4,4, SCF_X64_I, 0,0, 0,{0,0}},
 
 	{SCF_X64_JMP,  "jmp",  2, {0xeb, 0x0, 0x0},1,  1,1, SCF_X64_I, 0,0, 0,{0,0}},
 	{SCF_X64_JMP,  "jmp",  5, {0xe9, 0x0, 0x0},1,  4,4, SCF_X64_I, 0,0, 0,{0,0}},

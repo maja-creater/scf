@@ -112,6 +112,12 @@ enum scf_core_types {
 	SCF_OP_3AC_SETGE,
 	SCF_OP_3AC_SETLE,
 
+	// only for float, double
+	SCF_OP_3AC_SETA,
+	SCF_OP_3AC_SETAE,
+	SCF_OP_3AC_SETB,
+	SCF_OP_3AC_SETBE,
+
 	// these ops will update the value in memory
 	SCF_OP_3AC_INC,
 	SCF_OP_3AC_DEC,
@@ -148,12 +154,18 @@ enum scf_core_types {
 	SCF_OP_3AC_DEC_POST_POINTER,
 	SCF_OP_3AC_ADDRESS_OF_POINTER,
 
-	SCF_OP_3AC_JZ,		// jz, jmp if 0
-	SCF_OP_3AC_JNZ,		// jnz, jmp if not 0
-	SCF_OP_3AC_JGT,		// jgt, jmp if not 0
-	SCF_OP_3AC_JLT,		// jlt, jmp if not 0
-	SCF_OP_3AC_JGE,		// jge, jmp if not 0
-	SCF_OP_3AC_JLE,		// jle, jmp if not 0
+	SCF_OP_3AC_JZ,		// jz
+	SCF_OP_3AC_JNZ,		// jnz
+	SCF_OP_3AC_JGT,		// jgt
+	SCF_OP_3AC_JLT,		// jlt
+	SCF_OP_3AC_JGE,		// jge
+	SCF_OP_3AC_JLE,		// jle
+
+	// only for float, double
+	SCF_OP_3AC_JA,
+	SCF_OP_3AC_JAE,
+	SCF_OP_3AC_JB,
+	SCF_OP_3AC_JBE,
 
 	SCF_OP_3AC_CALL_EXTERN, // call extern function
 
@@ -286,17 +298,17 @@ static int scf_type_is_logic_operator(int type)
 
 static int scf_type_is_jmp(int type)
 {
-	return type == SCF_OP_GOTO || (type >= SCF_OP_3AC_JZ && type <= SCF_OP_3AC_JLE);
+	return type == SCF_OP_GOTO || (type >= SCF_OP_3AC_JZ && type <= SCF_OP_3AC_JBE);
 }
 
 static int scf_type_is_jcc(int type)
 {
-	return type >= SCF_OP_3AC_JZ && type <= SCF_OP_3AC_JLE;
+	return type >= SCF_OP_3AC_JZ && type <= SCF_OP_3AC_JBE;
 }
 
 static int scf_type_is_setcc(int type)
 {
-	return type >= SCF_OP_3AC_SETZ && type <= SCF_OP_3AC_SETLE;
+	return type >= SCF_OP_3AC_SETZ && type <= SCF_OP_3AC_SETBE;
 }
 
 #endif

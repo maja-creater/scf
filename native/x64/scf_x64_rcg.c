@@ -1015,35 +1015,23 @@ static int _x64_rcg_goto_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph
 	return 0;
 }
 
-static int _x64_rcg_jz_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
-{
-	return 0;
+#define X64_RCG_JCC(cc) \
+static int _x64_rcg_##cc##_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g) \
+{ \
+	return 0; \
 }
 
-static int _x64_rcg_jnz_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
-{
-	return 0;
-}
+X64_RCG_JCC(jz)
+X64_RCG_JCC(jnz)
+X64_RCG_JCC(jgt)
+X64_RCG_JCC(jge)
+X64_RCG_JCC(jlt)
+X64_RCG_JCC(jle)
 
-static int _x64_rcg_jgt_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
-{
-	return 0;
-}
-
-static int _x64_rcg_jge_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
-{
-	return 0;
-}
-
-static int _x64_rcg_jlt_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
-{
-	return 0;
-}
-
-static int _x64_rcg_jle_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
-{
-	return 0;
-}
+X64_RCG_JCC(ja)
+X64_RCG_JCC(jae)
+X64_RCG_JCC(jb)
+X64_RCG_JCC(jbe)
 
 static int _x64_rcg_save_handler(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 {
@@ -1313,6 +1301,11 @@ static x64_rcg_handler_t x64_rcg_handlers[] = {
 	{SCF_OP_3AC_JGE,        _x64_rcg_jge_handler},
 	{SCF_OP_3AC_JLT,        _x64_rcg_jlt_handler},
 	{SCF_OP_3AC_JLE,        _x64_rcg_jle_handler},
+
+	{SCF_OP_3AC_JA,         _x64_rcg_ja_handler},
+	{SCF_OP_3AC_JAE,        _x64_rcg_jae_handler},
+	{SCF_OP_3AC_JB,         _x64_rcg_jb_handler},
+	{SCF_OP_3AC_JBE,        _x64_rcg_jbe_handler},
 
 	{SCF_OP_3AC_SAVE,       _x64_rcg_save_handler},
 	{SCF_OP_3AC_LOAD,       _x64_rcg_load_handler},

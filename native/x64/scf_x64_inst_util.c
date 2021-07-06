@@ -7,6 +7,7 @@ static scf_instruction_t* _x64_make_OpCode(scf_x64_OpCode_t* OpCode, int bytes, 
 		return NULL;
 
 	uint8_t prefix = 0;
+	int     i      = 0;
 
 	if (8 == bytes) {
 		switch (OpCode->type) {
@@ -15,10 +16,20 @@ static scf_instruction_t* _x64_make_OpCode(scf_x64_OpCode_t* OpCode, int bytes, 
 			case SCF_X64_SUBSD:
 			case SCF_X64_MULSD:
 			case SCF_X64_DIVSD:
+			case SCF_X64_PXOR:
+			case SCF_X64_UCOMISD:
 			case SCF_X64_PUSH:
 			case SCF_X64_POP:
 			case SCF_X64_RET:
 			case SCF_X64_CALL:
+				break;
+
+			case SCF_X64_CVTSI2SD:
+			case SCF_X64_CVTTSD2SI:
+				inst->code[inst->len++] = OpCode->OpCodes[i++];
+
+				if (!r1 || 4 != r1->bytes)
+					prefix |= SCF_X64_REX_INIT + SCF_X64_REX_W;
 				break;
 			default:
 				prefix |= SCF_X64_REX_INIT + SCF_X64_REX_W;
@@ -53,8 +64,7 @@ static scf_instruction_t* _x64_make_OpCode(scf_x64_OpCode_t* OpCode, int bytes, 
 	if (prefix)
 		inst->code[inst->len++] = prefix;
 
-	int i;
-	for (i = 0; i < OpCode->nb_OpCodes; i++)
+	for (; i < OpCode->nb_OpCodes; i++)
 		inst->code[inst->len++] = OpCode->OpCodes[i];
 
 	inst->OpCode = (scf_OpCode_t*)OpCode; 

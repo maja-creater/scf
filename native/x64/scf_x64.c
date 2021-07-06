@@ -925,7 +925,8 @@ static int _x64_load_bb_colors(scf_basic_block_t* bb, scf_bb_group_t* bbg, scf_f
 				}
 			}
 
-			dn->color = -1;
+			dn->color  = -1;
+			dn->loaded =  0;
 		}
 
 		if (color != dn->color && color > 0) {
@@ -1021,7 +1022,8 @@ static int _x64_load_bb_colors2(scf_basic_block_t* bb, scf_bb_group_t* bbg, scf_
 				}
 			}
 
-			dn->color = -1;
+			dn->color  = -1;
+			dn->loaded =  0;
 		}
 
 		if (color != dn->color && color > 0) {
@@ -1029,8 +1031,32 @@ static int _x64_load_bb_colors2(scf_basic_block_t* bb, scf_bb_group_t* bbg, scf_
 
 			scf_vector_del(r->dag_nodes, dn);
 		}
+
+		if (dn->color < 0)
+			dn->loaded =  0;
 	}
 
+#if 0
+	for (i = 0; i < bb->dn_colors->size; i++) {
+		ds =        bb->dn_colors->data[i];
+
+		dn = ds->dag_node;
+		v  = dn->var;
+
+		scf_logw("j: %d, bb: %d, color: %ld, loaded: %d, ", j, bb->index, dn->color, dn->loaded);
+		if (v->w)
+			printf("v_%d/%s", v->w->line, v->w->text->data);
+		else
+			printf("v_%#lx", 0xffff & (uintptr_t)v);
+
+		if (dn->color > 0) {
+			scf_register_x64_t* r = x64_find_register_color(dn->color);
+
+			printf(", %s", r->name);
+		}
+		printf("\n");
+	}
+#endif
 	return 0;
 }
 

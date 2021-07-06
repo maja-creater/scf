@@ -538,7 +538,7 @@ int scf_dag_node_same(scf_dag_node_t* dag_node, const scf_node_t* node)
 				&& scf_variable_same_type(dag_node->var, node->result))
 			return 1;
 		else {
-			scf_loge("var: %#lx, %#lx, type: %d, %d, node: %#lx, %#lx, same: %d\n",
+			scf_logd("var: %#lx, %#lx, type: %d, %d, node: %#lx, %#lx, same: %d\n",
 					0xffff & (uintptr_t)dn0->var,
 					0xffff & (uintptr_t)vn1,
 					dag_node->var->type, node->result->type,

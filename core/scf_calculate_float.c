@@ -16,7 +16,7 @@ int scf_float_##name(scf_ast_t* ast, scf_variable_t** pret, scf_variable_t* src0
 #define SCF_FLOAT_UNARY_OP(name, op) \
 int scf_float_##name(scf_ast_t* ast, scf_variable_t** pret, scf_variable_t* src0, scf_variable_t* src1) \
 { \
-	scf_type_t*     t = scf_ast_find_type_type(ast, SCF_VAR_I32); \
+	scf_type_t*     t = scf_ast_find_type_type(ast, SCF_VAR_FLOAT); \
 	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(NULL, t, 0, 0, NULL); \
 	if (!r) \
 		return -ENOMEM; \

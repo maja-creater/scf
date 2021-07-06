@@ -28,6 +28,7 @@ enum scf_x64_OpCode_types {
 	SCF_X64_INC,
 	SCF_X64_DEC,
 
+	// 10
 	SCF_X64_XOR,
 	SCF_X64_AND,
 	SCF_X64_OR,
@@ -35,6 +36,7 @@ enum scf_x64_OpCode_types {
 
 	SCF_X64_NEG,
 
+	// 15
 	SCF_X64_CALL,
 	SCF_X64_RET,
 
@@ -44,6 +46,7 @@ enum scf_x64_OpCode_types {
 	SCF_X64_MUL,
 	SCF_X64_DIV,
 
+	// 21
 	SCF_X64_IMUL,
 	SCF_X64_IDIV,
 
@@ -53,6 +56,7 @@ enum scf_x64_OpCode_types {
 	SCF_X64_CDQ = SCF_X64_CBW,
 	SCF_X64_CQO = SCF_X64_CBW,
 
+	// 24
 	SCF_X64_SAR,
 	SCF_X64_SHR,
 	SCF_X64_SHL,
@@ -63,6 +67,7 @@ enum scf_x64_OpCode_types {
 	SCF_X64_SETZ,
 	SCF_X64_SETNZ,
 
+	// 31
 	SCF_X64_SETG,
 	SCF_X64_SETGE,
 
@@ -78,6 +83,7 @@ enum scf_x64_OpCode_types {
 	SCF_X64_MULSS,
 	SCF_X64_MULSD,
 
+	// 41
 	SCF_X64_DIVSS,
 	SCF_X64_DIVSD,
 
@@ -87,6 +93,7 @@ enum scf_x64_OpCode_types {
 	SCF_X64_UCOMISS,
 	SCF_X64_UCOMISD,
 
+	// 47
 	SCF_X64_CVTSI2SD,
 	SCF_X64_CVTSI2SS,
 
@@ -96,6 +103,8 @@ enum scf_x64_OpCode_types {
 	SCF_X64_CVTTSD2SI,
 	SCF_X64_CVTTSS2SI,
 
+	SCF_X64_PXOR,
+
 	SCF_X64_JZ,
 	SCF_X64_JNZ,
 
@@ -104,6 +113,12 @@ enum scf_x64_OpCode_types {
 
 	SCF_X64_JL,
 	SCF_X64_JLE,
+
+	SCF_X64_JA,
+	SCF_X64_JAE,
+
+	SCF_X64_JB,
+	SCF_X64_JBE,
 
 	SCF_X64_JMP,
 
