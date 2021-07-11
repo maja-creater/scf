@@ -10,7 +10,7 @@ int main(int argc, char* argv[])
 
 	scf_elf_context_t* elf = NULL;
 
-	if (scf_elf_open(&elf, "x64", "/home/yu/my/1.o", "rb") < 0) {
+	if (scf_elf_open(&elf, "x64", "./1.elf", "rb") < 0) {
 		printf("%s(),%d, error\n", __func__, __LINE__);
 		return -1;
 	}
@@ -62,33 +62,6 @@ int main(int argc, char* argv[])
 				r->address, r->line, r->column, r->is_stmt, r->basic_block, r->end_sequence);
 	}
 #endif
-#endif
-
-	scf_string_t* debug_line = scf_string_alloc();
-
-	ret = scf_dwarf_line_encode(lm, line_results, debug_line);
-	if (ret < 0) {
-		scf_loge("\n");
-		return -1;
-	}
-
-#if 1
-	scf_vector_clear(line_results, (void (*)(void*))free);
-
-	lm->prologue->total_length = debug_line->len - sizeof(scf_dwarf_uword_t);
-
-	ret = scf_dwarf_line_decode(lm, line_results, debug_line->data, debug_line->len);
-	if (ret < 0) {
-		scf_loge("\n");
-		return -1;
-	}
-
-	for (i = 0; i < line_results->size; i++) {
-		scf_dwarf_line_result_t* r = line_results->data[i];
-
-		scf_loge("address: %#lx, line: %u, column: %u, is_stmt: %u, basic_block: %u, end_sequence: %u\n",
-				r->address, r->line, r->column, r->is_stmt, r->basic_block, r->end_sequence);
-	}
 #endif
 
 	scf_elf_close(elf);

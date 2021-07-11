@@ -40,7 +40,6 @@ struct scf_basic_block_s
 
 	scf_list_t      dag_list_head;
 
-	scf_list_t      load_list_head;
 	scf_list_t      code_list_head;
 	scf_list_t      save_list_head;
 
@@ -60,7 +59,9 @@ struct scf_basic_block_s
 	scf_vector_t*   dn_updateds;
 	scf_vector_t*   dn_loads;
 	scf_vector_t*   dn_saves;
-	scf_vector_t*   dn_colors;
+
+	scf_vector_t*   dn_colors_entry;
+	scf_vector_t*   dn_colors_exit;
 
 	scf_vector_t*   dn_status_initeds;
 
@@ -96,6 +97,7 @@ struct scf_basic_block_s
 
 	uint32_t        generate_flag :1;
 
+	uint32_t        back_flag   :1;
 	uint32_t        loop_flag   :1;
 	uint32_t        group_flag  :1;
 	uint32_t        visited_flag:1;

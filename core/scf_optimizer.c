@@ -49,7 +49,6 @@ static scf_optimizer_t*  scf_optimizers_local1[] =
 	&scf_optimizer_dominators_normal,
 	&scf_optimizer_loop,
 
-	&scf_optimizer_dominators_reverse,
 	&scf_optimizer_group,
 
 	&scf_optimizer_generate_loads_saves,
@@ -92,7 +91,7 @@ static void __scf_loops_print(scf_bb_group_t* loop)
 	}
 
 	if (loop->loop_childs) {
-		printf("childs: ");
+		printf("childs: %d\n", loop->loop_childs->size);
 		for (k = 0; k <   loop->loop_childs->size; k++)
 			printf("%p ", loop->loop_childs->data[k]);
 		printf("\n");

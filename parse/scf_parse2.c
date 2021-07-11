@@ -1091,12 +1091,12 @@ static int _fill_code_list_inst(scf_string_t* code, scf_list_t* h, int64_t offse
 				if (!dst->dag_node || !dst->dag_node->node)
 					continue;
 
+				if (dst->debug_w && line2 < dst->debug_w->line)
+					line2 = dst->debug_w->line;
+
 				node = dst->dag_node->node;
 
 				if (node->debug_w) {
-					if (line2 < node->debug_w->line)
-						line2 = node->debug_w->line;
-
 					if (scf_type_is_var(node->type) && node->var->local_flag) {
 
 						ret = _debug_add_var(parse, node);
@@ -1118,10 +1118,10 @@ static int _fill_code_list_inst(scf_string_t* code, scf_list_t* h, int64_t offse
 
 				node = src->dag_node->node;
 
-				if (node->debug_w) {
-					if (line2 < node->debug_w->line)
-						line2 = node->debug_w->line;
+				if (src->debug_w && line2 < src->debug_w->line)
+					line2 = src->debug_w->line;
 
+				if (node->debug_w) {
 					if (scf_type_is_var(node->type) && node->var->local_flag) {
 
 						ret = _debug_add_var(parse, node);
@@ -1447,7 +1447,7 @@ static int _fill_function_inst(scf_string_t* code, scf_function_t* f, int64_t of
 		f->code_bytes += n;
 	}
 #endif
-	uint64_t high_pc_ = offset + f->code_bytes;
+	uint64_t high_pc_ = f->code_bytes;
 
 #define DEBUG_UPDATE_HIGH_PC(ie, high_pc) \
 	do { \
@@ -1546,7 +1546,7 @@ static int _scf_parse_add_rela(scf_vector_t* relas, scf_parse_t* parse, scf_rela
 		}
 	}
 
-	scf_loge("rela: %s, offset: %ld\n", name, r->text_offset);
+	scf_logd("rela: %s, offset: %ld\n", name, r->text_offset);
 
 	rela = calloc(1, sizeof(scf_elf_rela_t));
 	if (!rela)
@@ -1578,7 +1578,7 @@ static int _fill_data(scf_parse_t* parse, scf_variable_t* v, scf_string_t* data,
 	} else
 		name = v->signature->data;
 
-	scf_loge("v_%d_%d/%s, nb_dimentions: %d\n", v->w->line, v->w->pos, v->w->text->data, v->nb_dimentions);
+	scf_logd("v_%d_%d/%s, nb_dimentions: %d\n", v->w->line, v->w->pos, v->w->text->data, v->nb_dimentions);
 
 	if (scf_variable_const_string(v)) {
 		size   = v->data.s->len + 1;
@@ -1611,7 +1611,13 @@ static int _fill_data(scf_parse_t* parse, scf_variable_t* v, scf_string_t* data,
 
 	v->ds_offset = data->len;
 
-	ret = _scf_parse_add_sym(parse, name, size, data->len, shndx, ELF64_ST_INFO(STB_GLOBAL, STT_OBJECT));
+	uint64_t stb;
+	if (v->static_flag)
+		stb = STB_LOCAL;
+	else
+		stb = STB_GLOBAL;
+
+	ret = _scf_parse_add_sym(parse, name, size, data->len, shndx, ELF64_ST_INFO(stb, STT_OBJECT));
 	if (ret < 0)
 		return ret;
 
@@ -1741,7 +1747,7 @@ static int _scf_parse_add_data_relas(scf_parse_t* parse, scf_elf_context_t* elf)
 		}
 
 		if (j == parse->symtab->size) {
-			ret = _scf_parse_add_sym(parse, name, 0, 0, shndx, ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE));
+			ret = _scf_parse_add_sym(parse, name, 0, 0, 0, ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE));
 			if (ret < 0) {
 				scf_loge("\n");
 				return ret;
@@ -1804,16 +1810,21 @@ error:
 
 static int _scf_parse_add_ds(scf_parse_t* parse, scf_elf_context_t* elf, scf_vector_t* global_vars)
 {
-	scf_string_t* data = scf_string_alloc();
+	scf_variable_t* v;
+	scf_string_t*   data;
+
+	data = scf_string_alloc();
 	if (!data)
 		return -ENOMEM;
 
-	char fill[8]     = {0};
 	int  ret = 0;
 	int  i;
 
 	for (i = 0; i < global_vars->size; i++) {
-		scf_variable_t* v = global_vars->data[i];
+		v  =        global_vars->data[i];
+
+		if (v->extern_flag)
+			continue;
 
 		ret = _fill_data(parse, v, data, SCF_SHNDX_DATA);
 		if (ret < 0)
@@ -1822,7 +1833,7 @@ static int _scf_parse_add_ds(scf_parse_t* parse, scf_elf_context_t* elf, scf_vec
 
 	int fill_size  = ((data->len + 7) >> 3 << 3) - data->len;
 	if (fill_size > 0) {
-		ret = scf_string_cat_cstr_len(data, fill, fill_size);
+		ret = scf_string_fill_zero(data, fill_size);
 		if (ret < 0) {
 			ret = -ENOMEM;
 			goto error;
@@ -1966,6 +1977,7 @@ int scf_parse_compile_functions(scf_parse_t* parse, scf_native_t* native, scf_ve
 {
 	scf_function_t* f;
 
+	int64_t tv0 = gettime();
 	int i;
 	for (i = 0; i < functions->size; i++) {
 		f  =        functions->data[i];
@@ -2002,6 +2014,8 @@ int scf_parse_compile_functions(scf_parse_t* parse, scf_native_t* native, scf_ve
 		assert(scf_list_empty(&h));
 //		scf_basic_block_print_list(&f->basic_block_list_head);
 	}
+	int64_t tv1 = gettime();
+	scf_logw("tv1 - tv0: %ld\n", tv1 - tv0);
 
 	int ret = scf_optimize(parse->ast, functions);
 	if (ret < 0) {
@@ -2009,6 +2023,8 @@ int scf_parse_compile_functions(scf_parse_t* parse, scf_native_t* native, scf_ve
 		return ret;
 	}
 
+	int64_t tv2 = gettime();
+	scf_logw("tv2 - tv1: %ld\n", tv2 - tv1);
 #if 1
 	for (i = 0; i < functions->size; i++) {
 		f  =        functions->data[i];
@@ -2024,6 +2040,8 @@ int scf_parse_compile_functions(scf_parse_t* parse, scf_native_t* native, scf_ve
 	}
 #endif
 
+	int64_t tv3 = gettime();
+	scf_logw("tv3 - tv2: %ld\n", tv3 - tv2);
 	return 0;
 }
 
@@ -2187,11 +2205,14 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 	ADD_SECTION_SYMBOL(SCF_SHNDX_RODATA, ".rodata");
 	ADD_SECTION_SYMBOL(SCF_SHNDX_DATA,   ".data");
 
+	int64_t tv0 = gettime();
 	ret = scf_parse_compile_functions(parse, native, functions);
 	if (ret < 0) {
 		scf_loge("\n");
 		goto error;
 	}
+	int64_t tv1 = gettime();
+	scf_logw("tv1 - tv0: %ld\n", tv1 - tv0);
 
 	scf_dwarf_info_entry_t*  cu = NULL;
 	scf_dwarf_line_result_t* r  = NULL;
@@ -2218,7 +2239,7 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 		if (!f->node.define_flag)
 			continue;
 
-		scf_logw("f: %s, code_bytes: %d\n", f->node.w->text->data, f->code_bytes);
+		scf_logd("f: %s, code_bytes: %d\n", f->node.w->text->data, f->code_bytes);
 
 		if (!cu) {
 			ret = _debug_add_cu(&cu, parse, f, offset);
@@ -2232,7 +2253,7 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 			goto error;
 		}
 
-		scf_logw("f: %s, code_bytes: %d\n", f->node.w->text->data, f->code_bytes);
+		scf_logd("f: %s, code_bytes: %d\n", f->node.w->text->data, f->code_bytes);
 
 		if (scf_function_signature(f) < 0) {
 			ret = -ENOMEM;
@@ -2245,8 +2266,8 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 			goto error;
 		}
 
-		scf_logw("f->text_relas->size: %d\n", f->text_relas->size);
-		scf_logw("f->data_relas->size: %d\n", f->data_relas->size);
+		scf_logd("f->text_relas->size: %d\n", f->text_relas->size);
+		scf_logd("f->data_relas->size: %d\n", f->data_relas->size);
 
 		scf_rela_t* r;
 		int j;
@@ -2255,7 +2276,7 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 
 			r->text_offset = offset + r->inst_offset;
 
-			scf_logw("rela text %s, text_offset: %#lx, offset: %ld, inst_offset: %d\n",
+			scf_logd("rela text %s, text_offset: %#lx, offset: %ld, inst_offset: %d\n",
 					r->func->node.w->text->data, r->text_offset, offset, r->inst_offset);
 		}
 
@@ -2276,7 +2297,7 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 
 			r->text_offset = offset + r->inst_offset;
 
-			scf_logw("rela data %s, text_offset: %ld, offset: %ld, inst_offset: %d\n",
+			scf_logd("rela data %s, text_offset: %ld, offset: %ld, inst_offset: %d\n",
 					r->var->w->text->data, r->text_offset, offset, r->inst_offset);
 		}
 
@@ -2428,6 +2449,8 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 	}
 	ret = 0;
 
+	int64_t tv2 = gettime();
+	scf_logw("tv2 - tv1: %ld\n", tv2 - tv1);
 	scf_logi("ok\n\n");
 
 error:

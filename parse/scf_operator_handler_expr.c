@@ -142,8 +142,7 @@ static int _scf_op_expr_expr(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, v
 
 static int _scf_op_expr_address_of(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
-	scf_loge("\n");
-	return -1;
+	return 0;
 }
 
 static int _scf_op_expr_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)

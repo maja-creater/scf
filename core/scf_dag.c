@@ -629,18 +629,26 @@ cmp_childs:
 
 int scf_dag_node_like (scf_dag_node_t* dn, const scf_node_t* node, scf_list_t* h)
 {
-	if (SCF_OP_TYPE_CAST != node->type)
-		return scf_dag_node_same(dn, node);
+	const scf_node_t* n1  = NULL;
+	scf_dag_node_t*   dn0 = NULL;
+	scf_dag_node_t*   dn1 = NULL;
+	scf_variable_t*   vn1 = NULL;
+	scf_variable_t*   res = _scf_operand_get(node);
 
-	scf_dag_node_t* dn0 = dn->childs->data[0];
-	scf_dag_node_t* dn1 = NULL;
-	scf_variable_t* vn1 = _scf_operand_get(node->nodes[1]);
-	scf_node_t*     n1  = node->nodes[1];
+	if (SCF_OP_TYPE_CAST == node->type) {
 
-	while (SCF_OP_EXPR == n1->type)
-		n1 = n1->nodes[0];
+		dn0 = dn->childs->data[0];
+		vn1 = _scf_operand_get(node->nodes[1]);
+		n1  = node->nodes[1];
 
-	if (scf_variable_same_type(dn->var, node->result)) {
+		while (SCF_OP_EXPR == n1->type)
+			n1 = n1->nodes[0];
+	} else {
+		dn0 = dn;
+		n1  = node;
+	}
+
+	if (scf_variable_same_type(dn->var, res)) {
 
 		if (scf_dag_node_same(dn0, n1))
 			return 1;
@@ -653,13 +661,13 @@ int scf_dag_node_like (scf_dag_node_t* dn, const scf_node_t* node, scf_list_t* h
 			return 1;
 	}
 
-	scf_loge("var: %#lx, %#lx, type: %d, %d, node: %#lx, %#lx, same: %d\n",
+	scf_logd("var: %#lx, %#lx, type: %d, %d, node: %#lx, %#lx, same: %d\n",
 			0xffff & (uintptr_t)dn0->var,
 			0xffff & (uintptr_t)vn1,
-			dn->var->type, node->result->type,
+			dn->var->type, res->type,
 			0xffff & (uintptr_t)dn,
 			0xffff & (uintptr_t)node,
-			scf_variable_same_type(dn->var, node->result));
+			scf_variable_same_type(dn->var, res));
 	return 0;
 }
 

@@ -413,7 +413,7 @@ static int _scf_op_const_for(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, v
 
 static int __scf_op_const_call(scf_ast_t* ast, scf_function_t* f, void* data)
 {
-	scf_logi("f: %p, f->node->w: %s\n", f, f->node.w->text->data);
+	scf_logd("f: %p, f->node->w: %s\n", f, f->node.w->text->data);
 
 	scf_handler_data_t* d = data;
 
@@ -432,8 +432,6 @@ static int __scf_op_const_call(scf_ast_t* ast, scf_function_t* f, void* data)
 
 int scf_function_const_opt(scf_ast_t* ast, scf_function_t* f)
 {
-	scf_logi("f: %p\n", f);
-
 	scf_handler_data_t d = {0};
 
 	int ret = __scf_op_const_call(ast, f, &d);
@@ -443,7 +441,6 @@ int scf_function_const_opt(scf_ast_t* ast, scf_function_t* f)
 		return -1;
 	}
 
-	scf_logi("f: %p ok\n", f);
 	return 0;
 }
 

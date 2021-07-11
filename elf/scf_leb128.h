@@ -100,7 +100,7 @@ static inline int32_t scf_leb128_decode_int32(const uint8_t* buf, size_t* plen)
 	if (shift < size && (byte & 0x40))
 		value |= -(1 << shift);
 
-	if (*plen)
+	if (plen)
 		*plen = i;
 
 	return value;

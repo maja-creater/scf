@@ -1,6 +1,6 @@
 #include"scf_node.h"
 
-scf_variable_t* _scf_operand_get(scf_node_t* node)
+scf_variable_t* _scf_operand_get(const scf_node_t* node)
 {
 	if (scf_type_is_var(node->type))
 		return node->var;

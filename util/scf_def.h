@@ -11,6 +11,17 @@
 #include<time.h>
 #include<unistd.h>
 
+#if 1
+#include<sys/time.h>
+static inline int64_t gettime()
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+
+	return tv.tv_sec * 1000000LL + tv.tv_usec;
+}
+#endif
+
 // sign-extend low 'src_bits' of src to 64 bits
 static inline uint64_t scf_sign_extend(uint64_t src, int src_bits)
 {

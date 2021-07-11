@@ -784,9 +784,6 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 		if (c->dsts) {
 			scf_3ac_operand_t* dst0 = c->dsts->data[0];
 
-			scf_loge("dst0: %p, %p, %d\n", dst0, dst0->node, c->dsts->size);
-			scf_3ac_code_print(c, NULL);
-
 			assert(dst0->node->op);
 
 			nb_operands0 = dst0->node->op->nb_operands;

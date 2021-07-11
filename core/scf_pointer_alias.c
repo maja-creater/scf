@@ -169,7 +169,6 @@ static int _bb_pointer_initeds(scf_vector_t* initeds, scf_list_t* bb_list_head, 
 			return 0;
 
 		scf_loge("bb: %p, index: %d, pointer v_%d_%d/%s is not inited\n", bb, bb->index, v->w->line, v->w->pos, v->w->text->data);
-		scf_dn_status_print(ds);
 
 		return SCF_POINTER_NOT_INIT;
 	}
@@ -298,7 +297,7 @@ int _bb_copy_aliases2(scf_basic_block_t* bb, scf_vector_t* aliases)
 		dn_alias  = ds->alias;
 
 		scf_variable_t* v = ds->dag_node->var;
-		scf_loge("dn_pointer: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+		scf_logd("dn_pointer: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
 
 		if (SCF_DN_ALIAS_VAR == ds->alias_type) {
 
@@ -341,8 +340,8 @@ int scf_pointer_alias_ds(scf_vector_t* aliases, scf_dn_status_t* ds_pointer, scf
 	scf_3ac_code_t*  c2;
 	scf_list_t*      l2;
 
-	scf_logw("\n");
-	scf_dn_status_print(ds_pointer);
+//	scf_logw("\n");
+//	scf_dn_status_print(ds_pointer);
 
 	for (l2 = &c->list; l2 != scf_list_sentinel(&bb->code_list_head); l2 = scf_list_prev(l2)) {
 
@@ -536,8 +535,8 @@ int _dn_status_alias_dereference(scf_vector_t* aliases, scf_dn_status_t* ds_poin
 	assert(ds_pointer);
 	assert(ds_pointer->dag_node);
 
-	scf_logw("dn_pointer: \n");
-	scf_dn_status_print(ds_pointer);
+//	scf_logw("dn_pointer: \n");
+//	scf_dn_status_print(ds_pointer);
 
 	if (SCF_OP_DEREFERENCE == dn->type)
 		return _bb_dereference_aliases(aliases, ds_pointer, c, bb, bb_list_head);
@@ -552,13 +551,13 @@ int _dn_status_alias_dereference(scf_vector_t* aliases, scf_dn_status_t* ds_poin
 	scf_variable_t* v = dn->var;
 
 	if (v->arg_flag) {
-		scf_logw("arg: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+		scf_logd("arg: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
 		return 0;
 	} else if (v->global_flag) {
-		scf_logw("global: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+		scf_logd("global: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
 		return 0;
 	} else if (SCF_FUNCTION_PTR == v->type) {
-		scf_logw("funcptr: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+		scf_logd("funcptr: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
 		return 0;
 	}
 
@@ -674,7 +673,7 @@ static int _pointer_alias_address_of(scf_vector_t* aliases, scf_dag_node_t* dn_a
 			ds->alias_type = SCF_DN_ALIAS_VAR;
 
 			v = ds->alias->var;
-			scf_logw("alias: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+			scf_logd("alias: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
 			break;
 		case 2:
 		case 3:
@@ -774,7 +773,7 @@ static int _pointer_alias_var(scf_vector_t* aliases, scf_dag_node_t* dn_alias, s
 	int ret;
 	int i;
 
-	scf_logw("alias: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+	scf_logd("alias: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
 
 	if (dn_alias->var->nb_dimentions > 0) {
 
@@ -1365,7 +1364,7 @@ int scf_pointer_alias(scf_vector_t* aliases, scf_dag_node_t* dn_alias, scf_3ac_c
 	scf_variable_t* v;
 
 	v = dn_alias->var;
-	scf_loge("v: %d/%s\n", v->w->line, v->w->text->data);
+	scf_logd("v: %d/%s\n", v->w->line, v->w->text->data);
 
 	while (SCF_OP_TYPE_CAST == dn_alias->type) {
 
@@ -1415,9 +1414,9 @@ int scf_pointer_alias(scf_vector_t* aliases, scf_dag_node_t* dn_alias, scf_3ac_c
 		case SCF_OP_DEREFERENCE:
 			if (dn_alias->var && dn_alias->var->w) {
 				v = dn_alias->var;
-				scf_loge("type: %d, v_%d_%d/%s\n", dn_alias->type, v->w->line, v->w->pos, v->w->text->data);
+				scf_logd("type: %d, v_%d_%d/%s\n", dn_alias->type, v->w->line, v->w->pos, v->w->text->data);
 			} else
-				scf_loge("type: %d, v_%#lx\n", dn_alias->type, 0xffff & (uintptr_t)dn_alias->var);
+				scf_logd("type: %d, v_%#lx\n", dn_alias->type, 0xffff & (uintptr_t)dn_alias->var);
 
 			ret = _pointer_alias_dereference(aliases, dn_alias, c, bb, bb_list_head);
 			return ret;

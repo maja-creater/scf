@@ -11,7 +11,6 @@ scf_basic_block_t* scf_basic_block_alloc()
 
 	scf_list_init(&bb->list);
 	scf_list_init(&bb->dag_list_head);
-	scf_list_init(&bb->load_list_head);
 	scf_list_init(&bb->code_list_head);
 	scf_list_init(&bb->save_list_head);
 
@@ -43,9 +42,13 @@ scf_basic_block_t* scf_basic_block_alloc()
 	if (!bb->dn_saves)
 		goto error_saves;
 
-	bb->dn_colors = scf_vector_alloc();
-	if (!bb->dn_colors)
-		goto error_colors;
+	bb->dn_colors_entry = scf_vector_alloc();
+	if (!bb->dn_colors_entry)
+		goto error_colors_entry;
+
+	bb->dn_colors_exit = scf_vector_alloc();
+	if (!bb->dn_colors_exit)
+		goto error_colors_exit;
 
 	bb->dn_status_initeds = scf_vector_alloc();
 	if (!bb->dn_status_initeds)
@@ -97,8 +100,10 @@ error_entry_dn_aliases:
 error_dn_pointer_aliases:
 	scf_vector_free(bb->dn_status_initeds);
 error_dn_status_initeds:
-	scf_vector_free(bb->dn_colors);
-error_colors:
+	scf_vector_free(bb->dn_colors_exit);
+error_colors_exit:
+	scf_vector_free(bb->dn_colors_entry);
+error_colors_entry:
 	scf_vector_free(bb->dn_saves);
 error_saves:
 	scf_vector_free(bb->dn_loads);
@@ -185,7 +190,6 @@ void scf_basic_block_print(scf_basic_block_t* bb, scf_list_t* sentinel)
 			} \
 		} while (0)
 
-//		SCF_BB_PRINT(load_list_head);
 		SCF_BB_PRINT(code_list_head);
 		SCF_BB_PRINT(save_list_head);
 	}
@@ -198,30 +202,31 @@ void scf_bb_group_print(scf_bb_group_t* bbg)
 
 	printf("\033[33mbbg: %p\033[0m\n", bbg);
 
-	printf("entries:\n");
+	printf("\033[34mentries:\033[0m\n");
 	if (bbg->entries) {
 		for (i = 0; i < bbg->entries->size; i++) {
 			bb =        bbg->entries->data[i];
 
-			printf("%p\n", bb);
+			printf("%p, %d\n", bb, bb->index);
 		}
 	}
 
-	printf("body:\n");
+	printf("\033[35mbody:\033[0m\n");
 	for (i = 0; i < bbg->body->size; i++) {
 		bb =        bbg->body->data[i];
 
-		printf("%p\n", bb);
+		printf("%p, %d\n", bb, bb->index);
 	}
 
-	printf("exits:\n");
+	printf("\033[36mexits:\033[0m\n");
 	if (bbg->exits) {
 		for (i = 0; i < bbg->exits->size; i++) {
 			bb =        bbg->exits->data[i];
 
-			printf("%p\n", bb);
+			printf("%p, %d\n", bb, bb->index);
 		}
 	}
+	printf("\n");
 }
 
 void scf_basic_block_print_list(scf_list_t* h)
@@ -762,10 +767,6 @@ static int _bb_init_array_index(scf_3ac_code_t* c, scf_basic_block_t* bb, scf_li
 	ds->dag_node = dn_base;
 	ds->inited   = 1;
 
-	printf("\n");
-	scf_loge("ds: \n");
-	scf_dn_status_print(ds);
-
 	if (scf_ds_is_pointer(ds) > 0)
 		ret = _bb_init_pointer_aliases(ds, dn_src, c, bb, bb_list_head);
 	else
@@ -806,7 +807,7 @@ int scf_basic_block_inited_vars(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 					&& (dn->var->global_flag || dn->var->local_flag || dn->var->tmp_flag)) {
 
 				scf_variable_t* v = dn->var;
-				scf_logw("init: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+				scf_logd("init: v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
 
 				ret = _bb_init_var(dn, c, bb, bb_list_head);
 				if (ret < 0) {
@@ -860,7 +861,8 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 
 		c = scf_list_data(l, scf_3ac_code_t, list);
 
-		if (scf_type_is_jmp(c->op->type))
+		if (scf_type_is_jmp(c->op->type)
+				|| SCF_OP_3AC_END == c->op->type)
 			continue;
 
 		if (c->dsts) {
@@ -886,9 +888,6 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 
 			for (j  = 0; j < c->srcs->size; j++) {
 				src =        c->srcs->data[j];
-
-				if (!src->node)
-					continue;
 
 				assert(src->dag_node);
 

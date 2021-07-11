@@ -53,7 +53,7 @@ static int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
 
 	if (id && id->identity) {
 
-		scf_logi("d->current_identity: %p\n", id->identity);
+		scf_logd("d->current_identity: %p\n", id->identity);
 
 		scf_variable_t* var = scf_scope_find_variable(parse->ast->current_block->scope, id->identity->text->data);
 		if (var) {
@@ -110,6 +110,19 @@ static int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
 			return SCF_DFA_ERROR;
 		}
 
+		if (id0->extern_flag) {
+			if (!global_flag) {
+				scf_loge("extern var must be global.\n");
+				return SCF_DFA_ERROR;
+			}
+
+			scf_variable_t* v = scf_ast_find_variable(parse->ast, id->identity->text->data);
+			if (v) {
+				scf_loge("extern var already declared, line: %d\n", v->w->line);
+				return SCF_DFA_ERROR;
+			}
+		}
+
 		var = SCF_VAR_ALLOC_BY_TYPE(id->identity, id0->type, id0->const_flag, id0->nb_pointers, id0->func_ptr);
 		if (!var) {
 			scf_loge("alloc var failed\n");
@@ -119,10 +132,14 @@ static int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
 		var->global_flag = global_flag;
 		var->member_flag = member_flag;
 
-		scf_logi("type: %d, nb_pointers: %d,nb_dimentions: %d, var: %s,line:%d,pos:%d, local: %d, global: %d, member: %d\n\n",
+		var->static_flag = id0->static_flag;
+		var->extern_flag = id0->extern_flag;
+
+		scf_logi("type: %d, nb_pointers: %d,nb_dimentions: %d, var: %s,line:%d,pos:%d, local: %d, global: %d, member: %d, extern: %d, static: %d\n\n",
 				var->type, var->nb_pointers, var->nb_dimentions,
 				var->w->text->data, var->w->line, var->w->pos,
-				var->local_flag, var->global_flag, var->member_flag);
+				var->local_flag,  var->global_flag, var->member_flag,
+				var->extern_flag, var->static_flag);
 
 		scf_scope_push_var(parse->ast->current_block->scope, var);
 
@@ -130,6 +147,8 @@ static int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
 		d->current_var_w = id->identity;
 		id0->nb_pointers = 0;
 		id0->const_flag  = 0;
+		id0->static_flag = 0;
+		id0->extern_flag = 0;
 
 		scf_stack_pop(d->current_identities);
 		free(id);
@@ -249,6 +268,12 @@ static int _var_action_assign(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 	if (!d->current_var) {
 		scf_loge("\n");
+		return SCF_DFA_ERROR;
+	}
+
+	if (d->current_var->extern_flag) {
+		scf_loge("extern var '%s' can't be inited here, line: %d\n",
+				d->current_var->w->text->data, w->line);
 		return SCF_DFA_ERROR;
 	}
 

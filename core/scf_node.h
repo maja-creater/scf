@@ -67,7 +67,7 @@ void			scf_node_move_data(scf_node_t* dst, scf_node_t* src);
 
 void            scf_node_print(scf_node_t* node);
 
-scf_variable_t* _scf_operand_get(scf_node_t* node);
+scf_variable_t* _scf_operand_get(const scf_node_t* node);
 scf_function_t* _scf_function_get(scf_node_t* node);
 
 typedef int     (*scf_node_find_pt)(scf_node_t* node, void* arg, scf_vector_t* results);

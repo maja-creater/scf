@@ -127,7 +127,7 @@ int _expr_add_var(scf_parse_t* parse, dfa_parse_data_t* d)
 		}
 	}
 
-	scf_logi("d->expr: %p, node: %p\n", d->expr, node);
+	scf_logd("d->expr: %p, node: %p\n", d->expr, node);
 
 	if (scf_expr_add_node(d->expr, node) < 0) {
 		scf_loge("add var node '%s' to expr failed\n", w->text->data);
@@ -158,7 +158,7 @@ static int _expr_action_expr(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 		}
 	}
 
-	scf_logi("d->expr: %p\n", d->expr);
+	scf_logd("d->expr: %p\n", d->expr);
 
 	return words->size > 0 ? SCF_DFA_CONTINUE : SCF_DFA_NEXT_WORD;
 }
@@ -230,8 +230,6 @@ static int _expr_action_number(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 		scf_loge("var node '%s' alloc failed\n", w->text->data);
 		return SCF_DFA_ERROR;
 	}
-
-	scf_logi("d->expr: %p, n: %p\n", d->expr, n);
 
 	if (scf_expr_add_node(d->expr, n) < 0) {
 		scf_loge("add var node '%s' to expr failed\n", w->text->data);
@@ -466,7 +464,7 @@ static int _expr_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 	scf_expr_t* parent = scf_stack_pop(md->lp_exprs);
 
-	scf_loge("d->expr: %p, d->expr->parent: %p, lp: %p\n\n", d->expr, d->expr->parent, parent);
+	scf_logd("d->expr: %p, d->expr->parent: %p, lp: %p\n\n", d->expr, d->expr->parent, parent);
 
 	if (parent) {
 		scf_expr_add_node(parent, d->expr);

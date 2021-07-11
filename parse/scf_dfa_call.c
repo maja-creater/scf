@@ -149,7 +149,7 @@ static int _call_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 	cd->nb_rps++;
 
-	scf_loge("cd->nb_lps: %d, cd->nb_rps: %d\n", cd->nb_lps, cd->nb_rps);
+	scf_logd("cd->nb_lps: %d, cd->nb_rps: %d\n", cd->nb_lps, cd->nb_rps);
 
 	if (cd->nb_rps < cd->nb_lps) {
 

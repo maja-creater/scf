@@ -27,6 +27,7 @@ CFILES += ../native/x64/scf_x64_graph.c
 CFILES += ../native/x64/scf_x64_reg.c
 CFILES += ../native/x64/scf_x64_opcode.c
 CFILES += ../native/x64/scf_x64_peephole.c
+CFILES += ../native/x64/scf_x64_bb_color.c
 
 CFILES += ../elf/scf_elf.c
 CFILES += ../elf/scf_elf_x64.c

@@ -26,6 +26,7 @@ static int type_update[] =
 
 static scf_type_cast_t  base_type_casts[] =
 {
+	{"char",    -1, SCF_VAR_CHAR,    scf_cast_to_u8},
 	{"u8",      -1, SCF_VAR_U8,      scf_cast_to_u8},
 	{"u16",     -1, SCF_VAR_U16,     scf_cast_to_u16},
 	{"u32",     -1, SCF_VAR_U32,     scf_cast_to_u32},

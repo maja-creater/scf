@@ -10,7 +10,7 @@ static int _identity_action_identity(scf_dfa_t* dfa, scf_vector_t* words, void* 
 	dfa_parse_data_t* d = data;
 	scf_stack_t*      s = d->current_identities;
 
-	scf_logi("w: '%s'\n", w->text->data);
+	scf_logd("w: '%s'\n", w->text->data);
 
 	dfa_identity_t* id  = calloc(1, sizeof(dfa_identity_t));
 	if (!id)

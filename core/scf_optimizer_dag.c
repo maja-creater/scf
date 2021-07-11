@@ -27,7 +27,7 @@ static int _optimize_dag(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_
 		}
 	}
 
-	scf_basic_block_print_list(bb_list_head);
+//	scf_basic_block_print_list(bb_list_head);
 	return 0;
 }
 

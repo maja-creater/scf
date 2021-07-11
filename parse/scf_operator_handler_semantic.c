@@ -1264,7 +1264,7 @@ static int _scf_op_semantic_for(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 
 static int __scf_op_semantic_call(scf_ast_t* ast, scf_function_t* f, void* data)
 {
-	scf_logi("f: %p, f->node->w: %s\n", f, f->node.w->text->data);
+	scf_logd("f: %p, f->node->w: %s\n", f, f->node.w->text->data);
 
 	scf_handler_data_t* d = data;
 
@@ -1387,7 +1387,6 @@ static int _scf_op_semantic_call(scf_ast_t* ast, scf_node_t** nodes, int nb_node
 		*d->pret = scf_variable_ref(r);
 	}
 
-	scf_logw("f: %p ok\n", f);
 	return 0;
 }
 
@@ -2104,7 +2103,7 @@ static int _scf_op_semantic_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 	if (!scf_variable_same_type(v0, v1)) {
 
-		scf_logw("v0: v_%d_%d/%s\n", v0->w->line, v0->w->pos, v0->w->text->data);
+		scf_logd("v0: v_%d_%d/%s\n", v0->w->line, v0->w->pos, v0->w->text->data);
 
 		if (scf_type_cast_check(ast, v0, v1) < 0) {
 			scf_loge("\n");
@@ -2557,8 +2556,6 @@ scf_operator_handler_t* scf_find_semantic_operator_handler(const int type, const
 
 int scf_function_semantic_analysis(scf_ast_t* ast, scf_function_t* f)
 {
-	scf_logi("f: %p\n", f);
-
 	scf_handler_data_t d = {0};
 
 	int ret = __scf_op_semantic_call(ast, f, &d);
@@ -2568,7 +2565,6 @@ int scf_function_semantic_analysis(scf_ast_t* ast, scf_function_t* f)
 		return -1;
 	}
 
-	scf_logi("f: %p ok\n", f);
 	return 0;
 }
 

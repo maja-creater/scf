@@ -352,7 +352,6 @@ int scf_dwarf_line_decode(scf_dwarf_line_machine_t* lm, scf_vector_t* line_resul
 			result = NULL;
 
 			opcode -= lm->prologue->opcode_base;
-			scf_logd("opcode: %u, address: %#lx, line: %u\n", opcode, lm->address, lm->line);
 
 		} else if (opcode > 0) {
 			size_t len;
@@ -644,6 +643,8 @@ int scf_dwarf_line_encode(scf_dwarf_debug_t* debug, scf_dwarf_line_machine_t* lm
 		scf_dwarf_uword_t address_advance;
 		scf_dwarf_uword_t opcode;
 
+		scf_loge("i: %d, line: %d, address: %#lx\n", i, result->line, result->address);
+
 		uint8_t buf[64];
 		size_t  len;
 
@@ -702,17 +703,20 @@ int scf_dwarf_line_encode(scf_dwarf_debug_t* debug, scf_dwarf_line_machine_t* lm
 		assert(address_advance % lm->prologue->minimum_instruction_length == 0);
 
 		address_advance /= lm->prologue->minimum_instruction_length;
-		scf_logd("i: %d, line_advance: %d, address_advance: %u\n", i, line_advance, address_advance);
 
 		while (1) {
-			opcode = (line_advance - lm->prologue->line_base)
-				+ lm->prologue->line_range * address_advance
-				+ lm->prologue->opcode_base;
+			if (line_advance - lm->prologue->line_base < lm->prologue->line_range) {
 
-			if (opcode <= 255) {
+				opcode = (line_advance - lm->prologue->line_base)
+					+ lm->prologue->line_range * address_advance
+					+ lm->prologue->opcode_base;
 
-				DWARF_DEBUG_LINE_FILL2(&opcode, 1);
-				break;
+				if (opcode <= 255) {
+
+					DWARF_DEBUG_LINE_FILL2(&opcode, 1);
+					scf_logd("line_advance: %d, address_advance: %u, opcode: %d\n", line_advance, address_advance, opcode, opcode);
+					break;
+				}
 			}
 
 			if (line_advance != 0) {
@@ -722,8 +726,9 @@ int scf_dwarf_line_encode(scf_dwarf_debug_t* debug, scf_dwarf_line_machine_t* lm
 				DWARF_DEBUG_LINE_FILL2(&opcode, 1);
 				DWARF_DEBUG_LINE_FILL2(buf,     len);
 
-			scf_logd("i: %d, line_advance: %d, address_advance: %u, opcode: %u\n", i, line_advance, address_advance, opcode);
 				line_advance = 0;
+				if (0 == address_advance)
+					break;
 				continue;
 			}
 

@@ -102,6 +102,20 @@ static inline int scf_dfa_is_const(scf_dfa_t* dfa, void* word)
 	return SCF_LEX_WORD_KEY_CONST == w->type;
 }
 
+static inline int scf_dfa_is_static(scf_dfa_t* dfa, void* word)
+{
+	scf_lex_word_t* w = word;
+
+	return SCF_LEX_WORD_KEY_STATIC == w->type;
+}
+
+static inline int scf_dfa_is_extern(scf_dfa_t* dfa, void* word)
+{
+	scf_lex_word_t* w = word;
+
+	return SCF_LEX_WORD_KEY_EXTERN == w->type;
+}
+
 static inline int scf_dfa_is_va_start(scf_dfa_t* dfa, void* word)
 {
 	scf_lex_word_t* w = word;

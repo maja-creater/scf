@@ -46,6 +46,7 @@ struct scf_variable_s {
 	uint32_t            const_literal_flag:1;
 	uint32_t            const_flag  :1;
 	uint32_t            static_flag :1;
+	uint32_t            extern_flag :1;
 	uint32_t            alloc_flag  :1;
 
 	uint32_t            tmp_flag    :1;

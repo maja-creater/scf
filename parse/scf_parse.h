@@ -50,8 +50,11 @@ typedef struct {
 	scf_type_t*          type;
 
 	int                  nb_pointers;
-	int                  const_flag;
 	scf_function_t*      func_ptr;
+
+	uint32_t             const_flag :1;
+	uint32_t             extern_flag:1;
+	uint32_t             static_flag:1;
 
 } dfa_identity_t;
 
@@ -95,7 +98,9 @@ struct dfa_parse_data_s {
 	scf_node_t*          current_va_arg;
 	scf_node_t*          current_va_end;
 
-	int                  const_flag;
+	uint32_t             const_flag :1;
+	uint32_t             extern_flag:1;
+	uint32_t             static_flag:1;
 
 	int              nb_lbs;
 	int              nb_rbs;

@@ -41,7 +41,7 @@ static int _optimize_generate_loads_saves(scf_ast_t* ast, scf_function_t* f, scf
 					return -ENOMEM; \
 				} \
 				load->basic_block = bb; \
-				scf_list_add_front(&bb->code_list_head, &load->list); \
+				scf_list_add_front(h, &load->list); \
 			} while (0)
 
 #define SCF_OPTIMIZER_SAVE(save_type, h) \
@@ -70,10 +70,7 @@ static int _optimize_generate_loads_saves(scf_ast_t* ast, scf_function_t* f, scf
 				if (scf_vector_find(bb->dn_reloads, dn))
 					continue;
 
-				if (bb->loop_flag)
-					SCF_OPTIMIZER_LOAD(SCF_OP_3AC_LOAD, &bb->load_list_head);
-				else
-					SCF_OPTIMIZER_LOAD(SCF_OP_3AC_LOAD, &bb->code_list_head);
+				SCF_OPTIMIZER_LOAD(SCF_OP_3AC_LOAD, &bb->code_list_head);
 			}
 
 			for (i = 0; i < bb->dn_saves->size; i++) {
@@ -118,6 +115,49 @@ static int _optimize_generate_loads_saves(scf_ast_t* ast, scf_function_t* f, scf
 			return ret;
 		}
 #endif
+	}
+
+	for (i = 0; i < f->bb_groups->size; i++) {
+		bbg       = f->bb_groups->data[i];
+
+		scf_dn_status_t* ds;
+		int j;
+		int k;
+		for (j = 0; j < bbg->body->size; j++) {
+			bb =        bbg->body->data[j];
+
+			for (k = 0; k < bb->exit_dn_actives->size; k++) {
+				dn =        bb->exit_dn_actives->data[k];
+
+				for (l = scf_list_tail(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head); l = scf_list_prev(l)) {
+					c  = scf_list_data(l, scf_3ac_code_t, list);
+					assert(c->active_vars);
+
+					ds = scf_vector_find_cmp(c->active_vars, dn, scf_dn_status_cmp);
+					if (ds)
+						break;
+
+					SCF_DN_STATUS_ALLOC(ds, c->active_vars, dn);
+					ds->active = 1;
+				}
+			}
+
+			for (k = 0; k < bb->exit_dn_aliases->size; k++) {
+				dn =        bb->exit_dn_aliases->data[k];
+
+				for (l = scf_list_tail(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head); l = scf_list_prev(l)) {
+					c  = scf_list_data(l, scf_3ac_code_t, list);
+					assert(c->active_vars);
+
+					ds = scf_vector_find_cmp(c->active_vars, dn, scf_dn_status_cmp);
+					if (ds)
+						break;
+
+					SCF_DN_STATUS_ALLOC(ds, c->active_vars, dn);
+					ds->active = 1;
+				}
+			}
+		}
 	}
 
 	for (i = 0; i < f->bb_loops->size; i++) {

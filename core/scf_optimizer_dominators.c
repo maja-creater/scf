@@ -184,7 +184,6 @@ static int _bb_find_dominators_normal(scf_list_t* bb_list_head)
 
 		scf_logd("bb: %p_%d, dom size: %d\n", bb, bb->dfo_normal, bb->dominators_normal->size);
 	}
-	printf("\n\n");
 
 	do {
 		changed = 0;

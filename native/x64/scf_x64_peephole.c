@@ -343,17 +343,18 @@ static void _x64_peephole_function(scf_vector_t* tmp_insts, scf_function_t* f, i
 							|| X64_COLOR_CONFLICT(r0->color, rdx->color)
 							|| X64_COLOR_CONFLICT(r0->color, rcx->color))
 						break;
+				} else {
+					if (x64_inst_data_is_reg(&inst2->src)) {
+						if (X64_COLOR_CONFLICT(r0->color, r1->color))
+							break;
+					}
 
-				} else if (x64_inst_data_is_reg(&inst2->src)) {
-
-					if (X64_COLOR_CONFLICT(r0->color, r1->color))
+					if (inst2->src.base  == inst->dst.base
+							|| inst2->src.index == inst->dst.base
+							|| inst2->dst.index == inst->dst.base
+							|| inst2->dst.base  == inst->dst.base)
 						break;
-
-				} else if (inst2->src.base  == inst->dst.base
-						|| inst2->src.index == inst->dst.base
-						|| inst2->dst.index == inst->dst.base
-						|| inst2->dst.base  == inst->dst.base)
-					break;
+				}
 
 			} else if (x64_inst_data_is_local(&inst->dst)) {
 
@@ -370,6 +371,10 @@ static void _x64_peephole_function(scf_vector_t* tmp_insts, scf_function_t* f, i
 						|| SCF_X64_TEST == inst2->OpCode->type) {
 
 					if (scf_inst_data_same(&inst->dst, &inst2->dst))
+						break;
+
+				} else if (SCF_X64_LEA  == inst2->OpCode->type) {
+					if (inst2->src.base == inst->dst.base)
 						break;
 				}
 			}

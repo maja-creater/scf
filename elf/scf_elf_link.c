@@ -651,10 +651,54 @@ static int _find_lib_sym(scf_ar_file_t** par, uint32_t* poffset, uint32_t* psize
 	return 0;
 }
 
+static int merge_ar_obj(scf_elf_file_t* exec, scf_ar_file_t* ar, uint32_t offset, uint32_t size)
+{
+	scf_elf_file_t* obj = NULL;
+
+	int ret = scf_elf_file_open2(&obj);
+	if (ret < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	obj->elf = calloc(1, sizeof(scf_elf_context_t));
+	assert(obj->elf);
+
+	obj->elf->fp = ar->fp;
+	obj->elf->start = offset;
+	obj->elf->end   = offset + size;
+
+	ret = scf_elf_open2(obj->elf, "x64");
+	if (ret < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	ret = scf_elf_file_read(obj);
+	if (ret < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	ret = merge_obj(exec, obj);
+	if (ret < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	obj->elf->fp = NULL;
+	scf_elf_file_close(obj, free, free);
+	obj = NULL;
+
+	return 0;
+}
+
 static int link_relas(scf_elf_file_t* exec, char* afiles[], int nb_afiles)
 {
-	scf_vector_t* libs = scf_vector_alloc();
-	scf_ar_file_t* ar = NULL;
+	scf_elf_rela_t* rela = NULL;
+	scf_elf_sym_t*  sym  = NULL;
+	scf_ar_file_t*  ar   = NULL;
+	scf_vector_t*   libs = scf_vector_alloc();
 
 	int i;
 	for (i = 0; i < nb_afiles; i++) {
@@ -671,11 +715,9 @@ static int link_relas(scf_elf_file_t* exec, char* afiles[], int nb_afiles)
 	}
 
 	for (i = 0; i < exec->text_relas->size; i++) {
+		rela      = exec->text_relas->data[i];
 
-		scf_elf_rela_t* rela = exec->text_relas->data[i];
-
-		scf_elf_sym_t*  sym = NULL;
-
+		sym = NULL;
 		int sym_idx = _find_sym(&sym, rela, exec->syms);
 
 		if (sym_idx >= 0)
@@ -693,44 +735,43 @@ static int link_relas(scf_elf_file_t* exec, char* afiles[], int nb_afiles)
 			return -1;
 		}
 
-		scf_elf_file_t* obj = NULL;
+		scf_loge("sym: %s, offset: %d, size: %d\n\n", sym->name, offset, size);
 
-		ret = scf_elf_file_open2(&obj);
+		ret = merge_ar_obj(exec, ar, offset, size);
 		if (ret < 0) {
 			scf_loge("\n");
 			return -1;
 		}
+	}
 
-		obj->elf = calloc(1, sizeof(scf_elf_context_t));
-		assert(obj->elf);
+	for (i = 0; i < exec->data_relas->size; i++) {
+		rela      = exec->data_relas->data[i];
 
-		obj->elf->fp = ar->fp;
-		obj->elf->start = offset;
-		obj->elf->end   = offset + size;
+		sym = NULL;
+		int sym_idx = _find_sym(&sym, rela, exec->syms);
+
+		if (sym_idx >= 0)
+			continue;
+
+		sym_idx = ELF64_R_SYM(rela->r_info);
+		sym     = exec->syms->data[sym_idx - 1];
+
+		uint32_t offset = 0;
+		uint32_t size   = 0;
+
+		int ret = _find_lib_sym(&ar, &offset, &size, libs, sym);
+		if (ret < 0) {
+			scf_loge("\n");
+			return -1;
+		}
 
 		scf_loge("sym: %s, offset: %d, size: %d\n\n", sym->name, offset, size);
 
-		ret = scf_elf_open2(obj->elf, "x64");
+		ret = merge_ar_obj(exec, ar, offset, size);
 		if (ret < 0) {
 			scf_loge("\n");
 			return -1;
 		}
-
-		ret = scf_elf_file_read(obj);
-		if (ret < 0) {
-			scf_loge("\n");
-			return -1;
-		}
-
-		ret = merge_obj(exec, obj);
-		if (ret < 0) {
-			scf_loge("\n");
-			return -1;
-		}
-
-		obj->elf->fp = NULL;
-		scf_elf_file_close(obj, free, free);
-		obj = NULL;
 	}
 
 	return 0;
@@ -748,7 +789,7 @@ int main()
 		"./scf_syscall.o",
 		"./scf_write.o",
 		"./scf_printf.o",
-//		"./scf_brk.o",
+		"./scf_brk.o",
 		"./1.elf",
 	};
 

@@ -30,8 +30,6 @@ struct scf_dag_node_s {
 	scf_vector_t*		parents;
 	scf_vector_t*		childs;
 
-	scf_dag_node_t*     current_updated;
-
 	void*               rabi;
 	void*               rabi2;
 
@@ -199,6 +197,18 @@ static inline int scf_ds_is_pointer(scf_dn_status_t* ds)
 				scf_dn_status_free(ds); \
 				return ret; \
 			} \
+		} \
+	} while (0)
+
+#define SCF_DN_STATUS_ALLOC(ds, vec, dn) \
+	do { \
+		ds = scf_dn_status_alloc(dn); \
+		if (!ds) \
+			return -ENOMEM; \
+		int ret = scf_vector_add(vec, ds); \
+		if (ret < 0) { \
+			scf_dn_status_free(ds); \
+			return ret; \
 		} \
 	} while (0)
 

@@ -118,10 +118,14 @@ static int _bb_dfs_loop(scf_list_t* bb_list_head, scf_vector_t* loops)
 	scf_list_t*        l;
 	scf_basic_block_t* bb;
 
+	int nblocks = 0;
+
 	for (l = scf_list_head(bb_list_head); l != scf_list_sentinel(bb_list_head);
 			l = scf_list_next(l)) {
 
 		bb = scf_list_data(l, scf_basic_block_t, list);
+
+		bb->index = nblocks++;
 
 		if (bb->jmp_flag)
 			continue;
@@ -170,13 +174,15 @@ static int _bb_dfs_loop(scf_list_t* bb_list_head, scf_vector_t* loops)
 				scf_bb_group_free(bbg);
 				return ret;
 			}
-			scf_loge("bbg: %p, entries: %d, exits: %d\n", bbg, bbg->entries->size, bbg->exits->size);
+			scf_logd("bbg: %p, entries: %d, exits: %d\n", bbg, bbg->entries->size, bbg->exits->size);
 
 			ret = scf_vector_add(loops, bbg);
 			if (ret < 0) {
 				scf_bb_group_free(bbg);
 				return ret;
 			}
+
+			bb->back_flag = 1;
 
 			++i;
 			++j;
@@ -187,7 +193,7 @@ static int _bb_dfs_loop(scf_list_t* bb_list_head, scf_vector_t* loops)
 	return 0;
 }
 
-static int _bb_loop_layers(scf_function_t* f)
+static int __bb_loop_merge(scf_vector_t* loops)
 {
 	scf_basic_block_t* entry;
 	scf_basic_block_t* exit;
@@ -199,51 +205,11 @@ static int _bb_loop_layers(scf_function_t* f)
 	int i;
 	int j;
 
-	for (i = 0; i < f->bb_loops->size - 1; ) {
-		loop0     = f->bb_loops->data[i];
+	for (i = 0; i < loops->size - 1; ) {
+		loop0     = loops->data[i];
 
-		for (j = i + 1; j < f->bb_loops->size; j++) {
-			loop1         = f->bb_loops->data[j];
-
-			int k;
-			for (k = 0; k < loop0->body->size; k++) {
-
-				if (!scf_vector_find(loop1->body, loop0->body->data[k]))
-					break;
-			}
-
-			if (k < loop0->body->size)
-				continue;
-
-			if (!loop0->loop_parent
-					|| loop0->loop_parent->body->size > loop1->body->size)
-				loop0->loop_parent = loop1;
-
-			if (loop1->loop_layers <= loop0->loop_layers + 1)
-				loop1->loop_layers =  loop0->loop_layers + 1;
-
-			if (!loop1->loop_childs) {
-				loop1->loop_childs = scf_vector_alloc();
-				if (!loop1->loop_childs)
-					return -ENOMEM;
-			}
-
-			ret = scf_vector_add_unique(loop1->loop_childs, loop0);
-			if (ret < 0)
-				return ret;
-		}
-
-		if (loop0->loop_parent)
-			assert(0 == scf_vector_del(f->bb_loops, loop0));
-		else
-			i++;
-	}
-
-	for (i = 0; i < f->bb_loops->size - 1; ) {
-		loop0     = f->bb_loops->data[i];
-
-		for (j = i + 1; j < f->bb_loops->size; j++) {
-			loop1         = f->bb_loops->data[j];
+		for (j = i + 1; j < loops->size; j++) {
+			loop1         = loops->data[j];
 
 			int k;
 			for (k = 0; k < loop0->entries->size; k++) {
@@ -257,7 +223,7 @@ static int _bb_loop_layers(scf_function_t* f)
 				break;
 		}
 
-		if (j == f->bb_loops->size) {
+		if (j == loops->size) {
 			i++;
 			continue;
 		}
@@ -320,7 +286,7 @@ static int _bb_loop_layers(scf_function_t* f)
 				assert(0 == scf_vector_add_unique(loop0->body, bb));
 			}
 
-			assert(0 == scf_vector_del(f->bb_loops, loop1));
+			assert(0 == scf_vector_del(loops, loop1));
 
 			scf_bb_group_free(loop1);
 			loop1 = NULL;
@@ -337,7 +303,7 @@ static int _bb_loop_layers(scf_function_t* f)
 				assert(0 == scf_vector_add_unique(loop1->body, bb));
 			}
 
-			assert(0 == scf_vector_del(f->bb_loops, loop0));
+			assert(0 == scf_vector_del(loops, loop0));
 
 			scf_bb_group_free(loop0);
 			loop0 = NULL;
@@ -347,14 +313,131 @@ static int _bb_loop_layers(scf_function_t* f)
 			assert(0);
 	}
 
+	return 0;
+}
+
+static int _bb_loop_merge(scf_vector_t* loops)
+{
+	scf_bb_group_t* loop;
+
+	int ret;
+	int i;
+
+	for (i = 0; i < loops->size; i++) {
+		loop      = loops->data[i];
+
+		if (loop->loop_childs) {
+
+			ret = _bb_loop_merge(loop->loop_childs);
+			if (ret < 0)
+				return ret;
+		}
+	}
+
+	return __bb_loop_merge(loops);
+}
+
+static void _bb_loop_sort(scf_vector_t* loops)
+{
+	scf_bb_group_t* loop;
+
+	int ret;
+	int i;
+
+	for (i = 0; i < loops->size; i++) {
+		loop      = loops->data[i];
+
+		if (loop->loop_childs)
+			_bb_loop_sort(loop->loop_childs);
+
+		scf_vector_qsort(loop->body, _bb_index_cmp);
+	}
+}
+
+static int __bb_loop_layers(scf_function_t* f)
+{
+	scf_basic_block_t* entry;
+	scf_basic_block_t* exit;
+	scf_basic_block_t* bb;
+	scf_bb_group_t*    loop0;
+	scf_bb_group_t*    loop1;
+
+	int ret;
+	int i;
+	int j;
+
+	for (i = 0; i < f->bb_loops->size - 1; ) {
+		loop0     = f->bb_loops->data[i];
+
+		for (j = i + 1; j < f->bb_loops->size; j++) {
+			loop1         = f->bb_loops->data[j];
+
+			int k;
+			for (k = 0; k < loop0->body->size; k++) {
+
+				if (!scf_vector_find(loop1->body, loop0->body->data[k]))
+					break;
+			}
+
+			if (k < loop0->body->size)
+				continue;
+
+			if (!loop0->loop_parent
+					|| loop0->loop_parent->body->size > loop1->body->size)
+				loop0->loop_parent = loop1;
+
+			if (loop1->loop_layers <= loop0->loop_layers + 1)
+				loop1->loop_layers =  loop0->loop_layers + 1;
+
+			if (!loop1->loop_childs) {
+				loop1->loop_childs = scf_vector_alloc();
+				if (!loop1->loop_childs)
+					return -ENOMEM;
+			}
+
+			ret = scf_vector_add_unique(loop1->loop_childs, loop0);
+			if (ret < 0)
+				return ret;
+		}
+
+		if (loop0->loop_parent)
+			assert(0 == scf_vector_del(f->bb_loops, loop0));
+		else
+			i++;
+	}
+
+	return 0;
+}
+
+static int _bb_loop_layers(scf_function_t* f)
+{
+	scf_basic_block_t* entry;
+	scf_basic_block_t* exit;
+	scf_basic_block_t* bb;
+	scf_bb_group_t*    loop0;
+	scf_bb_group_t*    loop1;
+
+	int ret;
+	int i;
+	int j;
+
+	ret = __bb_loop_layers(f);
+	if (ret < 0)
+		return ret;
+
+	ret = _bb_loop_merge(f->bb_loops);
+	if (ret < 0)
+		return ret;
+
+	_bb_loop_sort(f->bb_loops);
+
+
 	for (i = 0; i < f->bb_loops->size; i++) {
 		loop0     = f->bb_loops->data[i];
 
 		assert(1 == loop0->entries->size);
 
 		loop0->entry = loop0->entries->data[0];
-
-		scf_vector_qsort(loop0->body, _bb_index_cmp);
 	}
 
 	scf_vector_qsort(f->bb_loops, _loop_index_cmp);

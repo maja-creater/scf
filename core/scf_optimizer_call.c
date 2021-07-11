@@ -48,7 +48,7 @@ static int _alias_call(scf_vector_t* aliases, scf_3ac_code_t* c, scf_basic_block
 			dn_pointer = dn_pointers->data[j];
 			v          = dn_pointer->var;
 
-			scf_logw("i: %d, dn_pointers->size: %d, pointer: v_%d_%d/%s\n",
+			scf_logd("i: %d, dn_pointers->size: %d, pointer: v_%d_%d/%s\n",
 					i, dn_pointers->size, v->w->line, v->w->pos, v->w->text->data);
 
 			ret  = __alias_dereference(aliases, dn_pointer, c, bb, bb_list_head);
@@ -61,7 +61,7 @@ static int _alias_call(scf_vector_t* aliases, scf_3ac_code_t* c, scf_basic_block
 			}
 
 			if (dn != dn_pointer && dn->var->nb_pointers > 1) {
-				scf_loge("pointer: v_%d_%d/%s, SCF_DN_ALIAS_ALLOC\n", v->w->line, v->w->pos, v->w->text->data);
+				scf_logd("pointer: v_%d_%d/%s, SCF_DN_ALIAS_ALLOC\n", v->w->line, v->w->pos, v->w->text->data);
 
 				status = calloc(1, sizeof(scf_dn_status_t));
 				if (!status) {
@@ -157,7 +157,6 @@ static int __optimize_call_bb(scf_3ac_code_t* c, scf_basic_block_t* bb, scf_list
 		l = scf_list_next(l);
 		_bb_update_dn_status(aliases, l, bb);
 	}
-	printf("\n");
 
 	scf_vector_free(aliases);
 	aliases = NULL;

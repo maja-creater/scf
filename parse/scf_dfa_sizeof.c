@@ -53,7 +53,7 @@ static int _sizeof_action_sizeof(scf_dfa_t* dfa, scf_vector_t* words, void* data
 		return SCF_DFA_ERROR;
 	}
 
-	scf_logi("d->expr: %p\n", d->expr);
+	scf_logd("d->expr: %p\n", d->expr);
 
 	sd->_sizeof     = _sizeof;
 	sd->parent_expr = d->expr;

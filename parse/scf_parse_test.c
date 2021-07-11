@@ -11,10 +11,13 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
+	int64_t tv0 = gettime();
+
 	if (scf_parse_parse(parse) < 0) {
 		printf("%s(),%d, error: \n", __func__, __LINE__);
 		return -1;
 	}
+	int64_t tv1 = gettime();
 
 	printf("\n");
 #if 1
@@ -22,8 +25,12 @@ int main(int argc, char* argv[])
 		printf("%s(),%d, error: \n", __func__, __LINE__);
 		return -1;
 	}
+	int64_t tv2 = gettime();
 	printf("\n");
 #endif
+
+	scf_logw("tv1 - tv0: %ld\n", tv1 - tv0);
+	scf_logw("tv2 - tv1: %ld\n", tv2 - tv1);
 
 #if 0
 	if (!scf_list_empty(&parse->code_list_head)) {

@@ -208,7 +208,7 @@ int scf_function_signature(scf_function_t* f)
 	ret = scf_string_cat(s, f->node.w->text);
 	if (ret < 0)
 		goto error;
-	scf_logw("f signature: %s\n", s->data);
+	scf_logd("f signature: %s\n", s->data);
 
 	f->signature = s;
 	return 0;
