@@ -643,7 +643,7 @@ int scf_dwarf_line_encode(scf_dwarf_debug_t* debug, scf_dwarf_line_machine_t* lm
 		scf_dwarf_uword_t address_advance;
 		scf_dwarf_uword_t opcode;
 
-		scf_loge("i: %d, line: %d, address: %#lx\n", i, result->line, result->address);
+		scf_logd("i: %d, line: %d, address: %#lx\n", i, result->line, result->address);
 
 		uint8_t buf[64];
 		size_t  len;

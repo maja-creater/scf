@@ -303,6 +303,27 @@ void scf_basic_block_print_list(scf_list_t* h)
 				}
 			}
 
+			if (bb->entry_dn_aliases) {
+				for (i = 0; i < bb->entry_dn_aliases->size; i++) {
+
+					scf_dag_node_t* dn = bb->entry_dn_aliases->data[i];
+					scf_variable_t* v  = dn->var;
+
+					if (v && v->w)
+						printf("entry alias:  v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+				}
+			}
+			if (bb->exit_dn_aliases) {
+				for (i = 0; i < bb->exit_dn_aliases->size; i++) {
+
+					scf_dag_node_t* dn = bb->exit_dn_aliases->data[i];
+					scf_variable_t* v  = dn->var;
+
+					if (v && v->w)
+						printf("exit  alias:  v_%d_%d/%s\n", v->w->line, v->w->pos, v->w->text->data);
+				}
+			}
+
 			if (bb->dn_updateds) {
 				for (i = 0; i < bb->dn_updateds->size; i++) {
 
@@ -501,6 +522,7 @@ static int _bb_vars(scf_basic_block_t* bb)
 
 		if (c->srcs) {
 			scf_3ac_operand_t* src;
+			scf_variable_t*    v;
 			int j;
 
 			for (j  = 0; j < c->srcs->size; j++) {
@@ -510,9 +532,12 @@ static int _bb_vars(scf_basic_block_t* bb)
 					continue;
 
 				dn = src->dag_node;
+				v  = dn->var;
 
 				if (scf_type_is_operator(dn->type)
-						|| !scf_variable_const(dn->var)) {
+						|| !scf_variable_const(v)
+						|| (v->nb_dimentions > 0 && (SCF_OP_ARRAY_INDEX == c->op->type || scf_type_is_assign_array_index(c->op->type)))
+						) {
 
 					ret = scf_vector_add_unique(bb->var_dag_nodes, dn);
 					if (ret < 0)
@@ -845,8 +870,7 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 		return ret;
 
 	for (i = 0; i < bb->var_dag_nodes->size; i++) {
-
-		dn = bb->var_dag_nodes->data[i];
+		dn =        bb->var_dag_nodes->data[i];
 
 		if (scf_dn_through_bb(dn))
 			dn->active  = 1;
@@ -921,6 +945,7 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 	}
 
 #if 0
+	scf_loge("bb: %d\n", bb->index);
 	for (l = scf_list_head(&bb->code_list_head); l != scf_list_sentinel(&bb->code_list_head);
 			l = scf_list_next(l)) {
 
@@ -961,6 +986,17 @@ int scf_basic_block_active_vars(scf_basic_block_t* bb)
 		ret = _copy_updated_vars(bb->dn_updateds, c->active_vars);
 		if (ret < 0)
 			return ret;
+
+		for (i = 0; i < bb->dn_updateds->size; i++) {
+			dn =        bb->dn_updateds->data[i];
+
+			if (!dn->var->global_flag)
+				continue;
+
+			ret = scf_vector_add_unique(bb->exit_dn_actives, dn);
+			if (ret < 0)
+				return ret;
+		}
 	}
 
 	return 0;

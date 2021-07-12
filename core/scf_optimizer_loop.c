@@ -501,13 +501,23 @@ static int _bb_loop_add_pre_post(scf_function_t* f)
 				jmp = scf_basic_block_alloc();
 				if (!jmp)
 					return -ENOMEM;
-				jmp->jmp_flag = 1;
 
 				c = scf_branch_ops_code(SCF_OP_GOTO, NULL, NULL);
 				if (!c) {
 					scf_basic_block_free(jmp);
 					return -ENOMEM;
 				}
+
+				if (scf_vector_add(f->jmps, c) < 0) {
+					scf_3ac_code_free(c);
+					scf_basic_block_free(jmp);
+					return -ENOMEM;
+				}
+
+				jmp->jmp_flag  = 1;
+
+				c->basic_block = jmp;
+
 				dst     = c->dsts->data[0];
 				dst->bb = exit;
 
@@ -748,6 +758,27 @@ static int _bb_not_in_loop(scf_function_t* f, scf_list_t* bb_list_head)
 			bbg = scf_bb_group_alloc();
 			if (!bbg)
 				return -ENOMEM;
+
+		} else if (bbg->body->size > 0) {
+
+			for (i = 0; i < bb->prevs->size; i++) {
+				bb2       = bb->prevs->data[i];
+
+				if (scf_vector_find(bbg->body, bb2))
+					break;
+			}
+
+			if (i == bb->prevs->size) {
+
+				if (scf_vector_add(f->bb_groups, bbg) < 0) {
+					scf_bb_group_free(bbg);
+					return -ENOMEM;
+				}
+
+				bbg = scf_bb_group_alloc();
+				if (!bbg)
+					return -ENOMEM;
+			}
 		}
 
 		if (scf_vector_add(bbg->body, bb) < 0) {

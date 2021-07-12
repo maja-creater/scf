@@ -955,10 +955,12 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 					return ret;
 			}
 
+			scf_loge("************ bb: %d\n", bb->index);
 			ret = _x64_make_insts_for_list(ctx, &bb->code_list_head, 0);
 			if (ret < 0)
 				return ret;
 			bb->native_flag = 1;
+			scf_loge("************ bb: %d\n", bb->index);
 
 			ret = x64_save_bb_colors(bb->dn_colors_exit, bbg, bb);
 			if (ret < 0)
@@ -1023,7 +1025,7 @@ int	_scf_x64_select_inst(scf_native_t* ctx)
 				return ret;
 		}
 	}
-#if 1
+#if 0
 	if (x64_optimize_peephole(ctx, f) < 0) {
 		scf_loge("\n");
 		return -1;

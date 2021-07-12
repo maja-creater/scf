@@ -114,9 +114,6 @@ int x64_bb_load_dn(intptr_t color, scf_dag_node_t* dn, scf_3ac_code_t* c, scf_ba
 	int ret;
 	int i;
 
-	scf_logd("add save: v_%d_%d/%s, color: %ld\n",
-			v->w->line, v->w->pos, v->w->text->data, color);
-
 	if (!c->instructions) {
 		c->instructions = scf_vector_alloc();
 		if (!c->instructions)
@@ -133,6 +130,8 @@ int x64_bb_load_dn(intptr_t color, scf_dag_node_t* dn, scf_3ac_code_t* c, scf_ba
 		return ret;
 	}
 
+	scf_logd("add load: v_%d_%d/%s, color: %ld, r: %s\n",
+			v->w->line, v->w->pos, v->w->text->data, color, r->name);
 	return 0;
 }
 
@@ -173,7 +172,7 @@ int x64_bb_load_dn2(intptr_t color, scf_dag_node_t* dn, scf_basic_block_t* bb, s
 
 	scf_variable_t* v = dn->var;
 	if (v->w)
-		scf_loge("bb: %d, v: %d/%s\n", bb->index, v->w->line, v->w->text->data);
+		scf_logd("bb: %d, v: %d/%s, bp_offset: -%#x\n", bb->index, v->w->line, v->w->text->data, -v->bp_offset);
 
 	l = scf_list_tail(&bb->code_list_head);
 	c = scf_list_data(l, scf_3ac_code_t, list);
@@ -360,6 +359,10 @@ int x64_fix_bb_colors(scf_basic_block_t* bb, scf_bb_group_t* bbg, scf_function_t
 				scf_logd("bb: %d, prev: %d, v: %d/%s\n", bb->index, prev->index, v->w->line, v->w->text->data);
 
 			if (ds->color == ds2->color)
+				continue;
+
+			if (!scf_vector_find(prev->exit_dn_actives, dn)
+					&& !scf_vector_find(prev->exit_dn_aliases, dn))
 				continue;
 
 			if (ds2->color > 0) {

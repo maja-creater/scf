@@ -68,6 +68,18 @@ static int _x64_inst_op2_imm(int OpCode_type, scf_dag_node_t* dst, scf_dag_node_
 
 	src_size = src_size > dst_size ? dst_size : src_size;
 
+	if (dst->color < 0
+			&& 0 == dst->var->bp_offset
+			&& dst->var->tmp_flag) {
+
+		if (SCF_X64_MOV != OpCode_type) {
+			scf_loge("\n");
+			return -1;
+		}
+
+		X64_SELECT_REG_CHECK(&rd, dst, c, f, 0);
+	}
+
 	if (dst->color > 0) {
 
 		if (SCF_X64_MOV == OpCode_type)

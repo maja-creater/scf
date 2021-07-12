@@ -1,19 +1,20 @@
 #include"scf_optimizer.h"
 
-typedef int (*bb_find_pt)(scf_basic_block_t* bb, scf_vector_t* queue);
-
-static int _bb_prev_find_saves(scf_basic_block_t* bb, scf_vector_t* queue)
+static int _bb_prev_find_saves(scf_basic_block_t* bb, void* data, scf_vector_t* queue)
 {
+	scf_basic_block_t* prev_bb;
+	scf_dag_node_t*    dn;
+
 	int count = 0;
 	int ret;
 	int j;
 
 	for (j = 0; j < bb->prevs->size; j++) {
-		scf_basic_block_t* prev_bb = bb->prevs->data[j];
+		prev_bb   = bb->prevs->data[j];
 
 		int k;
 		for (k = 0; k < bb->entry_dn_aliases->size; k++) {
-			scf_dag_node_t* dn = bb->entry_dn_aliases->data[k];
+			dn =        bb->entry_dn_aliases->data[k];
 
 			if (scf_vector_find(prev_bb->exit_dn_aliases, dn))
 				continue;
@@ -31,18 +32,21 @@ static int _bb_prev_find_saves(scf_basic_block_t* bb, scf_vector_t* queue)
 	return count;
 }
 
-static int _bb_next_find_saves(scf_basic_block_t* bb, scf_vector_t* queue)
+static int _bb_next_find_saves(scf_basic_block_t* bb, void* data, scf_vector_t* queue)
 {
+	scf_basic_block_t* next_bb;
+	scf_dag_node_t*    dn;
+
 	int count = 0;
 	int ret;
 	int j;
 
 	for (j = 0; j < bb->nexts->size; j++) {
-		scf_basic_block_t* next_bb = bb->nexts->data[j];
+		next_bb   = bb->nexts->data[j];
 
 		int k;
 		for (k = 0; k < next_bb->exit_dn_aliases->size; k++) {
-			scf_dag_node_t* dn = next_bb->exit_dn_aliases->data[k];
+			dn =        next_bb->exit_dn_aliases->data[k];
 
 			if (scf_vector_find(bb->exit_dn_aliases, dn))
 				continue;
@@ -60,18 +64,21 @@ static int _bb_next_find_saves(scf_basic_block_t* bb, scf_vector_t* queue)
 	return count;
 }
 
-static int _bb_prev_find_loads(scf_basic_block_t* bb, scf_vector_t* queue)
+static int _bb_prev_find_loads(scf_basic_block_t* bb, void* data, scf_vector_t* queue)
 {
+	scf_basic_block_t* prev_bb;
+	scf_dag_node_t*    dn;
+
 	int count = 0;
 	int ret;
 	int j;
 
 	for (j = 0; j < bb->prevs->size; j++) {
-		scf_basic_block_t* prev_bb = bb->prevs->data[j];
+		prev_bb   = bb->prevs->data[j];
 
 		int k;
 		for (k = 0; k < prev_bb->entry_dn_aliases->size; k++) {
-			scf_dag_node_t* dn = prev_bb->entry_dn_aliases->data[k];
+			dn =        prev_bb->entry_dn_aliases->data[k];
 
 			if (scf_vector_find(bb->entry_dn_aliases, dn))
 				continue;
@@ -89,18 +96,21 @@ static int _bb_prev_find_loads(scf_basic_block_t* bb, scf_vector_t* queue)
 	return count;
 }
 
-static int _bb_next_find_loads(scf_basic_block_t* bb, scf_vector_t* queue)
+static int _bb_next_find_loads(scf_basic_block_t* bb, void* data, scf_vector_t* queue)
 {
+	scf_basic_block_t* next_bb;
+	scf_dag_node_t*    dn;
+
 	int count = 0;
 	int ret;
 	int j;
 
 	for (j = 0; j < bb->nexts->size; j++) {
-		scf_basic_block_t* next_bb = bb->nexts->data[j];
+		next_bb   = bb->nexts->data[j];
 
 		int k;
 		for (k = 0; k < bb->entry_dn_aliases->size; k++) {
-			scf_dag_node_t* dn = bb->entry_dn_aliases->data[k];
+			dn =        bb->entry_dn_aliases->data[k];
 
 			if (scf_vector_find(next_bb->entry_dn_aliases, dn))
 				continue;
@@ -116,58 +126,6 @@ static int _bb_next_find_loads(scf_basic_block_t* bb, scf_vector_t* queue)
 			return ret;
 	}
 	return count;
-}
-
-static int _bb_search_bfs(scf_basic_block_t* root, bb_find_pt find)
-{
-	if (!root)
-		return -EINVAL;
-
-	scf_vector_t* queue   = scf_vector_alloc();
-	if (!queue)
-		return -ENOMEM;
-
-	scf_vector_t* checked = scf_vector_alloc();
-	if (!queue) {
-		scf_vector_free(queue);
-		return -ENOMEM;
-	}
-
-	int ret = scf_vector_add(queue, root);
-	if (ret < 0)
-		goto failed;
-
-	int count = 0;
-	int i     = 0;
-
-	while (i < queue->size) {
-		scf_basic_block_t* bb = queue->data[i];
-
-		int j;
-		for (j = 0; j < checked->size; j++) {
-			if (bb == checked->data[j])
-				goto next;
-		}
-
-		ret = scf_vector_add(checked, bb);
-		if (ret < 0)
-			goto failed;
-
-		ret = find(bb, queue);
-		if (ret < 0)
-			goto failed;
-		count += ret;
-next:
-		i++;
-	}
-
-	ret = count;
-failed:
-	scf_vector_free(queue);
-	scf_vector_free(checked);
-	queue   = NULL;
-	checked = NULL;
-	return ret;
 }
 
 static void _bb_info_print_list(scf_list_t* h)
@@ -217,51 +175,42 @@ static int _optimize_pointer_aliases(scf_ast_t* ast, scf_function_t* f, scf_list
 		return 0;
 
 	scf_list_t*        l;
-	scf_basic_block_t* bb;
-	scf_dag_node_t*    dn;
+	scf_basic_block_t* start;
+	scf_basic_block_t* end;
 
 	int count;
 	int ret;
-	int i;
+
+	l     = scf_list_head(bb_list_head);
+	start = scf_list_data(l, scf_basic_block_t, list);
+
+	l     = scf_list_tail(bb_list_head);
+	end   = scf_list_data(l, scf_basic_block_t, list);
+	assert(end->end_flag);
 
 	do {
-		l   = scf_list_tail(bb_list_head);
-		bb  = scf_list_data(l, scf_basic_block_t, list);
-		assert(bb->end_flag);
-
-		ret = _bb_search_bfs(bb, _bb_prev_find_saves);
+		ret = scf_basic_block_search_bfs(end, _bb_prev_find_saves, NULL);
 		if (ret < 0)
 			return ret;
 		count = ret;
 
-		l   = scf_list_head(bb_list_head);
-		bb  = scf_list_data(l, scf_basic_block_t, list);
+		ret = scf_basic_block_search_bfs(start, _bb_next_find_saves, NULL);
+		if (ret < 0)
+			return ret;
+		count += ret;
 
-		ret = _bb_search_bfs(bb, _bb_next_find_saves);
+		ret = scf_basic_block_search_bfs(start, _bb_next_find_loads, NULL);
+		if (ret < 0)
+			return ret;
+		count += ret;
+
+		ret = scf_basic_block_search_bfs(end, _bb_prev_find_loads, NULL);
 		if (ret < 0)
 			return ret;
 		count += ret;
 	} while (count > 0);
 
-	do {
-		l   = scf_list_head(bb_list_head);
-		bb  = scf_list_data(l, scf_basic_block_t, list);
-		ret = _bb_search_bfs(bb, _bb_next_find_loads);
-		if (ret < 0)
-			return ret;
-		count = ret;
-
-		l   = scf_list_tail(bb_list_head);
-		bb  = scf_list_data(l, scf_basic_block_t, list);
-		assert(bb->end_flag);
-
-		ret = _bb_search_bfs(bb, _bb_prev_find_loads);
-		if (ret < 0)
-			return ret;
-		count += ret;
-	} while (count > 0);
-
-//	_bb_info_print_list(bb_list_head);
+//	scf_basic_block_print_list(bb_list_head);
 	return 0;
 }
 

@@ -101,6 +101,76 @@ static int _x64_inst_call_stack_size(scf_3ac_code_t* c)
 	return stack_size;
 }
 
+static int _x64_load_const_arg(scf_register_x64_t* rabi, scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f)
+{
+	scf_instruction_t*  inst;
+	scf_x64_OpCode_t*   lea;
+	scf_x64_OpCode_t*   mov;
+	scf_variable_t*     v;
+
+	v = dn->var;
+
+	int size     = x64_variable_size(v);
+	int is_float = scf_variable_float(v);
+
+	if (SCF_FUNCTION_PTR == v->type) {
+
+		if (v->func_ptr) {
+			assert(v->const_literal_flag);
+
+			v->global_flag = 1;
+			v->local_flag  = 0;
+			v->tmp_flag    = 0;
+
+			scf_rela_t* rela = NULL;
+
+			lea  = x64_find_OpCode(SCF_X64_LEA,  size, size, SCF_X64_E2G);
+			inst = x64_make_inst_M2G(&rela, lea, rabi, NULL, v);
+			X64_INST_ADD_CHECK(c->instructions, inst);
+			X64_RELA_ADD_CHECK(f->text_relas, rela, c, NULL, v->func_ptr);
+
+		} else {
+			scf_x64_OpCode_t* xor;
+
+			xor  = x64_find_OpCode(SCF_X64_XOR, size, size, SCF_X64_G2E);
+			inst = x64_make_inst_G2E(xor, rabi, rabi);
+			X64_INST_ADD_CHECK(c->instructions, inst);
+		}
+
+	} else if (scf_variable_const_string(v)) {
+
+		scf_rela_t* rela = NULL;
+
+		v->global_flag = 1;
+		v->local_flag  = 0;
+		v->tmp_flag    = 0;
+
+		lea  = x64_find_OpCode(SCF_X64_LEA, size, size, SCF_X64_E2G);
+
+		inst = x64_make_inst_M2G(&rela, lea, rabi, NULL, v);
+		X64_INST_ADD_CHECK(c->instructions, inst);
+		X64_RELA_ADD_CHECK(f->data_relas, rela, c, v, NULL);
+
+	} else if (v->nb_dimentions > 0) {
+		assert(v->const_literal_flag);
+
+		scf_rela_t* rela = NULL;
+
+		lea = x64_find_OpCode(SCF_X64_LEA, size, size, SCF_X64_E2G);
+
+		inst = x64_make_inst_M2G(&rela, lea, rabi, NULL, v);
+		X64_INST_ADD_CHECK(c->instructions, inst);
+		X64_RELA_ADD_CHECK(f->data_relas, rela, c, v, NULL);
+
+	} else {
+		mov  = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_I2G);
+		inst = x64_make_inst_I2G(mov, rabi, (uint8_t*)&v->data, size);
+		X64_INST_ADD_CHECK(c->instructions, inst);
+	}
+
+	return 0;
+}
+
 static int _x64_inst_call_argv(scf_3ac_code_t* c, scf_function_t* f)
 {
 	scf_register_x64_t* rsp  = x64_find_register("rsp");
@@ -137,65 +207,12 @@ static int _x64_inst_call_argv(scf_3ac_code_t* c, scf_function_t* f)
 			if (0 == src->dag_node->color) {
 
 				ret = x64_overflow_reg(rabi, c, f);
-				if (ret < 0) {
-					scf_loge("\n");
+				if (ret < 0)
 					return ret;
-				}
 
-				if (SCF_FUNCTION_PTR == v->type) {
-
-					if (v->func_ptr) {
-						assert(v->const_literal_flag);
-
-						v->global_flag = 1;
-						v->local_flag  = 0;
-						v->tmp_flag    = 0;
-
-						scf_rela_t* rela = NULL;
-
-						lea  = x64_find_OpCode(SCF_X64_LEA,  size, size, SCF_X64_E2G);
-						inst = x64_make_inst_M2G(&rela, lea, rabi, NULL, v);
-						X64_INST_ADD_CHECK(c->instructions, inst);
-						X64_RELA_ADD_CHECK(f->text_relas, rela, c, NULL, v->func_ptr);
-
-					} else {
-						scf_x64_OpCode_t* xor;
-
-						xor  = x64_find_OpCode(SCF_X64_XOR, size, size, SCF_X64_G2E);
-						inst = x64_make_inst_G2E(xor, rabi, rabi);
-						X64_INST_ADD_CHECK(c->instructions, inst);
-					}
-
-				} else if (scf_variable_const_string(v)) {
-
-					scf_rela_t* rela = NULL;
-
-					v->global_flag = 1;
-					v->local_flag  = 0;
-					v->tmp_flag    = 0;
-
-					lea  = x64_find_OpCode(SCF_X64_LEA, size, size, SCF_X64_E2G);
-
-					inst = x64_make_inst_M2G(&rela, lea, rabi, NULL, v);
-					X64_INST_ADD_CHECK(c->instructions, inst);
-					X64_RELA_ADD_CHECK(f->data_relas, rela, c, v, NULL);
-
-				} else if (v->nb_dimentions > 0) {
-					assert(v->const_literal_flag);
-
-					scf_rela_t* rela = NULL;
-
-					lea = x64_find_OpCode(SCF_X64_LEA, size, size, SCF_X64_E2G);
-
-					inst = x64_make_inst_M2G(&rela, lea, rabi, NULL, v);
-					X64_INST_ADD_CHECK(c->instructions, inst);
-					X64_RELA_ADD_CHECK(f->data_relas, rela, c, v, NULL);
-
-				} else {
-					mov  = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_I2G);
-					inst = x64_make_inst_I2G(mov, rabi, (uint8_t*)&v->data, size);
-					X64_INST_ADD_CHECK(c->instructions, inst);
-				}
+				ret = _x64_load_const_arg(rabi, src->dag_node, c, f);
+				if (ret < 0)
+					return ret;
 
 				if (!src->dag_node->rabi2) {
 					mov  = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_G2E);

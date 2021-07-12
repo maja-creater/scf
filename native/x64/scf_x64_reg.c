@@ -658,6 +658,7 @@ static scf_register_x64_t* _x64_reg_cached_min_vars(scf_register_x64_t** regs, i
 			min   = nb_vars;
 		}
 	}
+
 	return r_min;
 }
 
@@ -780,8 +781,53 @@ scf_register_x64_t* x64_select_overflowed_reg(scf_dag_node_t* dn, scf_3ac_code_t
 		return r;
 	}
 
-	scf_loge("\n");
 	return NULL;
+}
+
+static int _x64_load_reg_const(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f)
+{
+	scf_instruction_t* inst;
+	scf_x64_OpCode_t*  lea;
+	scf_x64_OpCode_t*  mov;
+
+	scf_variable_t*    v = dn->var;
+
+	int size = x64_variable_size(v);
+
+	if (SCF_FUNCTION_PTR == v->type) {
+
+		assert(v->func_ptr);
+		assert(v->const_literal_flag);
+
+		v->global_flag = 1;
+		v->local_flag  = 0;
+		v->tmp_flag    = 0;
+
+		scf_rela_t* rela = NULL;
+
+		lea  = x64_find_OpCode(SCF_X64_LEA,  size, size, SCF_X64_E2G);
+		inst = x64_make_inst_M2G(&rela, lea, r, NULL, v);
+		X64_INST_ADD_CHECK(c->instructions, inst);
+		X64_RELA_ADD_CHECK(f->text_relas, rela, c, NULL, v->func_ptr);
+
+	} else if (v->nb_dimentions > 0) {
+		assert(v->const_literal_flag);
+
+		scf_rela_t* rela = NULL;
+
+		lea = x64_find_OpCode(SCF_X64_LEA, size, size, SCF_X64_E2G);
+
+		inst = x64_make_inst_M2G(&rela, lea, r, NULL, v);
+		X64_INST_ADD_CHECK(c->instructions, inst);
+		X64_RELA_ADD_CHECK(f->data_relas, rela, c, v, NULL);
+
+	} else {
+		mov  = x64_find_OpCode(SCF_X64_MOV, size, size, SCF_X64_I2G);
+		inst = x64_make_inst_I2G(mov, r, (uint8_t*)&v->data, size);
+		X64_INST_ADD_CHECK(c->instructions, inst);
+	}
+
+	return 0;
 }
 
 int x64_load_reg(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, scf_function_t* f)
@@ -797,10 +843,12 @@ int x64_load_reg(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, s
 	int var_size = x64_variable_size(dn->var);
 
 	if (!is_float) {
+
 		if (scf_variable_const(dn->var)) {
-			mov  = x64_find_OpCode(SCF_X64_MOV, var_size, var_size, SCF_X64_I2G);
-			inst = x64_make_inst_I2G(mov, r, (uint8_t*)&dn->var->data, dn->var->size);
-			X64_INST_ADD_CHECK(c->instructions, inst);
+
+			int ret = _x64_load_reg_const(r, dn, c, f);
+			if (ret < 0)
+				return ret;
 
 			dn->loaded = 1;
 			return 0;
