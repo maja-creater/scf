@@ -431,6 +431,7 @@ static int _scf_expr_calculate_internal(scf_ast_t* ast, scf_node_t* node, void* 
 	if (node->result_nodes) {
 		scf_vector_clear(node->result_nodes, ( void (*)(void*) ) scf_node_free);
 		scf_vector_free(node->result_nodes);
+		node->result_nodes = NULL;
 	}
 
 	scf_operator_handler_t* h;
@@ -811,7 +812,7 @@ static int _scf_op_semantic_array_index(scf_ast_t* ast, scf_node_t** nodes, int 
 	scf_type_t*		t = scf_ast_find_type_type(ast, v0->type);
 
 	scf_lex_word_t* w = nodes[0]->parent->w;
-	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, nb_pointers, v0->func_ptr);
+	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, nb_pointers, v0->func_ptr);
 	if (!r)
 		return -ENOMEM;
 

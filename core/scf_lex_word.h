@@ -97,13 +97,10 @@ enum scf_lex_words {
 
 	// data types
 	SCF_LEX_WORD_KEY_CHAR,		// char
-	SCF_LEX_WORD_KEY_STRING,    // string
 
 	SCF_LEX_WORD_KEY_INT,		// int
 	SCF_LEX_WORD_KEY_FLOAT,     // float
 	SCF_LEX_WORD_KEY_DOUBLE,	// double
-
-	SCF_LEX_WORD_KEY_COMPLEX,   // complex
 
 	SCF_LEX_WORD_KEY_INT8,      // int8_t
 	SCF_LEX_WORD_KEY_INT16,     // int16_t
@@ -118,25 +115,14 @@ enum scf_lex_words {
 	SCF_LEX_WORD_KEY_INTPTR,    // intptr_t
 	SCF_LEX_WORD_KEY_UINTPTR,   // uintptr_t
 
+	SCF_LEX_WORD_KEY_VOID,      // void
+
 	SCF_LEX_WORD_KEY_VA_START,  // va_start
 	SCF_LEX_WORD_KEY_VA_ARG,    // va_arg
 	SCF_LEX_WORD_KEY_VA_END,    // va_end
 
-	SCF_LEX_WORD_KEY_VOID,      // void
-
-	// mat & vec
-	SCF_LEX_WORD_KEY_VEC2,      // vec2
-	SCF_LEX_WORD_KEY_VEC3,      // vec3
-	SCF_LEX_WORD_KEY_VEC4,      // vec4
-	SCF_LEX_WORD_KEY_MAT2x2,    // mat2x2
-	SCF_LEX_WORD_KEY_MAT3x3,    // mat3x3
-	SCF_LEX_WORD_KEY_MAT4x4,    // mat4x4
-
-	SCF_LEX_WORD_KEY_MAT,       // mat
-
 	// class
 	SCF_LEX_WORD_KEY_CLASS,     // class
-	SCF_LEX_WORD_KEY_CONTAINER, // container for basic algorithm
 
 	SCF_LEX_WORD_KEY_CONST,     // const
 	SCF_LEX_WORD_KEY_STATIC,    // static
@@ -213,7 +199,7 @@ static inline int scf_lex_is_const(scf_lex_word_t* w)
 
 static inline int scf_lex_is_base_type(scf_lex_word_t* w)
 {
-	return SCF_LEX_WORD_KEY_CHAR <= w->type && SCF_LEX_WORD_KEY_MAT4x4 >= w->type;
+	return SCF_LEX_WORD_KEY_CHAR <= w->type && SCF_LEX_WORD_KEY_VOID >= w->type;
 }
 
 scf_lex_word_t*		scf_lex_word_alloc(scf_string_t* file, int line, int pos, int type);

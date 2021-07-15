@@ -340,9 +340,6 @@ int scf_pointer_alias_ds(scf_vector_t* aliases, scf_dn_status_t* ds_pointer, scf
 	scf_3ac_code_t*  c2;
 	scf_list_t*      l2;
 
-//	scf_logw("\n");
-//	scf_dn_status_print(ds_pointer);
-
 	for (l2 = &c->list; l2 != scf_list_sentinel(&bb->code_list_head); l2 = scf_list_prev(l2)) {
 
 		c2  = scf_list_data(l2, scf_3ac_code_t, list);
@@ -1115,6 +1112,7 @@ static int _pointer_alias_add(scf_vector_t* aliases, scf_dag_node_t* dn, scf_3ac
 		ds2->alias_indexes = ds2->dn_indexes;
 		ds2->dag_node      = NULL;
 		ds2->dn_indexes    = NULL;
+		ds2->alias_type    = SCF_DN_ALIAS_ARRAY;
 
 		ret = scf_vector_add(aliases, ds2);
 		if (ret < 0) {
@@ -1203,6 +1201,7 @@ static int _pointer_alias_sub(scf_vector_t* aliases, scf_dag_node_t* dn, scf_3ac
 		ds2->alias_indexes = ds2->dn_indexes;
 		ds2->dag_node      = NULL;
 		ds2->dn_indexes    = NULL;
+		ds2->alias_type    = SCF_DN_ALIAS_ARRAY;
 
 		ret = scf_vector_add(aliases, ds2);
 		if (ret < 0) {
@@ -1250,6 +1249,7 @@ static int _pointer_alias_logic(scf_vector_t* aliases, scf_dag_node_t* dn, scf_3
 			ds->alias_indexes = ds->dn_indexes;
 			ds->dag_node      = NULL;
 			ds->dn_indexes    = NULL;
+			ds->alias_type    = SCF_DN_ALIAS_VAR;
 
 			ret = scf_vector_add(aliases, ds);
 			if (ret < 0) {
@@ -1280,6 +1280,7 @@ static int _pointer_alias_logic(scf_vector_t* aliases, scf_dag_node_t* dn, scf_3
 			ds2->alias_indexes = ds2->dn_indexes;
 			ds2->dag_node      = NULL;
 			ds2->dn_indexes    = NULL;
+			ds2->alias_type    = SCF_DN_ALIAS_VAR;
 
 			ret = scf_vector_add(aliases, ds2);
 			if (ret < 0) {

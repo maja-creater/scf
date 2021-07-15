@@ -19,12 +19,10 @@
 
 scf_base_type_t	base_types[] = {
 	{SCF_VAR_CHAR,		"char",		1},
-	{SCF_VAR_STRING, 	"string",	-1},
 
 	{SCF_VAR_INT, 		"int",		4},
 	{SCF_VAR_FLOAT,     "float",    4},
 	{SCF_VAR_DOUBLE, 	"double",	8},
-	{SCF_VAR_COMPLEX,   "complex",  2 * 4},
 
 	{SCF_VAR_I8,        "int8_t",     1},
 	{SCF_VAR_I16,       "int16_t",    2},
@@ -39,14 +37,6 @@ scf_base_type_t	base_types[] = {
 	{SCF_VAR_INTPTR,    "intptr_t",   sizeof(void*)},
 	{SCF_VAR_UINTPTR,   "uintptr_t",  sizeof(void*)},
 	{SCF_FUNCTION_PTR,  "funcptr",  sizeof(void*)},
-
-	{SCF_VAR_VEC2,      "vec2",     2 * 4},
-	{SCF_VAR_VEC3,      "vec3",     3 * 4},
-	{SCF_VAR_VEC4,      "vec4",     4 * 4},
-
-	{SCF_VAR_MAT2x2,    "mat2x2",   2 * 2 * 4},
-	{SCF_VAR_MAT3x3,    "mat3x3",   3 * 3 * 4},
-	{SCF_VAR_MAT4x4,    "mat4x4",   4 * 4 * 4},
 };
 
 extern scf_dfa_module_t  dfa_module_identity;
@@ -192,78 +182,6 @@ int scf_parse_dfa_init(scf_parse_t* parse)
 	return 0;
 }
 
-static int _add_global_function(scf_ast_t* ast, const char* fname)
-{
-	scf_string_t*   s;
-	scf_lex_word_t* w;
-	scf_function_t* f;
-	scf_variable_t* v;
-	scf_type_t*     t;
-
-	t = scf_ast_find_type_type(ast, SCF_VAR_U8);
-
-	s = scf_string_cstr("global");
-	if (!s)
-		return -1;
-
-	w = scf_lex_word_alloc(s, 0, 0, SCF_LEX_WORD_ID);
-	if (!s) {
-		scf_string_free(s);
-		return -1;
-	}
-
-	w->text = scf_string_cstr(fname);
-	if (!w->text) {
-		scf_string_free(s);
-		scf_lex_word_free(w);
-		return -1;
-	}
-
-	f = scf_function_alloc(w);
-	scf_lex_word_free(w);
-	w = NULL;
-	if (!f) {
-		scf_string_free(s);
-		return -1;
-	}
-
-	// function arg
-	w = scf_lex_word_alloc(s, 0, 0, SCF_LEX_WORD_ID);
-	if (!w) {
-		scf_string_free(s);
-		scf_function_free(f);
-		return -1;
-	}
-
-	w->text = scf_string_cstr("arg");
-	if (!w->text) {
-		scf_string_free(s);
-		scf_lex_word_free(w);
-		scf_function_free(f);
-		return -1;
-	}
-
-	v = SCF_VAR_ALLOC_BY_TYPE(w, t, 1, 1, NULL);
-	scf_lex_word_free(w);
-	w = NULL;
-	if (!v) {
-		scf_string_free(s);
-		scf_function_free(f);
-		return -1;
-	}
-
-	if (scf_vector_add(f->argv, v) < 0) {
-		scf_string_free(s);
-		scf_function_free(f);
-		scf_variable_free(v);
-		return -1;
-	}
-
-	scf_scope_push_function(ast->root_block->scope, f);
-	scf_node_add_child((scf_node_t*)ast->root_block, (scf_node_t*)f);
-	return 0;
-}
-
 int	scf_parse_open(scf_parse_t** pparse, const char* path)
 {
 	assert(pparse);
@@ -293,18 +211,6 @@ int	scf_parse_open(scf_parse_t** pparse, const char* path)
 	}
 
 	scf_ast_add_file_block(parse->ast, path);
-
-#if 0
-	if (_add_global_function(parse->ast, "scf_ref") < 0) {
-		scf_loge("\n");
-		return -1;
-	}
-
-	if (_add_global_function(parse->ast, "scf_free") < 0) {
-		scf_loge("\n");
-		return -1;
-	}
-#endif
 
 	if (scf_parse_dfa_init(parse) < 0) {
 		scf_loge("\n");

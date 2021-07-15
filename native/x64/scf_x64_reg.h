@@ -154,6 +154,7 @@ int                 x64_array_index_reg(x64_sib_t* sib, scf_dag_node_t* base, sc
 
 void                x64_call_rabi(int* p_nints, int* p_nfloats, scf_3ac_code_t* c);
 
+
 static inline int   x64_inst_data_is_reg(scf_inst_data_t* id)
 {
 	scf_register_t* rsp = (scf_register_t*)x64_find_register("rsp");

@@ -197,14 +197,7 @@ scf_variable_t*	scf_variable_clone(scf_variable_t* v)
 	v2->data_size = v->data_size;
 	v2->offset    = v->offset;
 
-	if (SCF_VAR_STRING == v->type) {
-		v2->data.s = scf_string_clone(v->data.s);
-		if (!v2->data.s) {
-			scf_variable_free(v2);
-			return NULL;
-		}
-
-	} else if (SCF_STRUCT >= v->type) {
+	if (SCF_STRUCT >= v->type) {
 		if (v->data.p) {
 			v2->data.p = malloc(v->size);
 			if (!v2->data.p) {
@@ -267,11 +260,6 @@ void scf_variable_free(scf_variable_t* var)
 	if (var->w) {
 		scf_lex_word_free(var->w);
 		var->w = NULL;
-	}
-
-	if (SCF_VAR_STRING == var->type) {
-		scf_string_free(var->data.s);
-		var->data.s = NULL;
 	}
 
 	if (var->signature) {
@@ -360,10 +348,6 @@ void scf_variable_print(scf_variable_t* var)
 	} else if (SCF_VAR_DOUBLE == var->type) {
 		printf("%s(),%d, print var: name: %s, type: %d, value: %lg\n",
 				__func__, __LINE__, var->w->text->data, var->type, var->data.d);
-
-	} else if (SCF_VAR_STRING == var->type) {
-		printf("%s(),%d, print var: name: %s, type: %d, value: %s\n",
-				__func__, __LINE__, var->w->text->data, var->type, var->data.s->data);
 	} else {
 		printf("%s(),%d, print var: name: %s, type: %d\n",
 				__func__, __LINE__, var->w->text->data, var->type);

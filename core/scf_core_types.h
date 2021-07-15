@@ -207,17 +207,7 @@ enum scf_core_types {
 
 	SCF_VAR_FLOAT,      // float variable
 	SCF_VAR_DOUBLE,		// double variable
-	SCF_VAR_COMPLEX,    // complex variable
 
-	SCF_VAR_VEC2,
-	SCF_VAR_VEC3,
-	SCF_VAR_VEC4,
-
-	SCF_VAR_MAT2x2,
-	SCF_VAR_MAT3x3,
-	SCF_VAR_MAT4x4,
-
-	SCF_VAR_STRING,     // string variable
 
 	SCF_LABEL,			// label 
 
@@ -273,12 +263,12 @@ static int scf_type_is_float(int type)
 
 static int scf_type_is_number(int type)
 {
-	return type >= SCF_VAR_CHAR && type <= SCF_VAR_MAT4x4;
+	return type >= SCF_VAR_CHAR && type <= SCF_VAR_DOUBLE;
 }
 
 static int scf_type_is_var(int type)
 {
-	return (type >= SCF_VAR_CHAR && type <= SCF_VAR_STRING) || type >= SCF_STRUCT;
+	return (type >= SCF_VAR_CHAR && type <= SCF_VAR_DOUBLE) || type >= SCF_STRUCT;
 }
 
 static int scf_type_is_operator(int type)

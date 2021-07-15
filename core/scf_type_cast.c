@@ -21,7 +21,6 @@ static int type_update[] =
 
 	SCF_VAR_FLOAT,
 	SCF_VAR_DOUBLE,
-	SCF_VAR_COMPLEX,
 };
 
 static scf_type_cast_t  base_type_casts[] =
@@ -42,12 +41,6 @@ static scf_type_cast_t  base_type_casts[] =
 	{"float",   -1, SCF_VAR_FLOAT,   scf_cast_to_float},
 //	{"double",  -1, SCF_VAR_DOUBLE,  scf_cast_to_double},
 
-};
-
-static scf_type_cast_t	type_casts[] =
-{
-	{"float->complex",  SCF_VAR_FLOAT,   SCF_VAR_COMPLEX, NULL},
-	{"double->complex", SCF_VAR_DOUBLE,  SCF_VAR_COMPLEX, NULL},
 };
 
 int scf_find_updated_type(scf_ast_t* ast, scf_variable_t* v0, scf_variable_t* v1)
@@ -146,7 +139,7 @@ int scf_type_cast_check(scf_ast_t* ast, scf_variable_t* dst, scf_variable_t* src
 
 	if (scf_type_is_integer(src->type)) {
 
-		if (SCF_VAR_FLOAT <= dst->type && SCF_VAR_COMPLEX >= dst->type)
+		if (SCF_VAR_FLOAT <= dst->type && SCF_VAR_DOUBLE >= dst->type)
 			return 0;
 
 		if (scf_type_is_integer(dst->type)) {
@@ -160,21 +153,12 @@ int scf_type_cast_check(scf_ast_t* ast, scf_variable_t* dst, scf_variable_t* src
 		}
 	}
 
-	if (SCF_VAR_FLOAT <= src->type && SCF_VAR_COMPLEX >= src->type) {
+	if (SCF_VAR_FLOAT <= src->type && SCF_VAR_DOUBLE >= src->type) {
 
-		if (SCF_VAR_FLOAT <= dst->type && SCF_VAR_COMPLEX >= dst->type)
+		if (SCF_VAR_FLOAT <= dst->type && SCF_VAR_DOUBLE >= dst->type)
 			return 0;
 
 		if (scf_type_is_integer(dst->type))
-			return 0;
-	}
-
-	int i;
-	for (i = 0; i < sizeof(type_casts) / sizeof(type_casts[0]); i++) {
-
-		scf_type_cast_t* cast = &type_casts[i];
-
-		if (dst->type == cast->dst_type && src->type ==  cast->src_type)
 			return 0;
 	}
 

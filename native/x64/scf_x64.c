@@ -847,6 +847,7 @@ static void _x64_bbg_fix_loads(scf_bb_group_t* bbg)
 			if (dst->dag_node == dn) {
 				scf_list_del(&c->list);
 				scf_list_add_front(&bb->code_list_head, &c->list);
+				c->basic_block = bb;
 				break;
 			}
 		}

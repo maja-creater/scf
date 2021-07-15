@@ -28,12 +28,10 @@ static scf_lex_key_word_t	key_words[] = {
 	{"_",         SCF_LEX_WORD_KEY_UNDERLINE},
 
 	{"char",      SCF_LEX_WORD_KEY_CHAR},
-	{"string",    SCF_LEX_WORD_KEY_STRING},
 
 	{"int",       SCF_LEX_WORD_KEY_INT},
 	{"float",     SCF_LEX_WORD_KEY_FLOAT},
 	{"double",    SCF_LEX_WORD_KEY_DOUBLE},
-	{"complex",   SCF_LEX_WORD_KEY_COMPLEX},
 
 	{"int8_t",    SCF_LEX_WORD_KEY_INT8},
 	{"int16_t",   SCF_LEX_WORD_KEY_INT16},
@@ -54,18 +52,7 @@ static scf_lex_key_word_t	key_words[] = {
 	{"va_arg",    SCF_LEX_WORD_KEY_VA_ARG},
 	{"va_end",    SCF_LEX_WORD_KEY_VA_END},
 
-	{"vec2",      SCF_LEX_WORD_KEY_VEC2},
-	{"vec3",      SCF_LEX_WORD_KEY_VEC3},
-	{"vec4",      SCF_LEX_WORD_KEY_VEC4},
-
-	{"mat2x2",    SCF_LEX_WORD_KEY_MAT2x2},
-	{"mat3x3",    SCF_LEX_WORD_KEY_MAT3x3},
-	{"mat4x4",    SCF_LEX_WORD_KEY_MAT4x4},
-
-	{"mat",       SCF_LEX_WORD_KEY_MAT},
-
 	{"class",     SCF_LEX_WORD_KEY_CLASS},
-	{"container", SCF_LEX_WORD_KEY_CONTAINER},
 
 	{"const",     SCF_LEX_WORD_KEY_CONST},
 	{"static",    SCF_LEX_WORD_KEY_STATIC},
@@ -602,6 +589,16 @@ static int _lex_identity(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t*
 				if (w)
 					w->data.u64 = 0;
 
+			} else if (!strcmp(s->data, "__LINE__")) {
+
+				w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_CONST_U64);
+				if (w)
+					w->data.u64 = lex->nb_lines;
+
+			} else if (!strcmp(s->data, "__func__")) {
+
+				w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_CONST_STRING);
+
 			} else {
 				int type = _find_key_word(s->data);
 
@@ -958,6 +955,38 @@ int scf_lex_pop_word(scf_lex_t* lex, scf_lex_word_t** pword)
 	}
 
 	if ('/' == c->c) {
+
+		scf_lex_char_t* c2 = _lex_pop_char(lex);
+
+		if ('/' == c2->c) {
+			free(c2);
+			c2 = NULL;
+
+			while (1) {
+				c2 = _lex_pop_char(lex);
+
+				if (EOF == c2->c) {
+					_lex_push_char(lex, c2);
+					break;
+				}
+
+				int tmp = c2->c;
+				free(c2);
+				c2 = NULL;
+
+				if ('\n' == tmp) {
+					lex->nb_lines++;
+					lex->pos = 0;
+					break;
+				}
+			}
+
+			return scf_lex_pop_word(lex, pword);
+		} else {
+			_lex_push_char(lex, c2);
+			c2 = NULL;
+		}
+
 		char c1 = '=';
 		int  t1 = SCF_LEX_WORD_DIV_ASSIGN;
 
@@ -1058,8 +1087,7 @@ int scf_lex_pop_word(scf_lex_t* lex, scf_lex_word_t** pword)
 		return _lex_number(lex, pword, c);
 
 	if ('_' == c->c || ('a' <= c->c && 'z' >= c->c) || ('A' <= c->c && 'Z' >= c->c)) {
-		_lex_identity(lex, pword, c);
-		return 0;
+		return _lex_identity(lex, pword, c);
 	}
 
 	scf_loge("c: %c\n", c->c);

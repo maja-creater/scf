@@ -173,6 +173,15 @@ int x64_caller_save_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs
 		saved_regs[k++] = r2;
 		size += 8;
 	}
+
+	if (stack_size > 0) {
+		for (j = 0; j < k / 2; j++) {
+
+			i  = k - 1 - j;
+			SCF_XCHG(saved_regs[i], saved_regs[j]);
+		}
+	}
+
 	return size;
 }
 
@@ -1223,6 +1232,8 @@ void x64_call_rabi(int* p_nints, int* p_nfloats, scf_3ac_code_t* c)
 			else
 				dn->rabi2 = NULL;
 		}
+
+		src->rabi = dn->rabi2;
 	}
 
 	if (p_nints)

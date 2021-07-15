@@ -785,11 +785,16 @@ int main()
 	int ret;
 
 	char* inputs[] = {
-		"./_start.o",
-		"./scf_syscall.o",
-		"./scf_write.o",
-		"./scf_printf.o",
-		"./scf_brk.o",
+		"../lib/_start.o",
+		"../lib/scf_syscall.o",
+		"../lib/scf_memcpy.o",
+		"../lib/scf_memcmp.o",
+		"../lib/scf_memset.o",
+		"../lib/scf_brk.o",
+		"../lib/scf_linux_api.o",
+		"../lib/scf_printf.o",
+		"../lib/scf_cstr.o",
+		"../lib/scf_malloc.o",
 		"./1.elf",
 	};
 

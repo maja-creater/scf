@@ -182,6 +182,37 @@ static int _expr_action_number(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 		case SCF_LEX_WORD_CONST_STRING:
 			type = SCF_VAR_CHAR;
 			nb_pointers = 1;
+
+			if (!strcmp(w->text->data, "__func__")) {
+
+				scf_function_t* f = (scf_function_t*)parse->ast->current_block;
+
+				while (f && SCF_FUNCTION != f->node.type)
+					f = (scf_function_t*) f->node.parent;
+
+				if (!f) {
+					scf_loge("line: %d, '__func__' isn't in a function\n", w->line);
+					return SCF_DFA_ERROR;
+				}
+
+				if (scf_function_signature(f) < 0)
+					return SCF_DFA_ERROR;
+
+				w->text->data[2] = '\0';
+				w->text->len     = 2;
+
+				int ret = scf_string_cat(w->text, f->signature);
+				if (ret < 0)
+					return SCF_DFA_ERROR;
+
+				ret = scf_string_cat_cstr_len(w->text, "__", 2);
+				if (ret < 0)
+					return SCF_DFA_ERROR;
+
+				w->data.s = scf_string_clone(f->signature);
+				if (!w->data.s)
+					return SCF_DFA_ERROR;
+			}
 			break;
 
 		case SCF_LEX_WORD_CONST_INT:
@@ -194,10 +225,6 @@ static int _expr_action_number(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 		case SCF_LEX_WORD_CONST_DOUBLE:
 			type = SCF_VAR_DOUBLE;
-			break;
-
-		case SCF_LEX_WORD_CONST_COMPLEX:
-			type = SCF_VAR_COMPLEX;
 			break;
 
 		case SCF_LEX_WORD_CONST_I64:
