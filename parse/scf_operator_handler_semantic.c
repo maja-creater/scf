@@ -971,6 +971,11 @@ static int _scf_op_semantic_return(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 		scf_expr_t*     e    = nodes[i];
 		scf_variable_t* r    = NULL;
 
+		if (SCF_VAR_VOID == fret->type && 0 == fret->nb_pointers) {
+			scf_loge("void function needs no return value\n");
+			return -1;
+		}
+
 		if (_scf_expr_calculate(ast, e, &r) < 0) {
 			scf_loge("\n");
 			return -1;
@@ -1323,6 +1328,11 @@ static int _scf_op_semantic_call(scf_ast_t* ast, scf_node_t** nodes, int nb_node
 		scf_variable_t* v0 = f->argv->data[i];
 		scf_variable_t* v1 = _scf_operand_get(nodes[i + 1]);
 
+		if (SCF_VAR_VOID == v1->type && 0 == v1->nb_pointers) {
+			scf_loge("void var should be a pointer\n");
+			return -1;
+		}
+
 		if (scf_variable_type_like(v0, v1))
 			continue;
 
@@ -1381,7 +1391,7 @@ static int _scf_op_semantic_call(scf_ast_t* ast, scf_node_t** nodes, int nb_node
 		}
 	}
 
-	if (d->pret && f->rets->size > 0) {
+	if (d->pret && parent->result_nodes->size > 0) {
 
 		r = _scf_operand_get(parent->result_nodes->data[0]);
 
@@ -2048,6 +2058,16 @@ static int _scf_op_semantic_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 	assert(v0);
 	assert(v1);
+
+	if (SCF_VAR_VOID == v0->type && 0 == v0->nb_pointers) {
+		scf_loge("var '%s' can't be 'void' type\n", v0->w->text->data);
+		return -1;
+	}
+
+	if (SCF_VAR_VOID == v1->type && 0 == v1->nb_pointers) {
+		scf_loge("var '%s' can't be 'void' type\n", v1->w->text->data);
+		return -1;
+	}
 
 	if (v0->const_literal_flag || v0->nb_dimentions > 0) {
 

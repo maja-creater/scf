@@ -123,6 +123,11 @@ static int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
 			}
 		}
 
+		if (SCF_VAR_VOID == id0->type->type && 0 == id0->nb_pointers) {
+			scf_loge("void var must be a pointer, like void*\n");
+			return SCF_DFA_ERROR;
+		}
+
 		var = SCF_VAR_ALLOC_BY_TYPE(id->identity, id0->type, id0->const_flag, id0->nb_pointers, id0->func_ptr);
 		if (!var) {
 			scf_loge("alloc var failed\n");

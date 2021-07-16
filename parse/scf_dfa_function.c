@@ -39,6 +39,8 @@ int _function_add_function(scf_dfa_t* dfa, dfa_parse_data_t* d)
 	scf_logi("function: %s,line:%d,pos:%d\n",
 			f->node.w->text->data, f->node.w->line, f->node.w->pos);
 
+	int void_flag = 0;
+
 	while (d->current_identities->size > 0) {
 
 		id = scf_stack_pop(d->current_identities);
@@ -47,6 +49,9 @@ int _function_add_function(scf_dfa_t* dfa, dfa_parse_data_t* d)
 			scf_loge("function return value type NOT found\n");
 			return SCF_DFA_ERROR;
 		}
+
+		if (SCF_VAR_VOID == id->type->type && 0 == id->nb_pointers)
+			void_flag = 1;
 
 		v  = SCF_VAR_ALLOC_BY_TYPE(id->type_w, id->type, id->const_flag, id->nb_pointers, NULL);
 		free(id);
@@ -65,6 +70,11 @@ int _function_add_function(scf_dfa_t* dfa, dfa_parse_data_t* d)
 	}
 
 	assert(f->rets->size > 0);
+
+	if (void_flag && 1 != f->rets->size) {
+		scf_loge("void function must have no other return value\n");
+		return SCF_DFA_ERROR;
+	}
 
 	if (f->rets->size > 4) {
 		scf_loge("function return values must NOT more than 4!\n");
@@ -106,6 +116,11 @@ int _function_add_arg(scf_dfa_t* dfa, dfa_parse_data_t* d)
 
 		if (v && v->identity)
 			w = v->identity;
+
+		if (SCF_VAR_VOID == t->type->type && 0 == t->nb_pointers) {
+			scf_loge("\n");
+			return SCF_DFA_ERROR;
+		}
 
 		arg = SCF_VAR_ALLOC_BY_TYPE(w, t->type, t->const_flag, t->nb_pointers, t->func_ptr);
 		if (!arg)

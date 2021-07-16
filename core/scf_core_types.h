@@ -187,7 +187,7 @@ enum scf_core_types {
 
 	SCF_OP_GOTO,		// goto statement
 
-	SCF_VAR_CHAR,		// char variable
+	SCF_VAR_CHAR,       // char variable
 
 	SCF_VAR_I8,
 	SCF_VAR_I16,
@@ -198,6 +198,7 @@ enum scf_core_types {
 
 	// 122
 	SCF_VAR_U8,
+	SCF_VAR_VOID,
 	SCF_VAR_U16,
 	SCF_VAR_U32,
 	SCF_VAR_U64,
@@ -248,7 +249,7 @@ static int scf_type_is_signed(int type)
 
 static int scf_type_is_unsigned(int type)
 {
-	return (type >= SCF_VAR_U8 && type <= SCF_VAR_UINTPTR);
+	return (type >= SCF_VAR_U8 && type <= SCF_VAR_UINTPTR) || SCF_FUNCTION_PTR == type;
 }
 
 static int scf_type_is_integer(int type)

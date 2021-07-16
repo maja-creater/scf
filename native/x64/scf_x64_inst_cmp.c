@@ -89,39 +89,23 @@ static int _inst_set(int setcc_type, scf_dag_node_t* dst, scf_3ac_code_t* c, scf
 	scf_register_x64_t* rd;
 	scf_rela_t*         rela = NULL;
 
-	if (dst->color > 0) {
-		X64_SELECT_REG_CHECK(&rd, dst, c, f, 0);
+	X64_SELECT_REG_CHECK(&rd, dst, c, f, 0);
 
-		if (rd->bytes > 1) {
-			uint64_t imm      = 0;
+	if (rd->bytes > 1) {
+		uint64_t imm      = 0;
 
-			mov = x64_find_OpCode(SCF_X64_MOV, rd->bytes, rd->bytes, SCF_X64_I2G);
-			inst = x64_make_inst_I2G(mov, rd, (uint8_t*)&imm, rd->bytes);
-			X64_INST_ADD_CHECK(c->instructions, inst);
+		// can't clear zero with 'xor', because it affects 'eflags'.
 
-			rd = x64_find_register_color_bytes(rd->color, 1);
-		}
-
-		inst = x64_make_inst_E(setcc, rd);
+		mov = x64_find_OpCode(SCF_X64_MOV, rd->bytes, rd->bytes, SCF_X64_I2G);
+		inst = x64_make_inst_I2G(mov, rd, (uint8_t*)&imm, rd->bytes);
 		X64_INST_ADD_CHECK(c->instructions, inst);
 
-	} else {
-		if (dst->var->size > 1) {
-			uint64_t imm      = 0;
-			int      imm_size = dst->var->size > 4 ? 4 : dst->var->size;
-
-			mov = x64_find_OpCode(SCF_X64_MOV, imm_size, dst->var->size, SCF_X64_I2E);
-			inst = x64_make_inst_I2M(&rela, mov, dst->var, NULL, (uint8_t*)&imm, imm_size);
-			X64_INST_ADD_CHECK(c->instructions, inst);
-			X64_RELA_ADD_CHECK(f->data_relas, rela, c, dst->var, NULL);
-
-			rela = NULL;
-		}
-
-		inst = x64_make_inst_M(&rela, setcc, dst->var, NULL);
-		X64_INST_ADD_CHECK(c->instructions, inst);
-		X64_RELA_ADD_CHECK(f->data_relas, rela, c, dst->var, NULL);
+		rd = x64_find_register_color_bytes(rd->color, 1);
 	}
+
+	inst = x64_make_inst_E(setcc, rd);
+	X64_INST_ADD_CHECK(c->instructions, inst);
+
 	return 0;
 }
 

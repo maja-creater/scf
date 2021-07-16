@@ -20,6 +20,8 @@
 scf_base_type_t	base_types[] = {
 	{SCF_VAR_CHAR,		"char",		1},
 
+	{SCF_VAR_VOID,      "void",     1},
+
 	{SCF_VAR_INT, 		"int",		4},
 	{SCF_VAR_FLOAT,     "float",    4},
 	{SCF_VAR_DOUBLE, 	"double",	8},

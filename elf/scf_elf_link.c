@@ -790,11 +790,13 @@ int main()
 		"../lib/scf_memcpy.o",
 		"../lib/scf_memcmp.o",
 		"../lib/scf_memset.o",
+		"../lib/scf_atomic.o",
 		"../lib/scf_brk.o",
 		"../lib/scf_linux_api.o",
 		"../lib/scf_printf.o",
 		"../lib/scf_cstr.o",
 		"../lib/scf_malloc.o",
+		"../lib/scf_object.o",
 		"./1.elf",
 	};
 

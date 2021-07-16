@@ -113,6 +113,9 @@ int scf_type_cast_check(scf_ast_t* ast, scf_variable_t* dst, scf_variable_t* src
 			goto failed;
 		}
 
+		if (SCF_VAR_VOID == src->type || SCF_VAR_VOID == dst->type)
+			return 0;
+
 		if (dst_nb_pointers != src_nb_pointers)
 			goto failed;
 

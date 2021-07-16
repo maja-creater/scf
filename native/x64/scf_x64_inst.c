@@ -340,6 +340,8 @@ static int _x64_call_update_dsts(scf_3ac_code_t* c, scf_function_t* f, scf_regis
 {
 	scf_3ac_operand_t*  dst;
 	scf_dag_node_t*     dn;
+	scf_variable_t*     v;
+
 	scf_register_x64_t* rd;
 	scf_register_x64_t* rs;
 	scf_x64_OpCode_t*   mov;
@@ -351,10 +353,14 @@ static int _x64_call_update_dsts(scf_3ac_code_t* c, scf_function_t* f, scf_regis
 	for (i  = 0; i < c->dsts->size; i++) {
 		dst =        c->dsts->data[i];
 		dn  =        dst->dag_node;
+		v   =        dn->var;
+
+		if (SCF_VAR_VOID == v->type && 0 == v->nb_pointers)
+			continue;
 
 		assert(0 != dn->color);
 
-		int is_float = scf_variable_float(dn->var);
+		int is_float = scf_variable_float(v);
 
 		if (is_float)
 			nb_float++;
@@ -369,10 +375,14 @@ static int _x64_call_update_dsts(scf_3ac_code_t* c, scf_function_t* f, scf_regis
 	for (i  = 0; i < c->dsts->size; i++) {
 		dst =        c->dsts->data[i];
 		dn  =        dst->dag_node;
+		v   =        dn->var;
 
-		int is_float = scf_variable_float(dn->var);
-		int dst_size = x64_variable_size (dn->var);
-	
+		if (SCF_VAR_VOID == v->type && 0 == v->nb_pointers)
+			continue;
+
+		int is_float = scf_variable_float(v);
+		int dst_size = x64_variable_size (v);
+
 		if (is_float) {
 			if (i > 0) {
 				scf_loge("\n");
@@ -1608,11 +1618,21 @@ static int _x64_inst_end_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 
 	scf_register_x64_t* rsp  = x64_find_register("rsp");
 	scf_register_x64_t* rbp  = x64_find_register("rbp");
+	scf_register_x64_t* r;
 
 	scf_x64_OpCode_t*   pop  = x64_find_OpCode(SCF_X64_POP, 8, 8, SCF_X64_G);
 	scf_x64_OpCode_t*   mov  = x64_find_OpCode(SCF_X64_MOV, 8, 8, SCF_X64_G2E);
 	scf_x64_OpCode_t*   ret  = x64_find_OpCode(SCF_X64_RET, 8, 8, SCF_X64_G);
 	scf_instruction_t*  inst = NULL;
+
+	int i;
+	for (i = X64_ABI_CALLEE_SAVES_NB - 1; i >= 0; i--) {
+
+		r  = x64_find_register_type_id_bytes(0, x64_abi_callee_saves[i], 8);
+
+		inst = x64_make_inst_G(pop, r);
+		X64_INST_ADD_CHECK(c->instructions, inst);
+	}
 
 	inst = x64_make_inst_G2E(mov, rsp, rbp);
 	X64_INST_ADD_CHECK(c->instructions, inst);

@@ -177,6 +177,7 @@ static int _x64_function_finish(scf_function_t* f)
 
 	scf_register_x64_t* rsp  = x64_find_register("rsp");
 	scf_register_x64_t* rbp  = x64_find_register("rbp");
+	scf_register_x64_t* r;
 	scf_instruction_t*  inst = NULL;
 
 	if (f->bp_used_flag) {
@@ -198,6 +199,17 @@ static int _x64_function_finish(scf_function_t* f)
 			return ret;
 	} else
 		f->init_code_bytes = 0;
+
+	int i;
+	for (i = 0; i < X64_ABI_CALLEE_SAVES_NB; i++) {
+
+		r  = x64_find_register_type_id_bytes(0, x64_abi_callee_saves[i], 8);
+
+		inst = x64_make_inst_G(push, r);
+		X64_INST_ADD_CHECK(f->init_insts, inst);
+
+		f->init_code_bytes += inst->len;
+	}
 
 	x64_registers_clear();
 	return 0;

@@ -318,6 +318,9 @@ static int _x64_rcg_call(scf_native_t* ctx, scf_3ac_code_t* c, scf_graph_t* g)
 			dst =        c->dsts->data[i];
 			dn  =        dst->dag_node;
 
+			if (SCF_VAR_VOID == dn->var->type && 0 == dn->var->nb_pointers)
+				continue;
+
 			int is_float = scf_variable_float(dn->var);
 			int size     = x64_variable_size (dn->var);
 

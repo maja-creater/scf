@@ -1566,6 +1566,9 @@ static int _scf_op_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* 
 			node      = parent->result_nodes->data[i];
 
 			v = _scf_operand_get(node);
+
+			if (SCF_VAR_VOID == v->type && 0 == v->nb_pointers)
+				v->const_flag = 1;
 			v->tmp_flag = 1;
 		}
 
@@ -1575,8 +1578,11 @@ static int _scf_op_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* 
 
 	} else {
 		v = _scf_operand_get(parent);
-		if (v)
+		if (v) {
+			if (SCF_VAR_VOID == v->type && 0 == v->nb_pointers)
+				v->const_flag = 1;
 			v->tmp_flag = 1;
+		}
 
 		ret = _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_CALL, parent, (scf_node_t**)argv->data, argv->size);
 	}
