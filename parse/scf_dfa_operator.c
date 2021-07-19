@@ -41,12 +41,6 @@ int _operator_add_operator(scf_dfa_t* dfa, dfa_parse_data_t* d)
 		return SCF_DFA_ERROR;
 	}
 
-	id = scf_stack_pop(d->current_identities);
-	if (!id || !id->type) {
-		scf_loge("\n");
-		return SCF_DFA_ERROR;
-	}
-
 	f = scf_function_alloc(opd->word_op);
 	if (!f) {
 		scf_loge("operator overloading function alloc failed\n");
@@ -79,6 +73,14 @@ int _operator_add_operator(scf_dfa_t* dfa, dfa_parse_data_t* d)
 			scf_function_free(f);
 			return SCF_DFA_ERROR;
 		}
+	}
+
+	int i;
+	int j;
+	for (i = 0; i < f->rets->size / 2;  i++) {
+		j  =        f->rets->size - 1 - i;
+
+		SCF_XCHG(f->rets->data[i], f->rets->data[j]);
 	}
 
 	opd->word_op = NULL;

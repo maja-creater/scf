@@ -81,6 +81,14 @@ int _function_add_function(scf_dfa_t* dfa, dfa_parse_data_t* d)
 		return SCF_DFA_ERROR;
 	}
 
+	int i;
+	int j;
+	for (i = 0; i < f->rets->size / 2;  i++) {
+		j  =        f->rets->size - 1 - i;
+
+		SCF_XCHG(f->rets->data[i], f->rets->data[j]);
+	}
+
 	d->current_function = f;
 
 	return SCF_DFA_NEXT_WORD;

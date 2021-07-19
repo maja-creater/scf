@@ -195,14 +195,6 @@ int scf_function_signature(scf_function_t* f)
 		ret = scf_string_cat_cstr(s, "_");
 		if (ret < 0)
 			goto error;
-
-	} else if (!strcmp(f->node.w->text->data, "main")) {
-		ret = scf_string_cat_cstr(s, "main");
-		if (ret < 0)
-			goto error;
-	
-		f->signature = s;
-		return 0;
 	}
 
 	ret = scf_string_cat(s, f->node.w->text);
@@ -210,8 +202,10 @@ int scf_function_signature(scf_function_t* f)
 		goto error;
 	scf_logd("f signature: %s\n", s->data);
 
-	f->signature = s;
-	return 0;
+	if (t->node.type < SCF_STRUCT) {
+		f->signature = s;
+		return 0;
+	}
 
 	if (f->argv) {
 		for (i = 0; i < f->argv->size; i++) {
@@ -222,9 +216,22 @@ int scf_function_signature(scf_function_t* f)
 			if (ret < 0)
 				goto error;
 
-			ret = scf_string_cat(s, t_v->name);
+			const char* abbrev = scf_type_find_abbrev(t_v->name->data);
+			if (abbrev)
+				ret = scf_string_cat_cstr(s, abbrev);
+			else
+				ret = scf_string_cat(s, t_v->name);
 			if (ret < 0)
 				goto error;
+
+			if (v->nb_pointers > 0) {
+				char buf[64];
+				snprintf(buf, sizeof(buf) - 1, "%d", v->nb_pointers);
+
+				ret = scf_string_cat_cstr(s, buf);
+				if (ret < 0)
+					goto error;
+			}
 		}
 	}
 

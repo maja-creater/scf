@@ -21,7 +21,9 @@ static int _scf_expr_calculate_internal(scf_ast_t* ast, scf_node_t* node, void* 
 		return __scf_op_const_call(ast, (scf_function_t*)node, data);
 
 	if (0 == node->nb_nodes) {
-		assert(scf_type_is_var(node->type) || SCF_LABEL == node->type);
+		assert(scf_type_is_var(node->type)
+				|| SCF_LABEL == node->type
+				|| node->split_flag);
 
 		if (scf_type_is_var(node->type) && node->var->w) {
 			scf_logd("w: %s\n", node->var->w->text->data);
@@ -502,7 +504,12 @@ static int _scf_op_const_expr(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, 
 	if (parent->result)
 		scf_variable_free(parent->result);
 
-	parent->result = scf_variable_ref(_scf_operand_get(n));
+	scf_variable_t* v = _scf_operand_get(n);
+
+	if (v)
+		parent->result = scf_variable_ref(v);
+	else
+		parent->result = NULL;
 
 	return 0;
 }

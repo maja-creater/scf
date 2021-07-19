@@ -9,6 +9,11 @@ typedef struct {
 	int					size;
 } scf_base_type_t;
 
+typedef struct {
+	const char*         name;
+	const char*         abbrev;
+} scf_type_abbrev_t;
+
 struct scf_type_s {
 	// same as block, only used for class type
 	scf_node_t          node;
@@ -39,6 +44,8 @@ struct scf_type_s {
 
 scf_type_t*		scf_type_alloc(scf_lex_word_t* w, const char* name, int type, int size);
 void			scf_type_free(scf_type_t* t);
+
+const char*     scf_type_find_abbrev(const char* name);
 
 #endif
 

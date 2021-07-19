@@ -17,8 +17,7 @@ static int __bb_dfs_initeds(scf_basic_block_t* root, scf_dn_status_t* ds, scf_ve
 	int like = scf_dn_status_is_like(ds);
 
 	for (i = 0; i < root->prevs->size; ++i) {
-
-		bb = root->prevs->data[i];
+		bb =        root->prevs->data[i];
 
 		if (bb->visited_flag)
 			continue;
@@ -36,6 +35,7 @@ static int __bb_dfs_initeds(scf_basic_block_t* root, scf_dn_status_t* ds, scf_ve
 		}
 
 		if (j < bb->dn_status_initeds->size) {
+
 			ret = scf_vector_add(initeds, bb);
 			if (ret < 0)
 				return ret;
@@ -70,8 +70,7 @@ static int __bb_dfs_check_initeds(scf_basic_block_t* root, scf_basic_block_t* ob
 	root->visited_flag = 1;
 
 	for (i = 0; i < root->nexts->size; ++i) {
-
-		bb = root->nexts->data[i];
+		bb =        root->nexts->data[i];
 
 		if (bb->visited_flag)
 			continue;
@@ -171,6 +170,29 @@ static int _bb_pointer_initeds(scf_vector_t* initeds, scf_list_t* bb_list_head, 
 		scf_loge("bb: %p, index: %d, pointer v_%d_%d/%s is not inited\n", bb, bb->index, v->w->line, v->w->pos, v->w->text->data);
 
 		return SCF_POINTER_NOT_INIT;
+	}
+
+	if (ds->dn_indexes && ds->dn_indexes->size > 0) {
+
+		scf_dn_status_t* base;
+		scf_vector_t*    tmp;
+
+		base = scf_dn_status_alloc(ds->dag_node);
+		if (!base)
+			return -ENOMEM;
+
+		tmp = scf_vector_alloc();
+		if (!tmp) {
+			scf_dn_status_free(base);
+			return -ENOMEM;
+		}
+
+		ret = _bb_pointer_initeds(tmp, bb_list_head, bb, base);
+
+		scf_vector_free(tmp);
+		scf_dn_status_free(base);
+
+		return ret;
 	}
 
 	ret = _bb_dfs_check_initeds(bb_list_head, bb, initeds);
@@ -1051,32 +1073,18 @@ static int _pointer_alias_add(scf_vector_t* aliases, scf_dag_node_t* dn, scf_3ac
 		dn1 = dn1->childs->data[0];
 	}
 
-	ds2 = scf_dn_status_null();
-	if (!ds2)
-		return -ENOMEM;
-
-	ds2->dn_indexes = scf_vector_alloc();
-	if (!ds2->dn_indexes) {
-		scf_dn_status_free(ds2);
-		return -ENOMEM;
-	}
-
 	di = scf_dn_index_alloc();
 	if (!di) {
 		scf_dn_status_free(ds2);
 		return -ENOMEM;
 	}
 
-	if (scf_vector_add(ds2->dn_indexes, di) < 0) {
-		scf_dn_index_free(di);
-		scf_dn_status_free(ds2);
-		return -ENOMEM;
-	}
-
 	if (scf_variable_nb_pointers(dn0->var) > 0) {
-		assert(scf_type_is_var(dn0->type));
 
-		ds2->dag_node = dn0;
+		ds2 = NULL;
+		int ret = scf_ds_for_dn(&ds2, dn0);
+		if (ret < 0)
+			return ret;
 
 		if (scf_variable_const(dn1->var))
 			di->index = dn1->var->data.i64;
@@ -1084,9 +1092,11 @@ static int _pointer_alias_add(scf_vector_t* aliases, scf_dag_node_t* dn, scf_3ac
 			di->index = -1;
 
 	} else if (scf_variable_nb_pointers(dn1->var) > 0) {
-		assert(scf_type_is_var(dn1->type));
 
-		ds2->dag_node = dn1;
+		ds2 = NULL;
+		int ret = scf_ds_for_dn(&ds2, dn1);
+		if (ret < 0)
+			return ret;
 
 		if (scf_variable_const(dn0->var))
 			di->index = dn0->var->data.i64;
@@ -1099,6 +1109,28 @@ static int _pointer_alias_add(scf_vector_t* aliases, scf_dag_node_t* dn, scf_3ac
 		scf_dn_status_free(ds2);
 		return -1;
 	}
+
+	if (!ds2->dn_indexes) {
+		ds2->dn_indexes = scf_vector_alloc();
+
+		if (!ds2->dn_indexes) {
+			scf_dn_index_free(di);
+			scf_dn_status_free(ds2);
+			return -ENOMEM;
+		}
+	}
+
+	if (scf_vector_add(ds2->dn_indexes, di) < 0) {
+		scf_dn_index_free(di);
+		scf_dn_status_free(ds2);
+		return -ENOMEM;
+	}
+
+	int i;
+	for (i = ds2->dn_indexes->size - 2; i >= 0; i--)
+		ds2->dn_indexes->data[i + 1] = ds2->dn_indexes->data[i];
+
+	ds2->dn_indexes->data[0] = di;
 
 	int ret = scf_pointer_alias_ds(aliases, ds2, c, bb, bb_list_head);
 	if (ret < 0) {

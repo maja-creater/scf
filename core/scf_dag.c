@@ -315,8 +315,8 @@ scf_dag_node_t* scf_dag_node_alloc(int type, scf_variable_t* var, const scf_node
 
 	dag_node->node = (scf_node_t*)node;
 
-#if 0
-	if (SCF_OP_LOGIC_AND == type) {
+#if 1
+	if (SCF_OP_CALL == type) {
 		scf_logw("dag_node: %#lx, dag_node->type: %d", 0xffff & (uintptr_t)dag_node, dag_node->type);
 		if (var) {
 			printf(", var: %p, var->type: %d", var, var->type);
@@ -495,6 +495,12 @@ void scf_dag_node_free_list(scf_list_t* dag_list_head)
 int scf_dag_node_same(scf_dag_node_t* dag_node, const scf_node_t* node)
 {
 	int i;
+
+	if (node->split_flag) {
+		if (dag_node->var != _scf_operand_get(node))
+			return 0;
+		node = node->split_parent;
+	}
 
 	if (dag_node->type != node->type)
 		return 0;
@@ -935,7 +941,8 @@ static int __ds_for_dn(scf_dn_status_t* ds, scf_dag_node_t* dn_base)
 
 	assert(scf_type_is_var(dn_base->type)
 			|| SCF_OP_INC == dn_base->type || SCF_OP_INC_POST == dn_base->type
-			|| SCF_OP_DEC == dn_base->type || SCF_OP_DEC_POST == dn_base->type);
+			|| SCF_OP_DEC == dn_base->type || SCF_OP_DEC_POST == dn_base->type
+			|| SCF_OP_CALL == dn_base->type);
 
 	ds->dag_node = dn_base;
 	return 0;

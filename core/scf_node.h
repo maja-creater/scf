@@ -42,6 +42,8 @@ struct scf_node_s {
 	uint32_t            const_flag  :1; // set when node is a const type
 	uint32_t            split_flag  :1; // set when node is a split node of its parent
 	uint32_t            _3ac_done   :1; // set when node's 3ac code is made
+
+	uint32_t            semi_flag   :1; // set when followed by a ';'
 };
 
 struct scf_label_s {

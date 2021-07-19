@@ -38,7 +38,7 @@ scf_base_type_t	base_types[] = {
 
 	{SCF_VAR_INTPTR,    "intptr_t",   sizeof(void*)},
 	{SCF_VAR_UINTPTR,   "uintptr_t",  sizeof(void*)},
-	{SCF_FUNCTION_PTR,  "funcptr",  sizeof(void*)},
+	{SCF_FUNCTION_PTR,  "funcptr",    sizeof(void*)},
 };
 
 extern scf_dfa_module_t  dfa_module_identity;

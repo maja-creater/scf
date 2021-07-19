@@ -60,7 +60,9 @@ static int _scf_expr_calculate_internal(scf_ast_t* ast, scf_node_t* node, void* 
 			scf_logd("node->var->w->text->data: %s\n", node->var->w->text->data);
 		}
 
-		assert(scf_type_is_var(node->type) || SCF_LABEL == node->type);
+		assert(scf_type_is_var(node->type)
+				|| SCF_LABEL == node->type
+				|| node->split_flag);
 		return 0;
 	}
 
@@ -1405,6 +1407,8 @@ static int _scf_op_create(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 	scf_variable_t*     v;
 	scf_type_t*         t;
 	scf_node_t*         node;
+	scf_node_t*         nthis;
+	scf_node_t*         nerr;
 	scf_list_t*         l;
 
 	int ret;
@@ -1419,19 +1423,51 @@ static int _scf_op_create(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 		}
 	}
 
-	v = _scf_operand_get(parent->result_nodes->data[0]);
+	nthis = parent->result_nodes->data[0];
+	nerr  = parent->result_nodes->data[1];
+
+	nthis->type         = SCF_OP_CALL;
+	nthis->result       = nthis->var;
+	nthis->var          = NULL;
+	nthis->op           = scf_find_base_operator_by_type(SCF_OP_CALL);
+	nthis->split_flag   = 0;
+	nthis->split_parent = NULL;
+	scf_node_add_child(nthis, nodes[0]);
+	scf_node_add_child(nthis, nodes[1]);
+
+	nerr->type         = SCF_OP_CALL;
+	nerr->result       = nerr->var;
+	nerr->var          = NULL;
+	nerr->op           = scf_find_base_operator_by_type(SCF_OP_CALL);
+	nerr->split_flag   = 0;
+	nerr->split_parent = NULL;
+
+	for (i = 2; i < nb_nodes; i++)
+		scf_node_add_child(nerr, nodes[i]);
+
+	for (i = 1; i < nb_nodes; i++)
+		nodes[i] = NULL;
+
+	parent->nodes[0] = nerr;
+	parent->nb_nodes = 1;
+	nerr->parent     = parent;
+
+	v = _scf_operand_get(nthis);
 	v->tmp_flag = 1;
 
-	v = _scf_operand_get(parent->result_nodes->data[1]);
+	v = _scf_operand_get(nerr);
 	v->tmp_flag = 1;
 
-	ret = _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_CALL, parent->result_nodes->data[0], nodes, 2);
+	nthis->_3ac_done = 1;
+	nerr ->_3ac_done = 1;
+
+	ret = _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_CALL, nthis, nthis->nodes, nthis->nb_nodes);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
 	}
 
-	ret = _scf_3ac_code_1(d->_3ac_list_head, SCF_OP_3AC_TEQ, parent->result_nodes->data[0]);
+	ret = _scf_3ac_code_1(d->_3ac_list_head, SCF_OP_3AC_TEQ, nthis);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -1440,7 +1476,7 @@ static int _scf_op_create(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 	jz  = scf_branch_ops_code(SCF_OP_3AC_JZ, NULL, NULL);
 	scf_list_add_tail(d->_3ac_list_head, &jz->list);
 
-	ret = _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_CALL, parent->result_nodes->data[1], nodes + 2, nb_nodes - 2);
+	ret = _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_CALL, nerr, nerr->nodes, nerr->nb_nodes);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -1467,7 +1503,7 @@ static int _scf_op_create(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 	}
 	v->data.i64 = -ENOMEM;
 
-	ret = _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_ASSIGN, parent->result_nodes->data[1], &node, 1);
+	ret = _scf_3ac_code_N(d->_3ac_list_head, SCF_OP_ASSIGN, nerr, &node, 1);
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;

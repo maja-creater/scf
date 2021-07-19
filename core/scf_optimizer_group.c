@@ -89,6 +89,10 @@ int _optimize_peep_hole(scf_bb_group_t* bbg, scf_basic_block_t* bb)
 		}
 
 		assert(0 == scf_vector_del(bb->dn_reloads, dn));
+
+		int ret = scf_vector_add_unique(bb->dn_resaves, dn);
+		if (ret < 0)
+			return ret;
 	}
 	return 0;
 }

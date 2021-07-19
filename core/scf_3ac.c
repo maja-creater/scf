@@ -479,16 +479,18 @@ static void _3ac_print_dag_node(scf_dag_node_t* dn)
 {
 	if (scf_type_is_var(dn->type)) {
 		if (dn->var->w) {
-			printf("v_%d_%d/%s ",
-					dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
+			printf("v_%d_%d/%s_%#lx ",
+					dn->var->w->line, dn->var->w->pos, dn->var->w->text->data,
+					0xffff & (uintptr_t)dn);
 		} else {
 			printf("v_%#lx", 0xffff & (uintptr_t)dn->var);
 		}
 	} else if (scf_type_is_operator(dn->type)) {
 		scf_3ac_operator_t* op = scf_3ac_find_operator(dn->type);
 		if (dn->var && dn->var->w)
-			printf("v_%d_%d/%s ",
-					dn->var->w->line, dn->var->w->pos, dn->var->w->text->data);
+			printf("v_%d_%d/%s_%#lx ",
+					dn->var->w->line, dn->var->w->pos, dn->var->w->text->data,
+					0xffff & (uintptr_t)dn);
 		else
 			printf("v_%#lx/%s ", 0xffff & (uintptr_t)dn->var, op->name);
 	} else {
@@ -647,9 +649,10 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 		if (ret < 0)
 			return ret;
 
-		assert(dst->node->parent);
+		scf_variable_t* var_assign = NULL;
 
-		scf_variable_t* var_assign = _scf_operand_get(dst->node->parent);
+		if (dst->node->parent)
+			var_assign = _scf_operand_get(dst->node->parent);
 
 		scf_dag_node_t* dag_assign = scf_dag_node_alloc(c->op->type, var_assign, NULL);
 		scf_list_add_tail(dag, &dag_assign->list);

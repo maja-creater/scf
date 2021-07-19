@@ -93,7 +93,7 @@ static int _bb_add_ds_for_call(scf_basic_block_t* bb, scf_dn_status_t* ds_obj, s
 		int size = ds->dn_indexes->size;
 		int j;
 		for (j  = 0; j < ds2->dn_indexes->size; j++) {
-			di2 =        ds2->dn_indexes->data[i];
+			di2 =        ds2->dn_indexes->data[j];
 
 			di = scf_dn_index_alloc();
 			if (!di) {
@@ -275,6 +275,9 @@ static int _auto_gc_bb_find(scf_basic_block_t* bb, scf_function_t* f)
 				if (v0->nb_pointers + v0->nb_dimentions + (v0->type >= SCF_STRUCT) < 2)
 					continue;
 
+				if (i - 1 >= f2->argv->size)
+					continue;
+
 				scf_variable_t* v1 = f2->argv->data[i - 1];
 
 				if (!v1->auto_gc_flag)
@@ -349,13 +352,17 @@ ref:
 					|| SCF_OP_CREATE == dn->node->split_parent->type);
 			}
 
+			scf_variable_t* v = dn->var;
+			if (v->w)
+				scf_loge("dn: %p, type: %d, v: %d/%s\n", dn, dn->type, v->w->line, v->w->text->data);
+
 			scf_dag_node_t* dn_pf = dn->childs->data[0];
 			scf_function_t* f2    = dn_pf->var->func_ptr;
 			scf_variable_t* ret   = f2->rets->data[0];
 
 			scf_logd("f2: %s, ret->auto_gc_flag: %d\n", f2->node.w->text->data, ret->auto_gc_flag);
 
-			if (!strcmp(f2->node.w->text->data, "scf_malloc") || ret->auto_gc_flag) {
+			if (!strcmp(f2->node.w->text->data, "scf__auto_malloc") || ret->auto_gc_flag) {
 
 				_bb_add_ds(bb, ds_obj);
 				count++;
@@ -547,7 +554,7 @@ static int _auto_gc_global_find(scf_ast_t* ast, scf_vector_t* functions)
 
 		f->visited_flag = 0;
 
-		if (!fmalloc && !strcmp(f->node.w->text->data, "scf_malloc"))
+		if (!fmalloc && !strcmp(f->node.w->text->data, "scf__auto_malloc"))
 			fmalloc = f;
 	}
 
@@ -577,15 +584,14 @@ static int _auto_gc_global_find(scf_ast_t* ast, scf_vector_t* functions)
 			if (!f->node.define_flag)
 				continue;
 
-			scf_loge("\n");
+			if (!strcmp(f->node.w->text->data, "scf__auto_malloc"))
+				continue;
 
 			ret = _auto_gc_function_find(ast, f, &f->basic_block_list_head);
 			if (ret < 0) {
 				scf_loge("\n");
 				return ret;
 			}
-
-			scf_loge("\n");
 
 			total1 += ret;
 		}

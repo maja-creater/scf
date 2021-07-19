@@ -899,6 +899,11 @@ int x64_load_reg(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, s
 		return -EINVAL;
 	}
 
+	if (0 == dn->var->bp_offset) {
+		scf_loge("\n");
+		return -EINVAL;
+	}
+
 	inst = x64_make_inst_M2G(&rela, mov, r, NULL, dn->var);
 	X64_INST_ADD_CHECK(c->instructions, inst);
 	X64_RELA_ADD_CHECK(f->data_relas, rela, c, dn->var, NULL);

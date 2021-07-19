@@ -57,7 +57,7 @@ static scf_3ac_code_t* _auto_gc_code_ref(scf_ast_t* ast, scf_dag_node_t* dn)
 		return NULL;
 	}
 
-	f = scf_ast_find_function(ast, "scf_ref");
+	f = scf_ast_find_function(ast, "scf__auto_ref");
 	assert(f);
 
 #define AUTO_GC_CODE_ADD_FUNCPTR() \
@@ -163,7 +163,7 @@ static scf_3ac_code_t* _auto_gc_code_free_array(scf_ast_t* ast, scf_dag_node_t* 
 		return NULL;
 	}
 
-	f = scf_ast_find_function(ast, "scf_free_array");
+	f = scf_ast_find_function(ast, "scf__auto_free_array");
 	assert(f);
 	AUTO_GC_CODE_ADD_FUNCPTR();
 
@@ -193,7 +193,7 @@ static scf_3ac_code_t* _auto_gc_code_free_array(scf_ast_t* ast, scf_dag_node_t* 
 
 		t   = scf_ast_find_type_type(ast, dn_array->var->type);
 
-		f   = scf_scope_find_function(t->scope, "__release__");
+		f   = scf_scope_find_function(t->scope, "__release");
 	} else
 		f = NULL;
 	AUTO_GC_CODE_ADD_FUNCPTR();
@@ -221,7 +221,7 @@ static scf_3ac_code_t* _auto_gc_code_freep_array(scf_ast_t* ast, scf_dag_node_t*
 		return NULL;
 	}
 
-	f = scf_ast_find_function(ast, "scf_freep_array");
+	f = scf_ast_find_function(ast, "scf__auto_freep_array");
 	assert(f);
 	AUTO_GC_CODE_ADD_FUNCPTR();
 
@@ -245,7 +245,7 @@ static scf_3ac_code_t* _auto_gc_code_freep_array(scf_ast_t* ast, scf_dag_node_t*
 
 		t   = scf_ast_find_type_type(ast, dn_array->var->type);
 
-		f   = scf_scope_find_function(t->scope, "__release__");
+		f   = scf_scope_find_function(t->scope, "__release");
 
 		scf_logw("f: %p, t->name: %p\n", f, t->name->data);
 	} else
@@ -1648,7 +1648,7 @@ static int _optimize_auto_gc_bb(scf_ast_t* ast, scf_function_t* f, scf_basic_blo
 			v0    = _scf_operand_get(base->node->parent);
 
 			if (!scf_variable_may_malloced(v0))
-				continue;
+				goto _end;
 
 			ds_obj = NULL;
 
@@ -1670,7 +1670,7 @@ static int _optimize_auto_gc_bb(scf_ast_t* ast, scf_function_t* f, scf_basic_blo
 			v0     = member->dag_node->var;
 
 			if (!scf_variable_may_malloced(v0))
-				continue;
+				goto _end;
 
 			ds_obj = NULL;
 
@@ -1715,7 +1715,6 @@ static int _optimize_auto_gc_bb(scf_ast_t* ast, scf_function_t* f, scf_basic_blo
 		}
 
 		if (ret) {
-
 			if (!scf_vector_find_cmp(ds_assigned, ds_obj, scf_dn_status_cmp_like_dn_indexes)
 					&& bb_split_prevs->size > 0
 					&& bb_split_prevs->size < bb->prevs->size)
@@ -1769,7 +1768,7 @@ _ref:
 			f2    = dn_pf->var->func_ptr;
 			ret   = f2->rets->data[0];
 
-			if (!strcmp(f2->node.w->text->data, "scf_malloc") || ret->auto_gc_flag) {
+			if (!strcmp(f2->node.w->text->data, "scf__auto_malloc") || ret->auto_gc_flag) {
 
 				if (SCF_OP_RETURN == c->op->type) {
 					ret = f->rets->data[0];
@@ -1852,6 +1851,9 @@ static int _optimize_auto_gc(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_l
 {
 	if (!ast || !f || !bb_list_head)
 		return -EINVAL;
+
+	if (!strcmp(f->node.w->text->data, "scf__auto_malloc"))
+		return 0;
 
 	scf_list_t*        l;
 	scf_basic_block_t* bb;

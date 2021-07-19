@@ -369,6 +369,11 @@ static int _expr_action_lp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	scf_stack_push(md->lp_exprs, d->expr);
 	d->expr = e;
 
+	if (md->parent_block) {
+		parse->ast->current_block = md->parent_block;
+		md->parent_block = NULL;
+	}
+
 	return SCF_DFA_NEXT_WORD;
 }
 
@@ -545,8 +550,12 @@ static int _expr_action_ls(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	scf_lex_word_t*     w     = words->data[words->size - 1];
 	dfa_parse_data_t*   d     = data;
 	expr_module_data_t* md    = d->module_datas[dfa_module_expr.index];
-
 	dfa_identity_t*     id    = scf_stack_top(d->current_identities);
+
+	if (md->parent_block) {
+		parse->ast->current_block = md->parent_block;
+		md->parent_block = NULL;
+	}
 
 	if (id && id->identity) {
 		if (_expr_add_var(parse, d) < 0) {
@@ -667,6 +676,9 @@ static int _expr_multi_rets(scf_expr_t* e)
 	for (i  = parent->nb_nodes - 2; i >= 0; i--) {
 		ret = parent->nodes[i];
 
+		if (ret->semi_flag)
+			break;
+
 		if (b->node.nb_nodes >= nb_rets - 1)
 			break;
 
@@ -695,7 +707,7 @@ static int _expr_multi_rets(scf_expr_t* e)
 	return 0;
 }
 
-static int _expr_fini_expr(scf_parse_t* parse, dfa_parse_data_t* d)
+static int _expr_fini_expr(scf_parse_t* parse, dfa_parse_data_t* d, int semi_flag)
 {
 	expr_module_data_t* md = d->module_datas[dfa_module_expr.index];
 
@@ -722,10 +734,15 @@ static int _expr_fini_expr(scf_parse_t* parse, dfa_parse_data_t* d)
 			d->expr = NULL;
 
 		} else if (!d->expr_local_flag) {
+
+			scf_node_t* parent;
+
 			if (d->current_node)
-				scf_node_add_child(d->current_node, d->expr);
+				parent = d->current_node;
 			else
-				scf_node_add_child((scf_node_t*)parse->ast->current_block, d->expr);
+				parent = (scf_node_t*)parse->ast->current_block;
+
+			scf_node_add_child(parent, d->expr);
 
 			scf_loge("d->expr->parent->type: %d\n", d->expr->parent->type);
 
@@ -734,6 +751,7 @@ static int _expr_fini_expr(scf_parse_t* parse, dfa_parse_data_t* d)
 				return SCF_DFA_ERROR;
 			}
 
+			d->expr->semi_flag = semi_flag;
 			d->expr = NULL;
 		}
 	}
@@ -746,7 +764,7 @@ static int _expr_action_comma(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	scf_parse_t*        parse = dfa->priv;
 	dfa_parse_data_t*   d     = data;
 
-	if (_expr_fini_expr(parse, d) < 0)
+	if (_expr_fini_expr(parse, d, 0) < 0)
 		return SCF_DFA_ERROR;
 
 	return SCF_DFA_NEXT_WORD;
@@ -758,7 +776,7 @@ static int _expr_action_semicolon(scf_dfa_t* dfa, scf_vector_t* words, void* dat
 	dfa_parse_data_t*   d     = data;
 	expr_module_data_t* md    = d->module_datas[dfa_module_expr.index];
 
-	if (_expr_fini_expr(parse, d) < 0)
+	if (_expr_fini_expr(parse, d, 1) < 0)
 		return SCF_DFA_ERROR;
 
 	return SCF_DFA_OK;
@@ -886,6 +904,11 @@ static int _dfa_init_syntax_expr(scf_dfa_t* dfa)
 	scf_dfa_node_add_child(expr,       unary_post);
 	scf_dfa_node_add_child(expr,       lp);
 	scf_dfa_node_add_child(expr,       semicolon);
+
+	// create class object
+	scf_dfa_node_add_child(expr,       create);
+	scf_dfa_node_add_child(create_id,  semicolon);
+	scf_dfa_node_add_child(create_rp,  semicolon);
 
 	// va_arg(ap, type)
 	scf_dfa_node_add_child(expr,       va_arg);

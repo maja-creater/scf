@@ -44,6 +44,8 @@ scf_function_t*	scf_scope_find_proper_function(scf_scope_t* scope, const char* n
 
 int             scf_scope_find_overloaded_functions(scf_vector_t** pfunctions, scf_scope_t* scope, const int op_type, scf_vector_t* argv);
 
+int             scf_scope_find_like_functions(scf_vector_t** pfunctions, scf_scope_t* scope, const char* name, scf_vector_t* argv);
+
 scf_type_t*     scf_scope_list_find_type(scf_list_t* h, const char* name);
 
 void            scf_scope_push_label(scf_scope_t* scope, scf_label_t* l);
