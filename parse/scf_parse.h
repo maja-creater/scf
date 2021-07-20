@@ -69,6 +69,7 @@ struct dfa_parse_data_s {
 	scf_lex_word_t*      current_var_w;
 
 	int                  nb_sizeofs;
+	int                  nb_containers;
 
 	scf_function_t*      current_function;
 	int                  argc;

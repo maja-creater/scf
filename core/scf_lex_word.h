@@ -91,6 +91,8 @@ enum scf_lex_words {
 
 	SCF_LEX_WORD_KEY_CREATE,    // create class object
 
+	SCF_LEX_WORD_KEY_CONTAINER, // container_of
+
 	SCF_LEX_WORD_KEY_OPERATOR,  // operator
 
 	SCF_LEX_WORD_KEY_UNDERLINE, // _ underline
@@ -189,7 +191,8 @@ static inline int scf_lex_is_operator(scf_lex_word_t* w)
 	return (w->type >= SCF_LEX_WORD_PLUS && w->type <= SCF_LEX_WORD_DOT)
 		|| SCF_LEX_WORD_KEY_SIZEOF == w->type
 		|| SCF_LEX_WORD_KEY_VA_ARG == w->type
-		|| SCF_LEX_WORD_KEY_CREATE == w->type;
+		|| SCF_LEX_WORD_KEY_CREATE == w->type
+		|| SCF_LEX_WORD_KEY_CONTAINER == w->type;
 }
 
 static inline int scf_lex_is_const(scf_lex_word_t* w)

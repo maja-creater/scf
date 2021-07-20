@@ -891,6 +891,8 @@ static int _dfa_init_syntax_expr(scf_dfa_t* dfa)
 	SCF_DFA_GET_MODULE_NODE(dfa, va_arg,   arg,         va_arg);
 	SCF_DFA_GET_MODULE_NODE(dfa, va_arg,   rp,          va_rp);
 
+	SCF_DFA_GET_MODULE_NODE(dfa, container, container,  container);
+	SCF_DFA_GET_MODULE_NODE(dfa, container, rp,         container_rp);
 
 	// add expr to syntaxes
 	scf_vector_add(dfa->syntaxes, expr);
@@ -904,6 +906,13 @@ static int _dfa_init_syntax_expr(scf_dfa_t* dfa)
 	scf_dfa_node_add_child(expr,       unary_post);
 	scf_dfa_node_add_child(expr,       lp);
 	scf_dfa_node_add_child(expr,       semicolon);
+
+	// container(ptr, type, member)
+	scf_dfa_node_add_child(expr,       container);
+	scf_dfa_node_add_child(create_rp,  rp);
+	scf_dfa_node_add_child(create_rp,  binary_op);
+	scf_dfa_node_add_child(create_rp,  comma);
+	scf_dfa_node_add_child(create_rp,  semicolon);
 
 	// create class object
 	scf_dfa_node_add_child(expr,       create);

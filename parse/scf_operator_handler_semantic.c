@@ -1694,6 +1694,75 @@ static int _scf_op_semantic_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb
 	return 0;
 }
 
+static int _scf_op_semantic_container(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
+{
+	assert(3 == nb_nodes);
+
+	scf_handler_data_t* d  = data;
+
+	scf_node_t*     e      = nodes[0];
+	scf_node_t*     node1  = nodes[1];
+	scf_node_t*     node2  = nodes[2];
+	scf_node_t*     parent = e->parent;
+
+	scf_variable_t* v0     = _scf_operand_get(e);
+	scf_variable_t* v1     = _scf_operand_get(node1);
+	scf_variable_t* v2     = _scf_operand_get(node2);
+	scf_variable_t* u8;
+	scf_variable_t* offset;
+	scf_type_t*     t;
+
+	assert(v0);
+	assert(SCF_OP_EXPR == e->type);
+	assert(d->pret == &parent->result);
+
+	assert(v0->nb_pointers > 0);
+	assert(v1->nb_pointers > 0);
+	assert(v1->type >= SCF_STRUCT);
+	assert(v2->member_flag);
+
+	parent->type     = SCF_OP_TYPE_CAST;
+	parent->result   = scf_variable_ref(v1);
+	parent->nodes[0] = node1;
+	parent->nodes[1] = e;
+	parent->nodes[2] = NULL;
+	parent->nb_nodes = 2;
+	parent->op       = scf_find_base_operator_by_type(SCF_OP_TYPE_CAST);
+
+	if (0 == v2->offset) {
+		scf_node_free(node2);
+		return 0;
+	}
+
+	t  = scf_ast_find_type_type(ast, SCF_VAR_U8);
+	u8 = SCF_VAR_ALLOC_BY_TYPE(NULL, t, 0, 1, NULL);
+
+	int ret = _semantic_add_type_cast(ast, &e->nodes[0], u8, e->nodes[0]);
+	if (ret < 0)
+		return ret;
+
+	t      = scf_ast_find_type_type(ast, SCF_VAR_UINTPTR);
+	offset = SCF_VAR_ALLOC_BY_TYPE(v2->w, t, 1, 0, NULL);
+
+	offset->data.u64 = v2->offset;
+
+	assert(!node2->result);
+
+	scf_variable_free(node2->var);
+	scf_variable_free(e->result);
+
+	node2->type = offset->type;
+	node2->var  = offset;
+
+	scf_node_add_child(e, node2);
+
+	e->type     = SCF_OP_SUB;
+	e->result   = u8;
+	e->op       = scf_find_base_operator_by_type(SCF_OP_SUB);
+
+	return 0;
+}
+
 static int _scf_op_semantic_sizeof(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* data)
 {
 	assert(1 == nb_nodes);
@@ -2610,6 +2679,8 @@ scf_operator_handler_t semantic_operator_handlers[] = {
 	{{NULL, NULL}, SCF_OP_VA_START,       -1,   -1, -1, _scf_op_semantic_va_start},
 	{{NULL, NULL}, SCF_OP_VA_ARG,         -1,   -1, -1, _scf_op_semantic_va_arg},
 	{{NULL, NULL}, SCF_OP_VA_END,         -1,   -1, -1, _scf_op_semantic_va_end},
+
+	{{NULL, NULL}, SCF_OP_CONTAINER,      -1,   -1, -1, _scf_op_semantic_container},
 
 	{{NULL, NULL}, SCF_OP_SIZEOF,         -1,   -1, -1, _scf_op_semantic_sizeof},
 	{{NULL, NULL}, SCF_OP_TYPE_CAST,      -1,   -1, -1, _scf_op_semantic_type_cast},

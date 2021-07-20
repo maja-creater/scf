@@ -98,6 +98,7 @@ CFILES += scf_dfa_parse.c
 CFILES += scf_dfa_call.c
 CFILES += scf_dfa_create.c
 CFILES += scf_dfa_sizeof.c
+CFILES += scf_dfa_container.c
 CFILES += scf_dfa_va_arg.c
 CFILES += scf_dfa_expr.c
 

@@ -137,5 +137,12 @@ static inline int scf_dfa_is_va_end(scf_dfa_t* dfa, void* word)
 	return SCF_LEX_WORD_KEY_VA_END == w->type;
 }
 
+static inline int scf_dfa_is_container(scf_dfa_t* dfa, void* word)
+{
+	scf_lex_word_t* w = word;
+
+	return SCF_LEX_WORD_KEY_CONTAINER == w->type;
+}
+
 #endif
 

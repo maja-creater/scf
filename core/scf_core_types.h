@@ -75,6 +75,8 @@ enum scf_core_types {
 	SCF_OP_CREATE,	    // create
 	SCF_OP_SIZEOF,	    // sizeof
 
+	SCF_OP_CONTAINER,   // container_of
+
 	SCF_OP_ADDRESS_OF,	// & get variable address
 	SCF_OP_DEREFERENCE,	// * pointer dereference
 	SCF_OP_ARRAY_INDEX,	// [] array index

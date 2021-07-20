@@ -52,6 +52,8 @@ static scf_lex_key_word_t	key_words[] = {
 	{"va_arg",    SCF_LEX_WORD_KEY_VA_ARG},
 	{"va_end",    SCF_LEX_WORD_KEY_VA_END},
 
+	{"container", SCF_LEX_WORD_KEY_CONTAINER},
+
 	{"class",     SCF_LEX_WORD_KEY_CLASS},
 
 	{"const",     SCF_LEX_WORD_KEY_CONST},
