@@ -2020,6 +2020,9 @@ static int _x64_inst_va_end_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		return -1;
 	}
 
+	ptr->dag_node->var->tmp_flag =  1;
+	ptr->dag_node->color         = -1;
+
 	X64_SELECT_REG_CHECK(&rap,  ap ->dag_node, c, f, 1);
 	X64_SELECT_REG_CHECK(&rptr, ptr->dag_node, c, f, 0);
 
@@ -2040,6 +2043,12 @@ static int _x64_inst_va_end_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 
 	inst = x64_make_inst_G2P(mov, rap, 32, rptr);
 	X64_INST_ADD_CHECK(c->instructions, inst);
+
+	ptr->dag_node->var->tmp_flag = 0;
+	ptr->dag_node->color         = 0;
+	ptr->dag_node->loaded        = 0;
+
+	assert(0 == scf_vector_del(rptr->dag_nodes, ptr->dag_node));
 	return 0;
 }
 

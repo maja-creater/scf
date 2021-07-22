@@ -33,5 +33,7 @@ scf_optimizer_t  scf_optimizer_loads_saves =
 	.name     =  "loads_saves",
 
 	.optimize =  _optimize_loads_saves,
+
+	.flags    = SCF_OPTIMIZER_LOCAL,
 };
 

@@ -39,6 +39,15 @@ static int _type_action_static(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	return SCF_DFA_NEXT_WORD;
 }
 
+static int _type_action_inline(scf_dfa_t* dfa, scf_vector_t* words, void* data)
+{
+	dfa_parse_data_t* d = data;
+
+	d->inline_flag = 1;
+
+	return SCF_DFA_NEXT_WORD;
+}
+
 static int _type_action_base_type(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 {
 	scf_parse_t*      parse = dfa->priv;
@@ -68,10 +77,12 @@ static int _type_action_base_type(scf_dfa_t* dfa, scf_vector_t* words, void* dat
 	id->const_flag  = d->const_flag;
 	id->static_flag = d->static_flag;
 	id->extern_flag = d->extern_flag;
+	id->inline_flag = d->inline_flag;
 
 	d ->const_flag  = 0;
 	d ->static_flag = 0;
 	d ->extern_flag = 0;
+	d ->inline_flag = 0;
 
 	return SCF_DFA_NEXT_WORD;
 }
@@ -207,6 +218,7 @@ static int _dfa_init_module_type(scf_dfa_t* dfa)
 	SCF_DFA_MODULE_NODE(dfa, type, _const,    scf_dfa_is_const,     _type_action_const);
 	SCF_DFA_MODULE_NODE(dfa, type, _static,   scf_dfa_is_static,    _type_action_static);
 	SCF_DFA_MODULE_NODE(dfa, type, _extern,   scf_dfa_is_extern,    _type_action_extern);
+	SCF_DFA_MODULE_NODE(dfa, type, _inline,   scf_dfa_is_inline,    _type_action_inline);
 
 	SCF_DFA_MODULE_NODE(dfa, type, base_type, scf_dfa_is_base_type, _type_action_base_type);
 	SCF_DFA_MODULE_NODE(dfa, type, identity,  scf_dfa_is_identity,  _type_action_identity);
@@ -223,6 +235,7 @@ static int _dfa_init_syntax_type(scf_dfa_t* dfa)
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     _const,    _const);
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     _static,   _static);
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     _extern,   _extern);
+	SCF_DFA_GET_MODULE_NODE(dfa, type,     _inline,   _inline);
 
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     _struct,   _struct);
 	SCF_DFA_GET_MODULE_NODE(dfa, type,     base_type, base_type);
@@ -238,6 +251,7 @@ static int _dfa_init_syntax_type(scf_dfa_t* dfa)
 	scf_dfa_node_add_child(entry,     _static);
 	scf_dfa_node_add_child(entry,     _extern);
 	scf_dfa_node_add_child(entry,     _const);
+	scf_dfa_node_add_child(entry,     _inline);
 
 	scf_dfa_node_add_child(entry,     _struct);
 	scf_dfa_node_add_child(entry,     base_type);
@@ -255,8 +269,14 @@ static int _dfa_init_syntax_type(scf_dfa_t* dfa)
 	scf_dfa_node_add_child(_const,    base_type);
 	scf_dfa_node_add_child(_const,    type_name);
 
+	scf_dfa_node_add_child(_inline,   _struct);
+	scf_dfa_node_add_child(_inline,   base_type);
+	scf_dfa_node_add_child(_inline,   type_name);
+
+	scf_dfa_node_add_child(_static,   _inline);
 	scf_dfa_node_add_child(_static,   _const);
 	scf_dfa_node_add_child(_extern,   _const);
+	scf_dfa_node_add_child(_inline,   _const);
 
 	scf_dfa_node_add_child(_struct,   type_name);
 

@@ -53,6 +53,15 @@ int _function_add_function(scf_dfa_t* dfa, dfa_parse_data_t* d)
 		if (SCF_VAR_VOID == id->type->type && 0 == id->nb_pointers)
 			void_flag = 1;
 
+		f->extern_flag |= id->extern_flag;
+		f->static_flag |= id->static_flag;
+		f->inline_flag |= id->inline_flag;
+
+		if (f->extern_flag && (f->static_flag || f->inline_flag)) {
+			scf_loge("'extern' function can't be 'static' or 'inline'\n");
+			return SCF_DFA_ERROR;
+		}
+
 		v  = SCF_VAR_ALLOC_BY_TYPE(id->type_w, id->type, id->const_flag, id->nb_pointers, NULL);
 		free(id);
 		id = NULL;

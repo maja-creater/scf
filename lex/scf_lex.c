@@ -59,6 +59,7 @@ static scf_lex_key_word_t	key_words[] = {
 	{"const",     SCF_LEX_WORD_KEY_CONST},
 	{"static",    SCF_LEX_WORD_KEY_STATIC},
 	{"extern",    SCF_LEX_WORD_KEY_EXTERN},
+	{"inline",    SCF_LEX_WORD_KEY_INLINE},
 
 	{"async",     SCF_LEX_WORD_KEY_ASYNC},
 

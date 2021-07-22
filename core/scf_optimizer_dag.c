@@ -15,10 +15,14 @@ static int _optimize_dag(scf_ast_t* ast, scf_function_t* f, scf_list_t* bb_list_
 	int ret;
 	int i;
 
+	f->nb_basic_blocks = 0;
+
 	for (l = scf_list_head(bb_list_head); l != scf_list_sentinel(bb_list_head);
 			l = scf_list_next(l)) {
 
 		bb  = scf_list_data(l, scf_basic_block_t, list);
+
+		bb->index = f->nb_basic_blocks++;
 
 		ret = scf_basic_block_dag(bb, bb_list_head, &f->dag_list_head);
 		if (ret < 0) {
@@ -36,5 +40,7 @@ scf_optimizer_t  scf_optimizer_dag =
 	.name     =  "dag",
 
 	.optimize =  _optimize_dag,
+
+	.flags    = SCF_OPTIMIZER_LOCAL,
 };
 

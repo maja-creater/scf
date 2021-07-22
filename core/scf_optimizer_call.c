@@ -265,5 +265,7 @@ scf_optimizer_t  scf_optimizer_call =
 	.name     =  "call",
 
 	.optimize =  _optimize_call,
+
+	.flags    = SCF_OPTIMIZER_LOCAL,
 };
 

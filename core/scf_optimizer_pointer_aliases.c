@@ -219,5 +219,7 @@ scf_optimizer_t  scf_optimizer_pointer_aliases =
 	.name     =  "pointer_aliases",
 
 	.optimize =  _optimize_pointer_aliases,
+
+	.flags    = SCF_OPTIMIZER_LOCAL,
 };
 

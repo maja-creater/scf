@@ -55,6 +55,7 @@ typedef struct {
 	uint32_t             const_flag :1;
 	uint32_t             extern_flag:1;
 	uint32_t             static_flag:1;
+	uint32_t             inline_flag:1;
 
 } dfa_identity_t;
 
@@ -102,6 +103,7 @@ struct dfa_parse_data_s {
 	uint32_t             const_flag :1;
 	uint32_t             extern_flag:1;
 	uint32_t             static_flag:1;
+	uint32_t             inline_flag:1;
 
 	int              nb_lbs;
 	int              nb_rbs;

@@ -859,5 +859,7 @@ scf_optimizer_t  scf_optimizer_loop =
 	.name     =  "loop",
 
 	.optimize =  _optimize_loop,
+
+	.flags    = SCF_OPTIMIZER_LOCAL,
 };
 

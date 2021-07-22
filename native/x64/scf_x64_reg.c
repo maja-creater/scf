@@ -899,7 +899,7 @@ int x64_load_reg(scf_register_x64_t* r, scf_dag_node_t* dn, scf_3ac_code_t* c, s
 		return -EINVAL;
 	}
 
-	if (0 == dn->var->bp_offset) {
+	if (0 == dn->var->bp_offset && !dn->var->global_flag) {
 		scf_loge("\n");
 		return -EINVAL;
 	}

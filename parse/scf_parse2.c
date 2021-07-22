@@ -1892,8 +1892,8 @@ int scf_parse_compile_functions(scf_parse_t* parse, scf_native_t* native, scf_ve
 	for (i = 0; i < functions->size; i++) {
 		f  =        functions->data[i];
 
-		scf_logi("i: %d, f: %p, fname: %s, f->argv->size: %d, f->node.define_flag: %d\n",
-				i, f, f->node.w->text->data, f->argv->size, f->node.define_flag);
+		scf_logi("i: %d, f: %p, fname: %s, f->argv->size: %d, f->node.define_flag: %d, inline_flag: %d\n",
+				i, f, f->node.w->text->data, f->argv->size, f->node.define_flag, f->inline_flag);
 
 		if (!f->node.define_flag)
 			continue;

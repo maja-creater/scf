@@ -74,6 +74,7 @@ CFILES += ../core/scf_pointer_alias.c
 
 CFILES += ../core/scf_optimizer.c
 CFILES += ../core/scf_optimizer_dag.c
+CFILES += ../core/scf_optimizer_inline.c
 CFILES += ../core/scf_optimizer_call.c
 CFILES += ../core/scf_optimizer_pointer_alias.c
 CFILES += ../core/scf_optimizer_active_vars.c

@@ -340,5 +340,7 @@ scf_optimizer_t  scf_optimizer_dominators_normal =
 	.name     =  "dominators_normal",
 
 	.optimize =  _optimize_dominators_normal,
+
+	.flags    = SCF_OPTIMIZER_LOCAL,
 };
 

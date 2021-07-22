@@ -1986,5 +1986,7 @@ scf_optimizer_t  scf_optimizer_auto_gc =
 	.name     =  "auto_gc",
 
 	.optimize =  _optimize_auto_gc,
+
+	.flags    = SCF_OPTIMIZER_LOCAL,
 };
 

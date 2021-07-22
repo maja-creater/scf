@@ -1055,7 +1055,7 @@ static int _find_local_vars(scf_node_t* node, void* arg, scf_vector_t* results)
 {
 	scf_block_t* b = (scf_block_t*)node;
 
-	if (SCF_OP_BLOCK == b->node.type && b->scope) {
+	if ((SCF_OP_BLOCK == b->node.type || SCF_FUNCTION == b->node.type) && b->scope) {
 
 		int i;
 		for (i = 0; i < b->scope->vars->size; i++) {

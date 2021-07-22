@@ -174,5 +174,7 @@ scf_optimizer_t  scf_optimizer_active_vars =
 	.name     =  "active_vars",
 
 	.optimize =  _optimize_active_vars,
+
+	.flags    = SCF_OPTIMIZER_LOCAL,
 };
 

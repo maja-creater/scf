@@ -129,6 +129,7 @@ enum scf_lex_words {
 	SCF_LEX_WORD_KEY_CONST,     // const
 	SCF_LEX_WORD_KEY_STATIC,    // static
 	SCF_LEX_WORD_KEY_EXTERN,    // extern
+	SCF_LEX_WORD_KEY_INLINE,    // inline
 
 	// for co-routine
 	SCF_LEX_WORD_KEY_ASYNC,     // async

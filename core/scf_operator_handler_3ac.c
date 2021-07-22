@@ -314,8 +314,8 @@ static int _scf_op_va_end(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 	vptr = SCF_VAR_ALLOC_BY_TYPE(NULL, tptr, 0, 0, NULL);
 	if (!vptr)
 		return -ENOMEM;
-	vptr->data.u64 = 0;
-	vptr->tmp_flag = 1;
+	vptr->data.u64   = 0;
+	vptr->const_flag = 1;
 
 	nptr = scf_node_alloc(NULL, vptr->type, vptr);
 	if (!nptr)
@@ -1824,8 +1824,10 @@ static int _scf_op_left_value(scf_ast_t* ast, int type, scf_node_t* left, scf_no
 	return 0;
 }
 
-static int _scf_op_right_value(scf_ast_t* ast, scf_node_t* right, scf_handler_data_t* d)
+static int _scf_op_right_value(scf_ast_t* ast, scf_node_t** pright, scf_handler_data_t* d)
 {
+	scf_node_t* right = *pright;
+
 	if (_scf_expr_calculate_internal(ast, right, d) < 0) {
 		scf_loge("\n");
 		return -1;
@@ -1845,8 +1847,21 @@ static int _scf_op_right_value(scf_ast_t* ast, scf_node_t* right, scf_handler_da
 			scf_loge("\n");
 			return -1;
 		}
+
+	} else {
+		while (SCF_OP_EXPR == right->type)
+			right = right->nodes[0];
+
+		if (SCF_OP_CALL == right->type && !right->split_flag) {
+
+			assert(right->result_nodes);
+			assert(right->result_nodes->size > 0);
+
+			right = right->result_nodes->data[0];
+		}
 	}
 
+	*pright = right;
 	return 0;
 }
 
@@ -1860,7 +1875,7 @@ static int _scf_op_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 	scf_node_t*     node1  = nodes[1];
 	scf_variable_t* v0     = _scf_operand_get(node0);
 
-	if ( _scf_op_right_value(ast, node1, d) < 0)
+	if ( _scf_op_right_value(ast, &node1, d) < 0)
 		return -1;
 
 	while (SCF_OP_EXPR == node0->type)
@@ -1894,7 +1909,7 @@ static int _scf_op_##name##_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 	scf_node_t*     node1  = nodes[1]; \
 	scf_variable_t* v1     = _scf_operand_get(nodes[1]); \
 	\
-	if ( _scf_op_right_value(ast, node1, d) < 0) \
+	if ( _scf_op_right_value(ast, &node1, d) < 0) \
 		return -1; \
 	\
 	while (SCF_OP_EXPR == node0->type) \
@@ -1962,7 +1977,7 @@ static int _scf_op_##name##_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 	scf_node_t*     node1  = nodes[1]; \
 	scf_variable_t* v1     = _scf_operand_get(nodes[1]); \
 	\
-	if ( _scf_op_right_value(ast, node1, d) < 0) \
+	if ( _scf_op_right_value(ast, &node1, d) < 0) \
 		return -1; \
 	\
 	while (SCF_OP_EXPR == node0->type) \

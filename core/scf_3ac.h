@@ -68,6 +68,7 @@ int                 scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag);
 
 scf_3ac_code_t*     scf_3ac_alloc_by_src(int op_type, scf_dag_node_t* src);
 scf_3ac_code_t*     scf_3ac_alloc_by_dst(int op_type, scf_dag_node_t* dst);
+scf_3ac_code_t*     scf_3ac_code_NN(int op_type, scf_node_t** dsts, int nb_dsts, scf_node_t** srcs, int nb_srcs);
 
 int					scf_3ac_split_basic_blocks(scf_list_t* list_head_3ac, scf_function_t* f);
 

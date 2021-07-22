@@ -145,5 +145,7 @@ scf_optimizer_t  scf_optimizer_group =
 	.name     =  "group",
 
 	.optimize =  _optimize_group,
+
+	.flags    = SCF_OPTIMIZER_LOCAL,
 };
 

@@ -59,6 +59,9 @@ int _operator_add_operator(scf_dfa_t* dfa, dfa_parse_data_t* d)
 			return SCF_DFA_ERROR;
 		}
 
+		f->static_flag |= id->static_flag;
+		f->inline_flag |= id->inline_flag;
+
 		v  = SCF_VAR_ALLOC_BY_TYPE(id->type_w, id->type, id->const_flag, id->nb_pointers, NULL);
 		free(id);
 		id = NULL;

@@ -622,5 +622,7 @@ scf_optimizer_t  scf_optimizer_auto_gc_find =
 	.name     =  "auto_gc_find",
 
 	.optimize =  _optimize_auto_gc_find,
+
+	.flags    = SCF_OPTIMIZER_GLOBAL,
 };
 
