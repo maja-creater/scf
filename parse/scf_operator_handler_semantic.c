@@ -233,9 +233,6 @@ static int _semantic_add_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, 
 		parent->nodes[i + 1] = parent->nodes[i];
 	parent->nodes[0] = node_pf;
 
-	scf_loge("parent->w: %p\n", parent->w);
-	scf_loge("parent->w->text->data: %s\n", parent->w->text->data);
-
 	return _semantic_add_call_rets(ast, parent, d, f);
 }
 
@@ -2296,13 +2293,19 @@ static int _scf_op_semantic_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 		if (scf_variable_is_struct_pointer(v0)) {
 
-			int ret = _semantic_do_create(ast, nodes, nb_nodes, d);
-			if (0 == ret)
-				return 0;
+			scf_type_t* t = scf_ast_find_type_type(ast, v0->type);
+			assert(t);
 
-			if (-404 != ret) {
-				scf_loge("semantic do overloaded error, ret: %d\n", ret);
-				return -1;
+			if (scf_scope_find_function(t->scope, "__init")) {
+
+				int ret = _semantic_do_create(ast, nodes, nb_nodes, d);
+				if (0 == ret)
+					return 0;
+
+				if (-404 != ret) {
+					scf_loge("semantic do overloaded error, ret: %d\n", ret);
+					return -1;
+				}
 			}
 		}
 

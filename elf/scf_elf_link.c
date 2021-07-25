@@ -797,6 +797,7 @@ int main()
 		"../lib/scf_cstr.o",
 		"../lib/scf_malloc.o",
 		"../lib/scf_object.o",
+		"../lib/scf_list.o",
 		"./1.elf",
 	};
 

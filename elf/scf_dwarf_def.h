@@ -249,6 +249,9 @@ struct scf_dwarf_info_entry_s
 	uint64_t           cu_byte_offset;
 
 	scf_vector_t*      attributes;
+
+	int                type;
+	int                nb_pointers;
 };
 
 struct scf_dwarf_attr_ref_s

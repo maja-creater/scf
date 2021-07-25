@@ -398,6 +398,9 @@ static scf_dwarf_info_entry_t* _debug_find_type(scf_parse_t* parse, scf_type_t* 
 
 		assert(ie->attributes->size == d->attributes->size);
 
+		if (ie->type == t->type && ie->nb_pointers == nb_pointers)
+			return ie;
+#if 0
 		for (j = 0; j < d ->attributes->size; j++) {
 			attr      = d ->attributes->data[j];
 
@@ -409,6 +412,7 @@ static scf_dwarf_info_entry_t* _debug_find_type(scf_parse_t* parse, scf_type_t* 
 			if (!scf_string_cmp(iattr->data, t->name))
 				return ie;
 		}
+#endif
 	}
 
 	return NULL;
@@ -478,6 +482,9 @@ static int __debug_add_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev_decla
 	if (!ie)
 		return -ENOMEM;
 	ie->code = d->code;
+
+	ie->type = t->type;
+	ie->nb_pointers = nb_pointers;
 
 	ret = scf_vector_add(types, ie);
 	if (ret < 0) {
@@ -685,6 +692,7 @@ static int __debug_add_member_var(scf_dwarf_info_entry_t** pie, scf_parse_t* par
 		}
 	}
 
+	*pie = ie;
 	return 0;
 }
 
@@ -704,6 +712,8 @@ static int _debug_add_struct_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev
 	if (!ie_member_types)
 		return -ENOMEM;
 
+	int nb_pointers = 0;
+
 	for (i = 0; i < t->scope->vars->size; i++) {
 
 		scf_dwarf_info_entry_t* ie_member;
@@ -716,10 +726,17 @@ static int _debug_add_struct_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev
 		ie_member = _debug_find_type(parse, t_member, v_member->nb_pointers);
 		if (!ie_member) {
 
-			ret = _debug_add_type(&ie_member, parse, t_member, v_member->nb_pointers);
-			if (ret < 0) {
-				scf_loge("\n");
-				return ret;
+			if (t_member != t) {
+				ret = _debug_add_type(&ie_member, parse, t_member, v_member->nb_pointers);
+				if (ret < 0) {
+					scf_loge("\n");
+					return ret;
+				}
+			} else {
+				assert(v_member->nb_pointers > 0);
+
+				if (nb_pointers < v_member->nb_pointers)
+					nb_pointers = v_member->nb_pointers;
 			}
 		}
 
@@ -735,6 +752,14 @@ static int _debug_add_struct_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev
 		return ret;
 	}
 
+	scf_vector_t* refills = NULL;
+
+	if (nb_pointers > 0) {
+		refills = scf_vector_alloc();
+		if (!refills)
+			return -ENOMEM;
+	}
+
 	for (i = 0; i < t->scope->vars->size; i++) {
 
 		scf_dwarf_info_entry_t* ie_member;
@@ -746,6 +771,12 @@ static int _debug_add_struct_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev
 		if (ret < 0) {
 			scf_loge("\n");
 			return ret;
+		}
+
+		if (nb_pointers > 0) {
+			if (scf_vector_add(refills, ie_member) < 0) {
+				return -ENOMEM;
+			}
 		}
 	}
 
@@ -759,6 +790,49 @@ static int _debug_add_struct_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev
 	if (scf_vector_add(parse->debug->struct_types, ie0) < 0) {
 		scf_dwarf_info_entry_free(ie0);
 		return -ENOMEM;
+	}
+
+	if (nb_pointers > 0) {
+
+		scf_dwarf_info_entry_t* ie_pointer;
+		scf_dwarf_info_attr_t*  iattr;
+
+		int j;
+		for (j = 1; j <= nb_pointers; j++) {
+
+			ret = _debug_add_type(&ie_pointer, parse, t, j);
+			if (ret < 0) {
+				scf_loge("\n");
+				return ret;
+			}
+
+			for (i = 0; i < t->scope->vars->size; i++) {
+
+				scf_dwarf_info_entry_t* ie_member;
+				scf_variable_t*         v_member;
+
+				v_member  = t->scope->vars->data[i];
+
+				if (v_member->type != t->type)
+					continue;
+
+				if (v_member->nb_pointers != j)
+					continue;
+
+				ie_member = refills->data[i];
+
+				int k;
+				for (k = 0; k < ie_member->attributes->size; k++) {
+					iattr     = ie_member->attributes->data[k];
+
+					if (DW_AT_type == iattr->name) {
+						assert(!iattr->ref_entry);
+						iattr->ref_entry = ie_pointer;
+						break;
+					}
+				}
+			}
+		}
 	}
 
 	*pie = ie;
@@ -782,14 +856,20 @@ static int _debug_add_type(scf_dwarf_info_entry_t** pie, scf_parse_t* parse, scf
 	ie = _debug_find_type(parse, t, 0);
 	if (!ie) {
 
-		if (t->type < SCF_STRUCT)
-			ret = __debug_add_type(&ie, &d, parse, t, 0, NULL);
-		else
-			ret = _debug_add_struct_type(&ie, &d, parse, t);
+		if (t->type < SCF_STRUCT) {
 
-		if (ret < 0) {
-			scf_loge("\n");
-			return ret;
+			ret = __debug_add_type(&ie, &d, parse, t, 0, NULL);
+			if (ret < 0)
+				return ret;
+
+		} else {
+			ret = _debug_add_struct_type(&ie, &d, parse, t);
+			if (ret < 0)
+				return ret;
+
+			*pie = _debug_find_type(parse, t, nb_pointers);
+			if (*pie)
+				return 0;
 		}
 	}
 

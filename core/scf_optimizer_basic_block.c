@@ -269,7 +269,7 @@ static int __optimize_basic_block(scf_basic_block_t* bb, scf_function_t* f)
 				break;
 			}
 		}
-		assert(l2 != scf_list_sentinel(&bb->code_list_head));
+//		assert(l2 != scf_list_sentinel(&bb->code_list_head));
 	}
 
 	scf_list_clear(&bb->code_list_head, scf_3ac_code_t, list, scf_3ac_code_free);
@@ -356,8 +356,12 @@ static int _optimize_basic_block(scf_ast_t* ast, scf_function_t* f, scf_list_t* 
 				|| bb->end_flag
 				|| bb->call_flag
 				|| bb->dereference_flag
-				|| bb->varg_flag)
+				|| bb->varg_flag) {
+			scf_logd("bb: %p, jmp:%d,ret:%d, end: %d, call:%d, varg:%d, dereference_flag: %d\n",
+					bb, bb->jmp_flag, bb->ret_flag, bb->end_flag, bb->call_flag, bb->dereference_flag,
+					bb->varg_flag);
 			continue;
+		}
 
 		ret = __optimize_basic_block(bb, f);
 		if (ret < 0) {

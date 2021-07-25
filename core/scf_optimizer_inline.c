@@ -211,10 +211,8 @@ static int _do_inline(scf_ast_t* ast, scf_3ac_code_t* c, scf_basic_block_t** pbb
 	scf_basic_block_t* bb2;
 	scf_basic_block_t* bb_next;
 	scf_3ac_operand_t* src;
-	scf_3ac_operand_t* dst;
 	scf_3ac_code_t*    c2;
 	scf_variable_t*    v2;
-	scf_variable_t*    v3;
 	scf_vector_t*      argv;
 	scf_node_t*        node;
 	scf_list_t*        l;
@@ -230,8 +228,6 @@ static int _do_inline(scf_ast_t* ast, scf_3ac_code_t* c, scf_basic_block_t** pbb
 		return -ENOMEM;
 
 	_copy_codes(&hbb, argv, c, f, f2);
-
-//	scf_basic_block_print_list(&hbb);
 
 	int i;
 	int j;
@@ -297,6 +293,8 @@ static int _do_inline(scf_ast_t* ast, scf_3ac_code_t* c, scf_basic_block_t** pbb
 		}
 	}
 
+	int nblocks = 0;
+
 	while (l != scf_list_sentinel(&hbb)) {
 
 		bb2   = scf_list_data(l, scf_basic_block_t, list);
@@ -304,13 +302,55 @@ static int _do_inline(scf_ast_t* ast, scf_3ac_code_t* c, scf_basic_block_t** pbb
 
 		scf_list_del(&bb2->list);
 		scf_list_add_front(&bb->list, &bb2->list);
+
+		nblocks++;
 	}
 
-	if (scf_vector_add(bb->nexts, bb2) < 0)
-		return -ENOMEM;
+	if (bb2->jmp_flag || bb2->jmp_dst_flag) {
 
-	if (scf_vector_add(bb2->prevs, bb) < 0)
-		return -ENOMEM;
+		if (scf_vector_add(bb->nexts, bb2) < 0)
+			return -ENOMEM;
+
+		if (scf_vector_add(bb2->prevs, bb) < 0)
+			return -ENOMEM;
+
+	} else {
+		for (l = scf_list_head(&bb2->code_list_head); l != scf_list_sentinel(&bb2->code_list_head); ) {
+
+			c2 = scf_list_data(l, scf_3ac_code_t, list);
+			l  = scf_list_next(l);
+
+			scf_list_del(&c2->list);
+			scf_list_add_tail(&c->list, &c2->list);
+
+			c2->basic_block = bb;
+
+			if (SCF_OP_CALL == c2->op->type)
+				bb->call_flag = 1;
+		}
+
+		SCF_XCHG(bb->nexts, bb2->nexts);
+
+		for (i = 0; i < bb->nexts->size; i++) {
+			bb_next   = bb->nexts->data[i];
+
+			int j;
+			for (j = 0; j < bb_next->prevs->size; j++) {
+
+				if (bb_next->prevs->data[j] == bb2) {
+					bb_next->prevs->data[j] =  bb;
+					break;
+				}
+			}
+		}
+
+		scf_list_del(&bb2->list);
+		scf_basic_block_free(bb2);
+		bb2 = NULL;
+
+		if (1 == nblocks)
+			*pbb = bb;
+	}
 	return 0;
 }
 
@@ -335,6 +375,8 @@ static int _optimize_inline2(scf_ast_t* ast, scf_function_t* f)
 		if (!bb->call_flag)
 			continue;
 
+		int call_flag = 0;
+
 		bb_cur = bb;
 
 		for (l2 = scf_list_head(&bb->code_list_head); l2 != scf_list_sentinel(&bb->code_list_head); ) {
@@ -344,10 +386,14 @@ static int _optimize_inline2(scf_ast_t* ast, scf_function_t* f)
 			if (bb_cur != bb) {
 				scf_list_del(&c->list);
 				scf_list_add_tail(&bb_cur->code_list_head, &c->list);
+
+				c->basic_block = bb_cur;
 			}
 
 			if (SCF_OP_CALL != c->op->type)
 				continue;
+
+			call_flag = 1;
 
 			src = c->srcs->data[0];
 			v   = _scf_operand_get(src->node);
@@ -357,14 +403,20 @@ static int _optimize_inline2(scf_ast_t* ast, scf_function_t* f)
 
 			f2 = v->func_ptr;
 
+			if (!f2->node.define_flag)
+				continue;
+
+			if (!f2->inline_flag)
+				continue;
+
 			if (f2->vargs_flag)
 				continue;
 
 			if (f2->nb_basic_blocks > 10)
 				continue;
-
 #if 1
 			bb2 = bb_cur;
+			bb_cur->call_flag = 0;
 
 			int ret = _do_inline(ast, c, &bb_cur, f, f2);
 			if (ret < 0)
@@ -374,10 +426,18 @@ static int _optimize_inline2(scf_ast_t* ast, scf_function_t* f)
 			scf_3ac_code_free(c);
 			c = NULL;
 
-			if (bb2->ret_flag)
+			bb2->call_flag |= call_flag;
+			call_flag       = 0;
+
+			if (bb2->ret_flag) {
+				bb2->ret_flag    = 0;
 				bb_cur->ret_flag = 1;
+			}
 #endif
 		}
+
+		bb_cur->call_flag |= call_flag;
+		call_flag = 0;
 	}
 
 #if 0

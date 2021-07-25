@@ -653,19 +653,37 @@ int scf_3ac_code_to_dag(scf_3ac_code_t* c, scf_list_t* dag)
 		if (ret < 0)
 			return ret;
 
-		scf_variable_t* var_assign = NULL;
+		scf_dag_node_t* dn_src;
+		scf_dag_node_t* dn_parent;
+		scf_dag_node_t* dn_child;
+		scf_dag_node_t* dn_assign;
+		scf_variable_t* v_assign = NULL;
 
 		if (dst->node->parent)
-			var_assign = _scf_operand_get(dst->node->parent);
+			v_assign = _scf_operand_get(dst->node->parent);
 
-		scf_dag_node_t* dag_assign = scf_dag_node_alloc(c->op->type, var_assign, NULL);
-		scf_list_add_tail(dag, &dag_assign->list);
+		dn_assign = scf_dag_node_alloc(c->op->type, v_assign, NULL);
 
-		ret = scf_dag_node_add_child(dag_assign, dst->dag_node);
+		scf_list_add_tail(dag, &dn_assign->list);
+
+		ret = scf_dag_node_add_child(dn_assign, dst->dag_node);
 		if (ret < 0)
 			return ret;
 
-		ret = scf_dag_node_add_child(dag_assign, src->dag_node);
+		dn_src = src->dag_node;
+
+		if (dn_src->parents && dn_src->parents->size > 0) {
+			dn_parent        = dn_src->parents->data[dn_src->parents->size - 1];
+
+			if (SCF_OP_ASSIGN == dn_parent->type) {
+				assert(2      == dn_parent->childs->size);
+				dn_child      =  dn_parent->childs->data[1];
+
+				return scf_dag_node_add_child(dn_assign, dn_child);
+			}
+		}
+
+		ret = scf_dag_node_add_child(dn_assign, src->dag_node);
 		if (ret < 0)
 			return ret;
 

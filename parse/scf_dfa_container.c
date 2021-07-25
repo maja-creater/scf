@@ -222,7 +222,6 @@ static int _container_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	} else
 		d->expr = cd->container;
 
-	d->expr_local_flag--;
 	d->nb_containers--;
 
 	scf_logi("d->expr: %p, d->expr_local_flag: %d, d->nb_containers: %d\n", d->expr, d->expr_local_flag, d->nb_containers);

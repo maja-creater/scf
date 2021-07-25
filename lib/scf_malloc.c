@@ -196,7 +196,7 @@ int scf__free(uint8_t* p)
 		if (b->prev_size  &  0x2)
 			b2->prev_size |= 0x2;
 		else {
-			b3 = (scf_mblock_t*)((uintptr_t)b2 + bytes2);
+			b3 = (scf_mblock_t*)((uintptr_t)b2 + bytes);
 
 			b3->prev_size = bytes | (b3->prev_size & 0x7);
 		}

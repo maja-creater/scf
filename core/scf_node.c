@@ -157,9 +157,23 @@ void scf_node_move_data(scf_node_t* dst, scf_node_t* src)
 	dst->nb_nodes = src->nb_nodes;
 	dst->nodes    = src->nodes;
 	dst->var      = src->var; // w, label share same pointer
+
+	dst->debug_w  = src->debug_w;
+
 	dst->priority = src->priority;
 	dst->op       = src->op;
 	dst->result   = src->result;
+
+	dst->result_nodes = src->result_nodes;
+	dst->split_parent = src->split_parent;
+
+	dst->root_flag    = src->root_flag;
+	dst->file_flag    = src->file_flag;
+	dst->class_flag   = src->class_flag;
+	dst->union_flag   = src->union_flag;
+	dst->define_flag  = src->define_flag;
+	dst->const_flag   = src->const_flag;
+	dst->split_flag   = src->split_flag;
 
 	int i;
 	for (i = 0; i < dst->nb_nodes; i++) {
@@ -167,11 +181,23 @@ void scf_node_move_data(scf_node_t* dst, scf_node_t* src)
 			dst->nodes[i]->parent = dst;
 	}
 
+	if (dst->result_nodes) {
+		scf_node_t* res;
+
+		for (i = 0; i < dst->result_nodes->size; i++) {
+			res       = dst->result_nodes->data[i];
+
+			res->split_parent = dst;
+		}
+	}
+
 	src->nb_nodes = 0;
 	src->nodes    = NULL;
 	src->var      = NULL;
 	src->op       = NULL;
 	src->result   = NULL;
+
+	src->result_nodes = NULL;
 }
 
 void scf_node_free(scf_node_t* node)

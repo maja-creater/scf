@@ -1408,6 +1408,29 @@ static int _bb_prevs_malloced(scf_basic_block_t* bb, scf_vector_t* ds_malloced)
 	return 0;
 }
 
+static inline int scf_ds_nb_pointers(scf_dn_status_t* ds)
+{
+	if (!ds->dn_indexes)
+		return ds->dag_node->var->nb_pointers;
+
+	scf_dn_index_t* di;
+
+	int n = scf_variable_nb_pointers(ds->dag_node->var);
+	int i;
+
+	for (i = ds->dn_indexes->size - 1; i >= 0; i--) {
+		di = ds->dn_indexes->data[i];
+
+		if (di->member)
+			n = scf_variable_nb_pointers(di->member);
+		else
+			n--;
+	}
+
+	assert(n >= 0);
+	return n;
+}
+
 static int _bb_split_prevs_need_free(scf_dn_status_t* ds_obj, scf_vector_t* ds_malloced, scf_vector_t* bb_split_prevs,
 		scf_3ac_code_t* c, scf_basic_block_t* bb, scf_list_t* bb_list_head)
 {
@@ -1515,31 +1538,31 @@ static int _bb_split_prevs_need_free(scf_dn_status_t* ds_obj, scf_vector_t* ds_m
 				}
 			}
 
-			int k0 = scf_variable_nb_pointers(ds_alias->dag_node->var) - ds_alias->dn_indexes->size;
-			int k1 = scf_variable_nb_pointers(ds_obj  ->dag_node->var) - ds_obj  ->dn_indexes->size;
+			int k0 = scf_ds_nb_pointers(ds_alias);
+			int k1 = scf_ds_nb_pointers(ds_obj);
 			int k  = k0 - k1;
 
 			assert(k0 >= 0);
 			assert(k1 >= 0);
 
-			scf_loge("k: %d\n", k);
+			if (k > 0) {
+				int j;
+				for (j = 0; j < k; j++) {
+					di = ds_obj->dn_indexes->data[j];
 
-			int j;
-			for (j = 0; j < k; j++) {
-				di = ds_obj->dn_indexes->data[j];
-
-				if (scf_vector_add(ds_alias->dn_indexes, di) < 0) {
-					ret = -ENOMEM;
-					goto error;
+					if (scf_vector_add(ds_alias->dn_indexes, di) < 0) {
+						ret = -ENOMEM;
+						goto error;
+					}
+					di->refs++;
 				}
-				di->refs++;
+
+				for (j = ds_alias->dn_indexes->size - 1 - k; j >= 0; j--)
+					ds_alias->dn_indexes->data[j + k] = ds_alias->dn_indexes->data[j];
+
+				for (j = 0; j < k; j++)
+					ds_alias->dn_indexes->data[j] = ds_obj->dn_indexes->data[j];
 			}
-
-			for (j = ds_alias->dn_indexes->size - 1 - k; j >= 0; j--)
-				ds_alias->dn_indexes->data[j + k] = ds_alias->dn_indexes->data[j];
-
-			for (j = 0; j < k; j++)
-				ds_alias->dn_indexes->data[j] = ds_obj->dn_indexes->data[j];
 		}
 
 #define SPLIT_PREVS_NEED_FREE(malloced, obj, split_prevs) \
