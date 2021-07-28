@@ -974,6 +974,7 @@ int x64_select_reg(scf_register_x64_t** preg, scf_dag_node_t* dn, scf_3ac_code_t
 int x64_dereference_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* member, scf_3ac_code_t* c, scf_function_t* f)
 {
 	scf_register_x64_t* rb = NULL;
+	scf_variable_t*     vb = base->var;
 
 	scf_logw("base->color: %ld\n", base->color);
 
@@ -983,6 +984,13 @@ int x64_dereference_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* me
 		return ret;
 	}
 	scf_logw("base->color: %ld\n", base->color);
+
+	if (vb->nb_pointers + vb->nb_dimentions > 1 || vb->type >= SCF_STRUCT)
+		sib->size = 8;
+	else {
+		sib->size = vb->data_size;
+		assert(8 >= vb->data_size);
+	}
 
 	sib->base  = rb;
 	sib->index = NULL;
@@ -1010,7 +1018,7 @@ int x64_pointer_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* member
 			scf_loge("\n");
 			return ret;
 		}
-	} else if (vb->local_flag || vb->tmp_flag) {
+	} else if (vb->local_flag) {
 		rb   = x64_find_register("rbp");
 		disp = vb->bp_offset;
 
@@ -1042,6 +1050,7 @@ int x64_pointer_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* member
 	sib->index = NULL;
 	sib->scale = 0;
 	sib->disp  = disp;
+	sib->size  = x64_variable_size(vm);
 	return 0;
 }
 
@@ -1072,7 +1081,7 @@ int x64_array_index_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* in
 			scf_loge("\n");
 			return ret;
 		}
-	} else if (vb->local_flag || vb->tmp_flag) {
+	} else if (vb->local_flag) {
 
 		rb   = x64_find_register("rbp");
 		disp = vb->bp_offset;
@@ -1093,6 +1102,7 @@ int x64_array_index_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* in
 		inst = x64_make_inst_M2G(&rela, lea, rb, NULL, vb);
 		X64_INST_ADD_CHECK(c->instructions, inst);
 		X64_RELA_ADD_CHECK(f->data_relas, rela, c, vb, NULL);
+
 	} else {
 		ret = x64_select_reg(&rb, base, c, f, 0);
 		if (ret < 0) {
@@ -1103,6 +1113,13 @@ int x64_array_index_reg(x64_sib_t* sib, scf_dag_node_t* base, scf_dag_node_t* in
 
 	int32_t s = scale->var->data.i;
 	assert(s > 0);
+
+	if (vb->nb_pointers + vb->nb_dimentions > 1 || vb->type >= SCF_STRUCT)
+		sib->size = 8;
+	else {
+		sib->size = vb->data_size;
+		assert(8 >= vb->data_size);
+	}
 
 	if (0 == index->color) {
 		disp += vi->data.i * s;

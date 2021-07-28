@@ -20,8 +20,14 @@ static int _semantic_add_address_of(scf_ast_t* ast, scf_node_t** pp, scf_node_t*
 		return -EINVAL;
 
 	scf_variable_t* v_src = _scf_operand_get(src);
-	scf_type_t*     t     = scf_ast_find_type_type(ast, v_src->type);
-	scf_variable_t* v     = SCF_VAR_ALLOC_BY_TYPE(v_src->w, t, v_src->const_flag, v_src->nb_pointers + 1, v_src->func_ptr);
+
+	scf_type_t* t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, v_src->type);
+	if (ret < 0)
+		return ret;
+	assert(t);
+
+	scf_variable_t* v = SCF_VAR_ALLOC_BY_TYPE(v_src->w, t, v_src->const_flag, v_src->nb_pointers + 1, v_src->func_ptr);
 	if (!v)
 		return -ENOMEM;
 
@@ -31,7 +37,7 @@ static int _semantic_add_address_of(scf_ast_t* ast, scf_node_t** pp, scf_node_t*
 		return -ENOMEM;
 	}
 
-	int ret = scf_node_add_child(address_of, src);
+	ret = scf_node_add_child(address_of, src);
 	if (ret < 0) {
 		scf_variable_free(v);
 		scf_node_free(address_of);
@@ -53,7 +59,12 @@ static int _semantic_add_type_cast(scf_ast_t* ast, scf_node_t** pp, scf_variable
 	if (!op)
 		return -EINVAL;
 
-	scf_type_t*     t     = scf_ast_find_type_type(ast, v_dst->type);
+	scf_type_t* t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, v_dst->type);
+	if (ret < 0)
+		return ret;
+	assert(t);
+
 	scf_variable_t* v_src = _scf_operand_get(src);
 	scf_variable_t* v     = SCF_VAR_ALLOC_BY_TYPE(NULL, t, v_src->const_flag, v_dst->nb_pointers, v_dst->func_ptr);
 	if (!v)
@@ -71,7 +82,7 @@ static int _semantic_add_type_cast(scf_ast_t* ast, scf_node_t** pp, scf_variable
 		return -ENOMEM;
 	}
 
-	int ret = scf_node_add_child(cast, dst);
+	ret = scf_node_add_child(cast, dst);
 	if (ret < 0) {
 		scf_node_free(dst);
 		scf_node_free(cast);
@@ -102,7 +113,11 @@ static int _semantic_do_type_cast(scf_ast_t* ast, scf_node_t** nodes, int nb_nod
 		return -EINVAL;
 	}
 
-	scf_type_t*     t     = scf_ast_find_type_type(ast, ret);
+	scf_type_t* t = NULL;
+	ret = scf_ast_find_type_type(&t, ast, ret);
+	if (ret < 0)
+		return ret;
+	assert(t);
 
 	scf_variable_t* v_std = SCF_VAR_ALLOC_BY_TYPE(NULL, t, 0, 0, NULL);
 	if (!v_std)
@@ -132,7 +147,9 @@ end:
 
 static void _semantic_check_var_size(scf_ast_t* ast, scf_node_t* node)
 {
-	scf_type_t* t = scf_ast_find_type_type(ast, node->type);
+	scf_type_t* t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, node->type);
+	assert(0 == ret);
 	assert(t);
 
 	if (0 == node->var->size) {
@@ -166,9 +183,13 @@ static int _semantic_add_call_rets(scf_ast_t* ast, scf_node_t* parent, scf_handl
 	for (i   = 0; i < f->rets->size; i++) {
 		fret =        f->rets->data[i];
 
-		t    = scf_ast_find_type_type(ast, fret->type);
-		r    = SCF_VAR_ALLOC_BY_TYPE(parent->w, t, fret->const_flag, fret->nb_pointers, fret->func_ptr);
+		t = NULL;
+		int ret = scf_ast_find_type_type(&t, ast, fret->type);
+		if (ret < 0)
+			return ret;
+		assert(t);
 
+		r    = SCF_VAR_ALLOC_BY_TYPE(parent->w, t, fret->const_flag, fret->nb_pointers, fret->func_ptr);
 		node = scf_node_alloc(r->w, parent->type, NULL);
 //		node = scf_node_alloc(NULL, r->type, r);
 		if (!node) {
@@ -206,7 +227,7 @@ static int _semantic_add_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, 
 	scf_node_t*     node_pf = NULL;
 	scf_node_t*     node    = NULL;
 	scf_node_t*     parent  = nodes[0]->parent;
-	scf_type_t*     pt      = scf_ast_find_type_type(ast, SCF_FUNCTION_PTR);
+	scf_type_t*     pt      = scf_block_find_type_type(ast->current_block, SCF_FUNCTION_PTR);
 
 
 	var_pf = SCF_VAR_ALLOC_BY_TYPE(f->node.w, pt, 1, 1, f);
@@ -340,7 +361,10 @@ static int _semantic_do_overloaded(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 		if (!t && scf_variable_is_struct_pointer(v0)) {
 
-			t = scf_ast_find_type_type(ast, v0->type);
+			t = NULL;
+			ret = scf_ast_find_type_type(&t, ast, v0->type);
+			if (ret < 0)
+				return ret;
 			assert(t->scope);
 		}
 
@@ -389,7 +413,10 @@ static int _semantic_do_overloaded_assign(scf_ast_t* ast, scf_node_t** nodes, in
 
 		if (scf_variable_is_struct(v)) {
 			if (!t) {
-				t = scf_ast_find_type_type(ast, v->type);
+				t = NULL;
+				ret = scf_ast_find_type_type(&t, ast, v->type);
+				if (ret < 0)
+					return ret;
 				assert(t->scope);
 			}
 
@@ -441,8 +468,12 @@ static int _semantic_do_create(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 
 	v0 = _scf_operand_get(nodes[0]);
 
-	t  = scf_ast_find_type_type(ast, v0->type);
-	pt = scf_ast_find_type_type(ast, SCF_FUNCTION_PTR);
+	t  = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, v0->type);
+	if (ret < 0)
+		return ret;
+
+	pt = scf_block_find_type_type(ast->current_block, SCF_FUNCTION_PTR);
 	assert(t);
 	assert(pt);
 
@@ -459,7 +490,7 @@ static int _semantic_do_create(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 	if (!node_pf)
 		return -ENOMEM;
 
-	int ret = scf_node_add_child(create, node_pf);
+	ret = scf_node_add_child(create, node_pf);
 	if (ret < 0)
 		return ret;
 
@@ -632,7 +663,10 @@ static int _semantic_add_var(scf_node_t** pp, scf_ast_t* ast, scf_node_t* parent
 	scf_type_t*     t;
 	scf_variable_t* v;
 
-	t = scf_ast_find_type_type(ast, type);
+	t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, type);
+	if (ret < 0)
+		return ret;
 	if (!t)
 		return -ENOMEM;
 
@@ -688,10 +722,16 @@ static int _scf_op_semantic_create(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 	v0 = _scf_operand_get(nodes[0]);
 	assert(v0 && SCF_FUNCTION_PTR == v0->type);
 
-	class  = scf_ast_find_type(ast, v0->w->text->data);
+	class = NULL;
+	ret = scf_ast_find_type(&class, ast, v0->w->text->data);
+	if (ret < 0)
+		return ret;
 	assert(class);
 
-	fmalloc = scf_ast_find_function(ast, "scf__auto_malloc");
+	fmalloc = NULL;
+	ret = scf_ast_find_function(&fmalloc, ast, "scf__auto_malloc");
+	if (ret < 0)
+		return ret;
 	if (!fmalloc) {
 		scf_loge("\n");
 		return -EINVAL;
@@ -846,7 +886,10 @@ static int _scf_op_semantic_pointer(scf_ast_t* ast, scf_node_t** nodes, int nb_n
 	assert(v1);
 	assert(v0->type >= SCF_STRUCT);
 
-	scf_type_t*		t = scf_ast_find_type_type(ast, v1->type);
+	scf_type_t*	t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, v1->type);
+	if (ret < 0)
+		return ret;
 
 	scf_lex_word_t* w = nodes[0]->parent->w;
 	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v1->const_flag, v1->nb_pointers, v1->func_ptr);
@@ -928,7 +971,10 @@ static int _scf_op_semantic_array_index(scf_ast_t* ast, scf_node_t** nodes, int 
 		return -1;
 	}
 
-	scf_type_t*		t = scf_ast_find_type_type(ast, v0->type);
+	scf_type_t*	t = NULL;
+	ret = scf_ast_find_type_type(&t, ast, v0->type);
+	if (ret < 0)
+		return ret;
 
 	scf_lex_word_t* w = nodes[0]->parent->w;
 	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, nb_pointers, v0->func_ptr);
@@ -1531,7 +1577,10 @@ static int _scf_op_semantic_neg(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 
 	if (scf_variable_interger(v0) || scf_variable_float(v0)) {
 
-		scf_type_t*	t = scf_ast_find_type_type(ast, v0->type);
+		scf_type_t*	t = NULL;
+		int ret = scf_ast_find_type_type(&t, ast, v0->type);
+		if (ret < 0)
+			return ret;
 
 		scf_lex_word_t* w = nodes[0]->parent->w;
 		scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, v0->nb_pointers, v0->func_ptr);
@@ -1576,7 +1625,10 @@ static int _scf_op_semantic_inc(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 
 	if (scf_variable_interger(v0)) {
 
-		scf_type_t*	t = scf_ast_find_type_type(ast, v0->type);
+		scf_type_t*	t = NULL;
+		int ret = scf_ast_find_type_type(&t, ast, v0->type);
+		if (ret < 0)
+			return ret;
 
 		scf_lex_word_t* w = nodes[0]->parent->w;
 		scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, v0->nb_pointers, v0->func_ptr);
@@ -1636,7 +1688,10 @@ static int _scf_op_semantic_dereference(scf_ast_t* ast, scf_node_t** nodes, int 
 		return -EINVAL;
 	}
 
-	scf_type_t*	t = scf_ast_find_type_type(ast, v0->type);
+	scf_type_t*	t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, v0->type);
+	if (ret < 0)
+		return ret;
 
 	scf_lex_word_t* w = nodes[0]->parent->w;
 	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, v0->nb_pointers - 1, v0->func_ptr);
@@ -1661,7 +1716,10 @@ static int _scf_op_semantic_address_of(scf_ast_t* ast, scf_node_t** nodes, int n
 		return -EINVAL;
 	}
 
-	scf_type_t*	t = scf_ast_find_type_type(ast, v0->type);
+	scf_type_t*	t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, v0->type);
+	if (ret < 0)
+		return ret;
 
 	scf_lex_word_t* w = nodes[0]->parent->w;
 	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, v0->nb_pointers + 1, v0->func_ptr);
@@ -1731,14 +1789,14 @@ static int _scf_op_semantic_container(scf_ast_t* ast, scf_node_t** nodes, int nb
 		return 0;
 	}
 
-	t  = scf_ast_find_type_type(ast, SCF_VAR_U8);
+	t  = scf_block_find_type_type(ast->current_block, SCF_VAR_U8);
 	u8 = SCF_VAR_ALLOC_BY_TYPE(NULL, t, 0, 1, NULL);
 
 	int ret = _semantic_add_type_cast(ast, &e->nodes[0], u8, e->nodes[0]);
 	if (ret < 0)
 		return ret;
 
-	t      = scf_ast_find_type_type(ast, SCF_VAR_UINTPTR);
+	t      = scf_block_find_type_type(ast->current_block, SCF_VAR_UINTPTR);
 	offset = SCF_VAR_ALLOC_BY_TYPE(v2->w, t, 1, 0, NULL);
 
 	offset->data.u64 = v2->offset;
@@ -1777,7 +1835,7 @@ static int _scf_op_semantic_sizeof(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 	if (size < 0)
 		return size;
 
-	scf_type_t* t = scf_ast_find_type_type(ast, SCF_VAR_INTPTR);
+	scf_type_t*     t = scf_block_find_type_type(ast->current_block, SCF_VAR_INTPTR);
 
 	scf_lex_word_t* w = parent->w;
 	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, 1, 0, NULL);
@@ -1820,7 +1878,7 @@ static int _scf_op_semantic_logic_not(scf_ast_t* ast, scf_node_t** nodes, int nb
 
 	if (scf_variable_interger(v0)) {
 
-		scf_type_t*	    t = scf_ast_find_type_type(ast, SCF_VAR_INT);
+		scf_type_t*	    t = scf_block_find_type_type(ast->current_block, SCF_VAR_INT);
 
 		scf_lex_word_t* w = nodes[0]->parent->w;
 		scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, 0, NULL);
@@ -1831,7 +1889,7 @@ static int _scf_op_semantic_logic_not(scf_ast_t* ast, scf_node_t** nodes, int nb
 		return 0;
 	}
 
-	scf_loge("\n");
+	scf_loge("v0: %d/%s\n", v0->w->line, v0->w->text->data);
 	return -1;
 }
 
@@ -1859,11 +1917,13 @@ static int _scf_op_semantic_bit_not(scf_ast_t* ast, scf_node_t** nodes, int nb_n
 	scf_type_t* t;
 
 	if (v0->nb_pointers + v0->nb_dimentions > 0) {
-		t = scf_ast_find_type_type(ast, SCF_VAR_UINTPTR);
+		t = scf_block_find_type_type(ast->current_block, SCF_VAR_UINTPTR);
 
 	} else if (scf_type_is_integer(v0->type)) {
-		t = scf_ast_find_type_type(ast, v0->type);
-
+		t = NULL;
+		int ret = scf_ast_find_type_type(&t, ast, v0->type);
+		if (ret < 0)
+			return ret;
 	} else {
 		scf_loge("\n");
 		return -1;
@@ -1929,7 +1989,10 @@ static int _scf_op_semantic_binary(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 					return -EINVAL;
 				}
 
-				t = scf_ast_find_type_type(ast, v0->type);
+				t = NULL;
+				int ret = scf_ast_find_type_type(&t, ast, v0->type);
+				if (ret < 0)
+					return ret;
 
 				const_flag  = v0->const_flag;
 				nb_pointers = nb_pointers0;
@@ -1941,14 +2004,20 @@ static int _scf_op_semantic_binary(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 					return -EINVAL;
 				}
 
-				t = scf_ast_find_type_type(ast, v1->type);
+				t = NULL;
+				int ret = scf_ast_find_type_type(&t, ast, v1->type);
+				if (ret < 0)
+					return ret;
 
 				const_flag  = v1->const_flag;
 				nb_pointers = nb_pointers1;
 				func_ptr    = v1->func_ptr;
 
 			} else if (v0->type == v1->type) { // from here v0 & v1 are normal var
-				t = scf_ast_find_type_type(ast, v0->type);
+				t = NULL;
+				int ret = scf_ast_find_type_type(&t, ast, v0->type);
+				if (ret < 0)
+					return ret;
 
 				const_flag  = v0->const_flag && v1->const_flag;
 				nb_pointers = 0;
@@ -1961,7 +2030,10 @@ static int _scf_op_semantic_binary(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 					return -EINVAL;
 				}
 
-				t = scf_ast_find_type_type(ast, ret);
+				t = NULL;
+				ret = scf_ast_find_type_type(&t, ast, ret);
+				if (ret < 0)
+					return ret;
 
 				if (t->type != v0->type)
 					ret = _semantic_add_type_cast(ast, &nodes[0], v1, nodes[0]);
@@ -2056,7 +2128,10 @@ static int _scf_op_semantic_binary_interger(scf_ast_t* ast, scf_node_t** nodes, 
 
 		v0 = _scf_operand_get(nodes[0]);
 
-		t = scf_ast_find_type_type(ast, v0->type);
+		t = NULL;
+		int ret = scf_ast_find_type_type(&t, ast, v0->type);
+		if (ret < 0)
+			return ret;
 
 		r = SCF_VAR_ALLOC_BY_TYPE(w, t, const_flag, v0->nb_pointers, v0->func_ptr);
 		if (!r) {
@@ -2260,13 +2335,17 @@ static int _scf_op_semantic_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 		if (scf_variable_same_type(v0, v1)) {
 
-			scf_function_t* f = scf_ast_find_function(ast, "scf__memcpy");
+			scf_function_t* f = NULL;
+			ret = scf_ast_find_function(&f, ast, "scf__memcpy");
+			if (ret < 0)
+				return ret;
+
 			if (!f) {
 				scf_loge("semantic do overloaded error: default 'scf__memcpy' NOT found\n");
 				return -1;
 			}
 
-			scf_type_t*     t = scf_ast_find_type_type(ast, SCF_VAR_INTPTR);
+			scf_type_t*     t = scf_block_find_type_type(ast->current_block, SCF_VAR_INTPTR);
 			scf_variable_t* v = SCF_VAR_ALLOC_BY_TYPE(NULL, t, 1, 0, NULL);
 			if (!v) {
 				scf_loge("var alloc failed\n");
@@ -2293,7 +2372,10 @@ static int _scf_op_semantic_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 		if (scf_variable_is_struct_pointer(v0)) {
 
-			scf_type_t* t = scf_ast_find_type_type(ast, v0->type);
+			scf_type_t*	t = NULL;
+			int ret = scf_ast_find_type_type(&t, ast, v0->type);
+			if (ret < 0)
+				return ret;
 			assert(t);
 
 			if (scf_scope_find_function(t->scope, "__init")) {
@@ -2323,7 +2405,10 @@ static int _scf_op_semantic_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 		}
 	}
 
-	scf_type_t*	    t = scf_ast_find_type_type(ast, v0->type);
+	scf_type_t*	t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, v0->type);
+	if (ret < 0)
+		return ret;
 
 	scf_lex_word_t* w = parent->w;
 	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, v0->nb_pointers, v0->func_ptr);
@@ -2384,7 +2469,11 @@ static int _scf_op_semantic_binary_assign(scf_ast_t* ast, scf_node_t** nodes, in
 				}
 			}
 
-			scf_type_t*	    t = scf_ast_find_type_type(ast, v0->type);
+			scf_type_t*	t = NULL;
+			int ret = scf_ast_find_type_type(&t, ast, v0->type);
+			if (ret < 0)
+				return ret;
+			assert(t);
 
 			scf_lex_word_t* w = nodes[0]->parent->w;
 			scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, v0->nb_pointers, v0->func_ptr);
@@ -2451,7 +2540,11 @@ static int _scf_op_semantic_binary_interger_assign(scf_ast_t* ast, scf_node_t** 
 			}
 		}
 
-		t = scf_ast_find_type_type(ast, v0->type);
+		t = NULL;
+		int ret = scf_ast_find_type_type(&t, ast, v0->type);
+		if (ret < 0)
+			return ret;
+		assert(t);
 
 		r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, v0->nb_pointers, v0->func_ptr);
 		if (!r) {
@@ -2553,7 +2646,7 @@ static int _scf_op_semantic_cmp(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes
 	
 			v0 = _scf_operand_get(nodes[0]);
 
-			scf_type_t*     t = scf_ast_find_type_type(ast, SCF_VAR_INT);
+			scf_type_t*     t = scf_block_find_type_type(ast->current_block, SCF_VAR_INT);
 
 			scf_lex_word_t* w = nodes[0]->parent->w;
 			scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, const_flag, 0, NULL);
@@ -2651,7 +2744,13 @@ static int _scf_op_semantic_va_arg(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 	if (d->pret) {
 		scf_variable_t* v = _scf_operand_get(nodes[1]);
-		scf_type_t*     t = scf_ast_find_type_type(ast, v->type);
+
+		scf_type_t* t = NULL;
+		int ret = scf_ast_find_type_type(&t, ast, v->type);
+		if (ret < 0)
+			return ret;
+		assert(t);
+
 		scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(nodes[0]->parent->w, t, 0, v->nb_pointers, v->func_ptr);
 
 		if (!r)

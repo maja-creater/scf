@@ -80,25 +80,15 @@ static inline scf_scope_t* scf_ast_current_scope(scf_ast_t* ast)
 	return ast->current_block->scope;
 }
 
-static inline scf_type_t* scf_ast_find_type(scf_ast_t* ast, const char* name)
-{
-	return scf_block_find_type(ast->current_block, name);
-}
+int scf_ast_find_global_function (scf_function_t** pf, scf_ast_t* ast, char* name);
+int scf_ast_find_global_variable (scf_variable_t** pv, scf_ast_t* ast, char* name);
+int scf_ast_find_global_type     (scf_type_t**     pt, scf_ast_t* ast, char* name);
+int scf_ast_find_global_type_type(scf_type_t**     pt, scf_ast_t* ast, int   type);
 
-static inline scf_type_t* scf_ast_find_type_type(scf_ast_t* ast, const int type)
-{
-	return scf_block_find_type_type(ast->current_block, type);
-}
-
-static inline scf_variable_t* scf_ast_find_variable(scf_ast_t* ast, const char* name)
-{
-	return scf_block_find_variable(ast->current_block, name);
-}
-
-static inline scf_function_t* scf_ast_find_function(scf_ast_t* ast, const char* name)
-{
-	return scf_block_find_function(ast->current_block, name);
-}
+int scf_ast_find_function (scf_function_t** pf, scf_ast_t* ast, char* name);
+int scf_ast_find_variable (scf_variable_t** pv, scf_ast_t* ast, char* name);
+int scf_ast_find_type     (scf_type_t**     pt, scf_ast_t* ast, char* name);
+int scf_ast_find_type_type(scf_type_t**     pt, scf_ast_t* ast, int   type);
 
 int scf_operator_function_call(scf_ast_t* ast, scf_function_t* f, const int argc, const scf_variable_t** argv, scf_variable_t** pret, scf_list_t* _3ac_list_head);
 

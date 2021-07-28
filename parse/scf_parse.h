@@ -115,10 +115,10 @@ struct dfa_parse_data_s {
 	int              nb_rps;
 };
 
-int	scf_parse_open(scf_parse_t** pparse, const char* path);
+int	scf_parse_open(scf_parse_t** pparse);
 int scf_parse_close(scf_parse_t* parse);
 
-int scf_parse_parse(scf_parse_t* parse);
+int scf_parse_file(scf_parse_t* parse, const char* path);
 
 int scf_parse_compile(scf_parse_t* parse, const char* path);
 

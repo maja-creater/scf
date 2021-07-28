@@ -273,6 +273,7 @@ static int _x64_inst_call_argv(scf_3ac_code_t* c, scf_function_t* f)
 		}
 
 		if (!X64_COLOR_CONFLICT(rd->color, rs->color)) {
+			rd   = x64_find_register_color_bytes(rd->color, rs->bytes);
 			inst = x64_make_inst_G2E(mov, rd, rs);
 			X64_INST_ADD_CHECK(c->instructions, inst);
 		}

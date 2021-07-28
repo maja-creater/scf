@@ -278,7 +278,7 @@ static int _scf_op_va_start(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, vo
 	scf_node_t*         parent = nodes[0]->parent;
 	scf_node_t*         srcs[3];
 
-	tptr = scf_ast_find_type_type(ast, SCF_VAR_UINTPTR);
+	tptr = scf_block_find_type_type(ast->current_block, SCF_VAR_UINTPTR);
 	vptr = SCF_VAR_ALLOC_BY_TYPE(NULL, tptr, 0, 0, NULL);
 	if (!vptr)
 		return -ENOMEM;
@@ -310,7 +310,7 @@ static int _scf_op_va_end(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 	scf_node_t*         parent = nodes[0]->parent;
 	scf_node_t*         srcs[2];
 
-	tptr = scf_ast_find_type_type(ast, SCF_VAR_UINTPTR);
+	tptr = scf_block_find_type_type(ast->current_block, SCF_VAR_UINTPTR);
 	vptr = SCF_VAR_ALLOC_BY_TYPE(NULL, tptr, 0, 0, NULL);
 	if (!vptr)
 		return -ENOMEM;
@@ -348,7 +348,7 @@ static int _scf_op_va_arg(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 	v = _scf_operand_get(nodes[1]);
 	v->const_flag = 1;
 
-	tptr = scf_ast_find_type_type(ast, SCF_VAR_UINTPTR);
+	tptr = scf_block_find_type_type(ast->current_block, SCF_VAR_UINTPTR);
 	vptr = SCF_VAR_ALLOC_BY_TYPE(NULL, tptr, 0, 0, NULL);
 	if (!vptr)
 		return -ENOMEM;
@@ -396,7 +396,7 @@ static int _scf_op_array_scale(scf_ast_t* ast, scf_node_t* parent, scf_node_t** 
 	int size = scf_variable_size(v_member);
 	assert(size > 0);
 
-	t_scale = scf_ast_find_type_type(ast, SCF_VAR_INTPTR);
+	t_scale = scf_block_find_type_type(ast->current_block, SCF_VAR_INTPTR);
 	v_scale = SCF_VAR_ALLOC_BY_TYPE(NULL, t_scale, 0, 0, NULL);
 	if (!v_scale)
 		return -ENOMEM;
@@ -1220,9 +1220,12 @@ static int _scf_do_error(scf_ast_t* ast, scf_node_t* err, scf_handler_data_t* d)
 	assert(r);
 
 	scf_function_t* f = NULL;
+	scf_type_t*     t = NULL;
 
 	if (r->type >= SCF_STRUCT && 1 == r->nb_pointers) {
-		scf_type_t* t = scf_ast_find_type_type(ast, r->type);
+
+		ret = scf_ast_find_type_type(&t, ast, r->type);
+		assert(0 == ret);
 		assert(t);
 
 		f = scf_scope_find_function(t->scope, "release");
@@ -1491,7 +1494,7 @@ static int _scf_op_create(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 	dst = jz->dsts->data[0];
 	dst->code = jmp;
 
-	t = scf_ast_find_type_type(ast, SCF_VAR_INT);
+	t = scf_block_find_type_type(ast->current_block, SCF_VAR_INT);
 	v = SCF_VAR_ALLOC_BY_TYPE(NULL, t, 1, 0, NULL);
 	if (!v)
 		return -ENOMEM;

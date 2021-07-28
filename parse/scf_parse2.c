@@ -41,6 +41,8 @@ scf_base_type_t	base_types[] = {
 	{SCF_FUNCTION_PTR,  "funcptr",    sizeof(void*)},
 };
 
+extern scf_dfa_module_t  dfa_module_include;
+
 extern scf_dfa_module_t  dfa_module_identity;
 
 extern scf_dfa_module_t  dfa_module_expr;
@@ -78,6 +80,8 @@ extern scf_dfa_module_t  dfa_module_block;
 
 scf_dfa_module_t* dfa_modules[] =
 {
+	&dfa_module_include,
+
 	&dfa_module_identity,
 
 	&dfa_module_expr,
@@ -186,10 +190,9 @@ int scf_parse_dfa_init(scf_parse_t* parse)
 	return 0;
 }
 
-int	scf_parse_open(scf_parse_t** pparse, const char* path)
+int	scf_parse_open(scf_parse_t** pparse)
 {
 	assert(pparse);
-	assert(path);
 
 	scf_parse_t* parse = calloc(1, sizeof(scf_parse_t));
 	assert(parse);
@@ -198,11 +201,6 @@ int	scf_parse_open(scf_parse_t** pparse, const char* path)
 	scf_list_init(&parse->error_list_head);
 
 	scf_list_init(&parse->code_list_head);
-
-	if (scf_lex_open(&parse->lex, path) < 0) {
-		scf_loge("\n");
-		return -1;
-	}
 
 	if (scf_ast_open(&parse->ast) < 0) {
 		scf_loge("\n");
@@ -213,8 +211,6 @@ int	scf_parse_open(scf_parse_t** pparse, const char* path)
 	for (i = 0; i < sizeof(base_types) / sizeof(base_types[0]); i++) {
 		scf_ast_add_base_type(parse->ast, &base_types[i]);
 	}
-
-	scf_ast_add_file_block(parse->ast, path);
 
 	if (scf_parse_dfa_init(parse) < 0) {
 		scf_loge("\n");
@@ -304,10 +300,33 @@ int scf_parse_close(scf_parse_t* parse)
 	return 0;
 }
 
-int scf_parse_parse(scf_parse_t* parse)
+int scf_parse_file(scf_parse_t* parse, const char* path)
 {
 	assert(parse);
-	assert(parse->lex);
+
+	scf_block_t* root = parse->ast->root_block;
+	scf_block_t* b    = NULL;
+
+	int i;
+	for (i = 0; i < root->node.nb_nodes; i++) {
+		b  = (scf_block_t*)root->node.nodes[i];
+
+		if (SCF_OP_BLOCK != b->node.type)
+			continue;
+
+		if (!strcmp(b->name->data, path))
+			break;
+	}
+
+	if (i < root->node.nb_nodes)
+		return 0;
+
+	if (scf_lex_open(&parse->lex, path) < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+	scf_ast_add_file_block(parse->ast, path);
+
 
 	dfa_parse_data_t* d = parse->dfa_data;
 
@@ -721,7 +740,9 @@ static int _debug_add_struct_type(scf_dwarf_info_entry_t** pie, scf_dwarf_abbrev
 		scf_type_t*             t_member;
 
 		v_member  = t->scope->vars->data[i];
-		t_member  = scf_ast_find_type_type(parse->ast, v_member->type);
+		ret = scf_ast_find_type_type(&t_member, parse->ast, v_member->type);
+		if (ret < 0)
+			return ret;
 
 		ie_member = _debug_find_type(parse, t_member, v_member->nb_pointers);
 		if (!ie_member) {
@@ -884,9 +905,11 @@ static int _debug_add_type(scf_dwarf_info_entry_t** pie, scf_parse_t* parse, scf
 static int _debug_add_var(scf_parse_t* parse, scf_node_t* node)
 {
 	scf_variable_t* var = node->var;
-	scf_type_t*     t   = scf_ast_find_type_type(parse->ast, var->type);
+	scf_type_t*     t   = NULL;
 
-	int ret;
+	int ret = scf_ast_find_type_type(&t, parse->ast, var->type);
+	if (ret < 0)
+		return ret;
 
 	scf_dwarf_abbrev_declaration_t* d;
 	scf_dwarf_abbrev_declaration_t* d2;
@@ -1222,7 +1245,11 @@ static int _debug_add_subprogram(scf_dwarf_info_entry_t** pie, scf_parse_t* pars
 
 			uint32_t        type = 0;
 			scf_variable_t* v    = f->rets->data[0];
-			scf_type_t*     t    = scf_ast_find_type_type(parse->ast, v->type);
+			scf_type_t*     t    = NULL;
+
+			ret = scf_ast_find_type_type(&t, parse->ast, v->type);
+			if (ret < 0)
+				return ret;
 
 			ie2 = _debug_find_type(parse, t, v->nb_pointers);
 			if (!ie2) {

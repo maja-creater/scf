@@ -63,6 +63,8 @@ static scf_lex_key_word_t	key_words[] = {
 
 	{"async",     SCF_LEX_WORD_KEY_ASYNC},
 
+	{"include",   SCF_LEX_WORD_KEY_INCLUDE},
+
 	{"union",     SCF_LEX_WORD_KEY_UNION},
 	{"struct",    SCF_LEX_WORD_KEY_STRUCT},
 };
@@ -143,7 +145,9 @@ int	scf_lex_open(scf_lex_t** plex, const char* path)
 
 	lex->fp = fopen(path, "r");
 	if (!lex->fp) {
-		printf("%s(),%d\n", __func__, __LINE__);
+		char cwd[4096];
+		getcwd(cwd, 4095);
+		scf_loge("path: %s, errno: %d, pwd: %s\n", path, errno, cwd);
 
 		free(lex);
 		lex = NULL;
@@ -962,7 +966,9 @@ int scf_lex_pop_word(scf_lex_t* lex, scf_lex_word_t** pword)
 		scf_lex_char_t* c2 = _lex_pop_char(lex);
 
 		if ('/' == c2->c) {
+			free(c);
 			free(c2);
+			c  = NULL;
 			c2 = NULL;
 
 			while (1) {
@@ -985,6 +991,47 @@ int scf_lex_pop_word(scf_lex_t* lex, scf_lex_word_t** pword)
 			}
 
 			return scf_lex_pop_word(lex, pword);
+
+		} else if ('*' == c2->c) {
+			free(c);
+			free(c2);
+			c  = NULL;
+			c2 = NULL;
+
+			while (1) {
+				c2 = _lex_pop_char(lex);
+
+				if (EOF == c2->c) {
+					_lex_push_char(lex, c2);
+					break;
+				}
+
+				int tmp = c2->c;
+				free(c2);
+				c2 = NULL;
+
+				if ('\n' == tmp) {
+					lex->nb_lines++;
+					lex->pos = 0;
+					continue;
+				}
+
+				if ('*' == tmp) {
+					c2  = _lex_pop_char(lex);
+
+					if ('/' == c2->c) {
+						free(c2);
+						c2 = NULL;
+						break;
+					}
+
+					_lex_push_char(lex, c2);
+					c2 = NULL;
+				}
+			}
+
+			return scf_lex_pop_word(lex, pword);
+
 		} else {
 			_lex_push_char(lex, c2);
 			c2 = NULL;

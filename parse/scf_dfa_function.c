@@ -29,15 +29,23 @@ int _function_add_function(scf_dfa_t* dfa, dfa_parse_data_t* d)
 		return SCF_DFA_ERROR;
 	}
 
+	scf_block_t* b = parse->ast->current_block;
+	while (b) {
+		if (b->node.type >= SCF_STRUCT)
+			break;
+		b = (scf_block_t*)b->node.parent;
+	}
+
 	f = scf_function_alloc(id->identity);
 	if (!f)
 		return SCF_DFA_ERROR;
+	f->member_flag = !!b;
 
 	free(id);
 	id = NULL;
 
-	scf_logi("function: %s,line:%d,pos:%d\n",
-			f->node.w->text->data, f->node.w->line, f->node.w->pos);
+	scf_logi("function: %s,line:%d,pos:%d, member_flag: %d\n",
+			f->node.w->text->data, f->node.w->line, f->node.w->pos, f->member_flag);
 
 	int void_flag = 0;
 

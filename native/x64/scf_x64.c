@@ -43,7 +43,10 @@ static void _x64_argv_rabi(scf_function_t* f)
 	for (i = 0; i < f->argv->size; i++) {
 		v  =        f->argv->data[i];
 
-		assert(v->arg_flag);
+		if (!v->arg_flag) {
+			v ->arg_flag = 1;
+			assert(f->inline_flag);
+		}
 
 		int is_float = scf_variable_float(v);
 		int size     = x64_variable_size(v);

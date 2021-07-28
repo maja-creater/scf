@@ -95,7 +95,6 @@ static scf_3ac_operator_t _3ac_operators[] = {
 	{SCF_OP_3AC_NOP,         "nop"},
 	{SCF_OP_3AC_END,         "end"},
 
-	{SCF_OP_3AC_CALL_EXTERN, "call_extern"},
 	{SCF_OP_3AC_PUSH,        "push"},
 	{SCF_OP_3AC_POP,         "pop"},
 	{SCF_OP_3AC_SAVE,        "save"},
@@ -1196,8 +1195,7 @@ static int _3ac_find_basic_block_start(scf_list_t* h)
 #endif
 
 #if 0
-		if (SCF_OP_CALL == c->op->type
-				|| SCF_OP_3AC_CALL_EXTERN == c->op->type) {
+		if (SCF_OP_CALL == c->op->type) {
 
 			l2	= scf_list_next(&c->list);
 			if (l2 != scf_list_sentinel(h)) {
@@ -1363,7 +1361,7 @@ static int _3ac_split_basic_blocks(scf_list_t* h, scf_function_t* f)
 			scf_list_del(&c->list);
 			scf_list_add_tail(&bb->code_list_head, &c->list);
 
-			if (SCF_OP_CALL == c->op->type || SCF_OP_3AC_CALL_EXTERN == c->op->type) {
+			if (SCF_OP_CALL == c->op->type) {
 				bb->call_flag = 1;
 				continue;
 			}
@@ -1416,7 +1414,7 @@ static int _3ac_split_basic_blocks(scf_list_t* h, scf_function_t* f)
 			else if (scf_type_is_assign_array_index(c->op->type))
 				bb->array_index_flag = 1;
 
-			else if (SCF_OP_CALL == c->op->type || SCF_OP_3AC_CALL_EXTERN == c->op->type)
+			else if (SCF_OP_CALL == c->op->type)
 				bb->call_flag = 1;
 
 			else if (SCF_OP_RETURN == c->op->type)

@@ -407,7 +407,6 @@ static int _scf_dfa_node_parse_word(scf_dfa_t* dfa, scf_dfa_node_t* node, scf_ve
 		}
 
 		scf_vector_add(words, w);
-		scf_vector_add(dfa->words, w);
 
 		scf_logd("pop w->type: %d, '%s', line: %d, pos: %d\n", w->type, w->text->data, w->line, w->pos);
 
@@ -455,33 +454,36 @@ int scf_dfa_parse_word(scf_dfa_t* dfa, void* word, void* data)
 	int ret;
 	int i;
 
-	assert(!dfa->words);
-	dfa->words = scf_vector_alloc();
+//	assert(!dfa->words);
+//	dfa->words = scf_vector_alloc();
 
 	scf_vector_add(words, word);
-	scf_vector_add(dfa->words, word);
+//	scf_vector_add(dfa->words, word);
 
 	ret = _scf_dfa_childs_parse_word(dfa, (scf_dfa_node_t**)dfa->syntaxes->data, dfa->syntaxes->size, words, data);
 
-	scf_vector_free(words);
-	words = NULL;
 
 	if (SCF_DFA_OK != ret) {
-		assert(dfa->words->size >= 1);
-		w = dfa->words->data[dfa->words->size - 1];
+		assert(words->size >= 1);
+
+		w = words->data[words->size - 1];
 		scf_loge("ret: %d, w->type: %d, '%s', line: %d\n\n", ret, w->type, w->text->data, w->line);
+
+		scf_vector_free(words);
+		words = NULL;
 		return SCF_DFA_ERROR;
 	}
 
-	for (i = 0; i < dfa->words->size; i++) {
-		scf_lex_word_t* w = dfa->words->data[i];
+	for (i = 0; i < words->size; i++) {
+		scf_lex_word_t* w = words->data[i];
 		scf_logd("##free w: %p, w->type: %d, '%s'\n", w, w->type, w->text->data);
 
-		dfa->ops->free_word(dfa->words->data[i]);
-		dfa->words->data[i] = NULL;
+		dfa->ops->free_word(words->data[i]);
+		words->data[i] = NULL;
 	}
-	scf_vector_free(dfa->words);
-	dfa->words = NULL;
+
+	scf_vector_free(words);
+	words = NULL;
 
 	return SCF_DFA_OK;
 }

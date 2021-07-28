@@ -111,32 +111,40 @@ int _type_find_type(scf_dfa_t* dfa, dfa_identity_t* id)
 {
 	scf_parse_t* parse = dfa->priv;
 
-	if (id->identity) {
-		id->type = scf_block_find_type(parse->ast->current_block, id->identity->text->data);
+	if (!id->identity)
+		return 0;
+
+	id->type = scf_block_find_type(parse->ast->current_block, id->identity->text->data);
+	if (!id->type) {
+
+		int ret = scf_ast_find_global_type(&id->type, parse->ast, id->identity->text->data);
+		if (ret < 0) {
+			scf_loge("find global function error\n");
+			return SCF_DFA_ERROR;
+		}
 
 		if (!id->type) {
-
 			id->type = scf_block_find_type_type(parse->ast->current_block, SCF_FUNCTION_PTR);
 
 			if (!id->type) {
 				scf_loge("function ptr not support\n");
 				return SCF_DFA_ERROR;
 			}
-
-			if (SCF_FUNCTION_PTR == id->type->type) {
-
-				id->func_ptr = _type_find_function(parse->ast->current_block, id->identity->text->data);
-
-				if (!id->func_ptr) {
-					scf_loge("can't find funcptr type '%s'\n", id->identity->text->data);
-					return SCF_DFA_ERROR;
-				}
-			}
 		}
 
-		id->type_w   = id->identity;
-		id->identity = NULL;
+		if (SCF_FUNCTION_PTR == id->type->type) {
+
+			id->func_ptr = _type_find_function(parse->ast->current_block, id->identity->text->data);
+
+			if (!id->func_ptr) {
+				scf_loge("can't find funcptr type '%s'\n", id->identity->text->data);
+				return SCF_DFA_ERROR;
+			}
+		}
 	}
+
+	id->type_w   = id->identity;
+	id->identity = NULL;
 	return 0;
 }
 

@@ -618,7 +618,7 @@ int scf_rbtree_depth(scf_rbtree_t* tree, scf_rbtree_node_t* root)
 	return 0;
 }
 
-#if 0
+#if 1
 typedef struct {
 	scf_rbtree_node_t  node;
 	int d;

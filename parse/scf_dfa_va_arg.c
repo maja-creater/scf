@@ -108,13 +108,16 @@ static int _va_arg_action_ap(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	scf_type_t*        t;
 	scf_node_t*        node;
 
-	ap = scf_ast_find_variable(parse->ast, w->text->data);
+	ap = scf_block_find_variable(parse->ast->current_block, w->text->data);
 	if (!ap) {
 		scf_loge("va_list variable %s not found\n", w->text->data);
 		return SCF_DFA_ERROR;
 	}
 
-	t = scf_ast_find_type(parse->ast, "va_list");
+	if (scf_ast_find_type(&t, parse->ast, "va_list") < 0) {
+		scf_loge("type 'va_list' not found, line: %d\n", w->line);
+		return SCF_DFA_ERROR;
+	}
 	assert(t);
 
 	if (t->type != ap->type || 0 != ap->nb_dimentions) {
@@ -165,7 +168,7 @@ static int _va_arg_action_fmt(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	scf_variable_t*    arg;
 	scf_node_t*        node;
 
-	fmt = scf_ast_find_variable(parse->ast, w->text->data);
+	fmt = scf_block_find_variable(parse->ast->current_block, w->text->data);
 	if (!fmt) {
 		scf_loge("format string %s not found\n", w->text->data);
 		return SCF_DFA_ERROR;

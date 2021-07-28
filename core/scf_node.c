@@ -272,9 +272,15 @@ int scf_node_search_bfs(scf_node_t* root, void* arg, scf_vector_t* results, int 
 		if (max > 0 && results->size == max)
 			break;
 
-		ret = scf_vector_add(checked, node);
-		if (ret < 0)
+		if (scf_vector_add(checked, node) < 0) {
+			ret = -ENOMEM;
 			break;
+		}
+
+		if (ret > 0) {
+			scf_logd("jmp node's child, type: %d, SCF_FUNCTION: %d\n", node->type, SCF_FUNCTION);
+			goto next;
+		}
 
 		for (j = 0; j < node->nb_nodes; j++) {
 			assert(node->nodes);

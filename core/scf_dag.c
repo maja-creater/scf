@@ -633,6 +633,119 @@ cmp_childs:
 	return 1;
 }
 
+int scf_dag_node_same2(scf_dag_node_t* dag_node, const scf_node_t* node)
+{
+	int i;
+
+	if (node->split_flag) {
+		if (dag_node->var != _scf_operand_get(node))
+			return 0;
+		node = node->split_parent;
+	}
+
+	if (dag_node->type != node->type)
+		return 0;
+
+	if (scf_type_is_var(node->type)) {
+		if (dag_node->var == node->var)
+			return 1;
+		else
+			return 0;
+	}
+
+	if (SCF_OP_LOGIC_AND == node->type
+			|| SCF_OP_LOGIC_OR == node->type
+			|| SCF_OP_INC      == node->type
+			|| SCF_OP_DEC      == node->type
+			|| SCF_OP_INC_POST == node->type
+			|| SCF_OP_DEC_POST == node->type) {
+		if (dag_node->var == _scf_operand_get((scf_node_t*)node))
+			return 1;
+		return 0;
+	}
+
+	if (!dag_node->childs)
+		return 0;
+
+	if (SCF_OP_TYPE_CAST == node->type) {
+		scf_dag_node_t* dn0 = dag_node->childs->data[0];
+		scf_variable_t* vn1 = _scf_operand_get(node->nodes[1]);
+		scf_node_t*     n1  = node->nodes[1];
+
+		while (SCF_OP_EXPR == n1->type)
+			n1 = n1->nodes[0];
+
+		if (scf_dag_node_same2(dn0, n1)
+				&& scf_variable_same_type(dag_node->var, node->result))
+			return 1;
+		else
+			return 0;
+
+	} else if (SCF_OP_ARRAY_INDEX == node->type) {
+		assert(3 == dag_node->childs->size);
+		assert(2 == node->nb_nodes);
+		goto cmp_childs;
+
+	} else if (SCF_OP_ADDRESS_OF == node->type) {
+		assert(1 == node->nb_nodes);
+
+		if (SCF_OP_ARRAY_INDEX == node->nodes[0]->type) {
+			assert(2 == node->nodes[0]->nb_nodes);
+
+			if (!dag_node->childs || 3 != dag_node->childs->size)
+				return 0;
+
+			node = node->nodes[0];
+			goto cmp_childs;
+
+		} else if (SCF_OP_POINTER == node->nodes[0]->type) {
+			assert(2 == node->nodes[0]->nb_nodes);
+
+			if (!dag_node->childs || 2 != dag_node->childs->size)
+				return 0;
+
+			node = node->nodes[0];
+			goto cmp_childs;
+		}
+	}
+
+	if (dag_node->childs->size != node->nb_nodes)
+		return 0;
+
+cmp_childs:
+	for (i = 0; i < node->nb_nodes; i++) {
+		scf_dag_node_t*	dag_child = dag_node->childs->data[i];
+		scf_node_t*		child = node->nodes[i];
+
+		while (SCF_OP_EXPR == child->type)
+			child = child->nodes[0];
+
+		if (0 == scf_dag_node_same2(dag_child, child))
+			return 0;
+	}
+
+	return 1;
+}
+
+scf_dag_node_t* scf_dag_find_node2(scf_list_t* h, const scf_node_t* node)
+{
+	scf_node_t* origin = (scf_node_t*)node;
+
+	while (SCF_OP_EXPR == origin->type)
+		origin = origin->nodes[0];
+
+	scf_list_t* l;
+	for (l = scf_list_tail(h); l != scf_list_sentinel(h); l = scf_list_prev(l)) {
+
+		scf_dag_node_t* dag_node = scf_list_data(l, scf_dag_node_t, list);
+
+		if (scf_dag_node_same2(dag_node, origin))
+			return dag_node;
+	}
+
+	return NULL;
+}
+
 int scf_dag_node_like (scf_dag_node_t* dn, const scf_node_t* node, scf_list_t* h)
 {
 	const scf_node_t* n1  = NULL;
@@ -660,8 +773,12 @@ int scf_dag_node_like (scf_dag_node_t* dn, const scf_node_t* node, scf_list_t* h
 			return 1;
 
 		dn1 = scf_dag_find_node(h, n1);
-		if (!dn1)
-			return 0;
+		if (!dn1) {
+
+			dn1 = scf_dag_find_node2(h, n1);
+			if (!dn1)
+				return 0;
+		}
 
 		if (scf_dag_dn_same(dn0, dn1))
 			return 1;

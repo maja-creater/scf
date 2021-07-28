@@ -63,10 +63,19 @@ static int _create_action_identity(scf_dfa_t* dfa, scf_vector_t* words, void* da
 	scf_lex_word_t*       w     = words->data[words->size - 1];
 	create_module_data_t* md    = d->module_datas[dfa_module_create.index];
 
-	scf_type_t* t = scf_block_find_type(parse->ast->current_block, w->text->data);
-	SCF_CHECK_ERROR(!t, SCF_DFA_ERROR, "type '%s' not found\n", w->text->data);
+	scf_type_t* t  = NULL;
+	scf_type_t* pt = NULL;
 
-	scf_type_t* pt = scf_ast_find_type_type(parse->ast, SCF_FUNCTION_PTR);
+	if (scf_ast_find_type(&t, parse->ast, w->text->data) < 0)
+		return SCF_DFA_ERROR;
+
+	if (!t) {
+		scf_loge("type '%s' not found\n", w->text->data);
+		return SCF_DFA_ERROR;
+	}
+
+	if (scf_ast_find_type_type(&pt, parse->ast, SCF_FUNCTION_PTR) < 0)
+		return SCF_DFA_ERROR;
 	assert(pt);
 
 	scf_variable_t* var = SCF_VAR_ALLOC_BY_TYPE(w, pt, 1, 1, NULL);

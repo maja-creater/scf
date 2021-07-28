@@ -700,12 +700,16 @@ int scf_dwarf_line_encode(scf_dwarf_debug_t* debug, scf_dwarf_line_machine_t* lm
 		line_advance     = result->line    - lm->line;
 		address_advance  = result->address - lm->address;
 
+		scf_logd("result->line: %d, lm->line: %d, line_advance: %d, address_advance: %u\n",
+				result->line, lm->line, line_advance, address_advance);
+
 		assert(address_advance % lm->prologue->minimum_instruction_length == 0);
 
 		address_advance /= lm->prologue->minimum_instruction_length;
 
 		while (1) {
-			if (line_advance - lm->prologue->line_base < lm->prologue->line_range) {
+			if (line_advance - lm->prologue->line_base < lm->prologue->line_range
+					&& line_advance >= lm->prologue->line_base) {
 
 				opcode = (line_advance - lm->prologue->line_base)
 					+ lm->prologue->line_range * address_advance
@@ -714,7 +718,8 @@ int scf_dwarf_line_encode(scf_dwarf_debug_t* debug, scf_dwarf_line_machine_t* lm
 				if (opcode <= 255) {
 
 					DWARF_DEBUG_LINE_FILL2(&opcode, 1);
-					scf_logd("line_advance: %d, address_advance: %u, opcode: %d\n", line_advance, address_advance, opcode, opcode);
+					scf_logd("result->line: %d, line_advance: %d, address_advance: %u, opcode: %d\n",
+							result->line, line_advance, address_advance, opcode);
 					break;
 				}
 			}

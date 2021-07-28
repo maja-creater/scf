@@ -6,15 +6,15 @@ int main(int argc, char* argv[])
 {
 	scf_parse_t* parse = NULL;
 
-	if (scf_parse_open(&parse, argv[1]) < 0) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+	if (scf_parse_open(&parse) < 0) {
+		scf_loge("\n");
 		return -1;
 	}
 
 	int64_t tv0 = gettime();
 
-	if (scf_parse_parse(parse) < 0) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+	if (scf_parse_file(parse, argv[1]) < 0) {
+		scf_loge("\n");
 		return -1;
 	}
 	int64_t tv1 = gettime();
@@ -22,7 +22,7 @@ int main(int argc, char* argv[])
 	printf("\n");
 #if 1
 	if (scf_parse_compile(parse, argv[1]) < 0) {
-		printf("%s(),%d, error: \n", __func__, __LINE__);
+		scf_loge("\n");
 		return -1;
 	}
 	int64_t tv2 = gettime();

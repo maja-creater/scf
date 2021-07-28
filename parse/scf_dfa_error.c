@@ -82,10 +82,14 @@ static int _error_action_semicolon(scf_dfa_t* dfa, scf_vector_t* words, void* da
 	d->expr = NULL;
 
 	if (md->error->nb_nodes < 3) {
-		scf_expr_t* e = scf_expr_alloc();
 
-		scf_type_t* t = scf_ast_find_type_type(parse->ast, SCF_VAR_INT);
+		scf_type_t* t = NULL;
+
+		if (scf_ast_find_type_type(&t, parse->ast, SCF_VAR_INT) < 0)
+			return SCF_DFA_ERROR;
 		assert(t);
+
+		scf_expr_t* e = scf_expr_alloc();
 
 		scf_variable_t* var = SCF_VAR_ALLOC_BY_TYPE(md->error->w, t, 1, 0, NULL);
 		SCF_CHECK_ERROR(!var, SCF_DFA_ERROR, "add default error code -1 failed\n");

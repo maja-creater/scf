@@ -154,6 +154,7 @@ static int _class_calculate_size(scf_dfa_t* dfa, scf_type_t* s)
 				s->name->data, v->w->text->data, v->offset, v->size, v->nb_dimentions, v->capacity);
 	}
 	s->size = size;
+	s->node.define_flag = 1;
 
 	printf("%s(), %d, class '%s', size: %d\n", __func__, __LINE__, s->name->data, s->size);
 	return 0;

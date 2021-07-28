@@ -121,8 +121,16 @@ int scf_type_cast_check(scf_ast_t* ast, scf_variable_t* dst, scf_variable_t* src
 
 		if (scf_type_is_integer(src->type) && scf_type_is_integer(dst->type)) {
 
-			scf_type_t* t0 = scf_ast_find_type_type(ast, src->type);
-			scf_type_t* t1 = scf_ast_find_type_type(ast, dst->type);
+			scf_type_t* t0 = NULL;
+			scf_type_t* t1 = NULL;
+
+			int ret = scf_ast_find_type_type(&t0, ast, src->type);
+			if (ret < 0)
+				goto failed;
+
+			ret = scf_ast_find_type_type(&t1, ast, dst->type);
+			if (ret < 0)
+				goto failed;
 
 			if (t0->size != t1->size)
 				goto failed;

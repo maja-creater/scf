@@ -106,7 +106,10 @@ static int _container_action_comma(scf_dfa_t* dfa, scf_vector_t* words, void* da
 		assert(id);
 
 		if (!id->type) {
-			id ->type = scf_ast_find_type(parse->ast, id->identity->text->data);
+			if (scf_ast_find_type(&id->type, parse->ast, id->identity->text->data) < 0) {
+				free(id);
+				return SCF_DFA_ERROR;
+			}
 
 			if (!id->type) {
 				scf_loge("can't find type '%s'\n", w->text->data);
@@ -197,7 +200,9 @@ static int _container_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	id = scf_stack_pop(d->current_identities);
 	assert(id && id->identity);
 
-	t = scf_ast_find_type_type(parse->ast, cd->container->nodes[1]->type);
+	t = NULL;
+	if (scf_ast_find_type_type(&t, parse->ast, cd->container->nodes[1]->type) < 0)
+		return SCF_DFA_ERROR;
 	assert(t);
 
 	v = scf_scope_find_variable(t->scope, id->identity->text->data);

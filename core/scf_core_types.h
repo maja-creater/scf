@@ -100,8 +100,9 @@ enum scf_core_types {
 	SCF_OP_CONTINUE,	// continue statement
 	SCF_OP_ASYNC,       // async statement
 	SCF_OP_ERROR,       // error statement
+	SCF_OP_INCLUDE,     // include statement
 
-	// 57
+	// 58
 	SCF_OP_3AC_TEQ,		// test if = 0
 	SCF_OP_3AC_CMP,		// cmp > 0, < 0, = 0, etc
 
@@ -168,8 +169,6 @@ enum scf_core_types {
 	SCF_OP_3AC_JAE,
 	SCF_OP_3AC_JB,
 	SCF_OP_3AC_JBE,
-
-	SCF_OP_3AC_CALL_EXTERN, // call extern function
 
 	SCF_OP_3AC_PUSH,    // push a var to stack,  only for 3ac & native 
 	SCF_OP_3AC_POP,     // pop a var from stack, only for 3ac & native

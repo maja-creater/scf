@@ -93,7 +93,7 @@ typedef struct {
 
 	int32_t             scale;
 	int32_t             disp;
-
+	int32_t             size;
 } x64_sib_t;
 
 static inline int x64_variable_size(scf_variable_t* v)

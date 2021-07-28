@@ -61,8 +61,14 @@ static int _async_action_semicolon(scf_dfa_t* dfa, scf_vector_t* words, void* da
 	d->expr = NULL;
 	d->expr_local_flag = 0;
 
-	scf_type_t*     pt = scf_ast_find_type_type(parse->ast, SCF_FUNCTION_PTR);
-	scf_function_t* f  = scf_ast_find_function(parse->ast,  "scf_async");
+	scf_type_t*     pt = NULL;
+	scf_function_t* f  = NULL;
+
+	if (scf_ast_find_type_type(&pt, parse->ast, SCF_FUNCTION_PTR) < 0)
+		return SCF_DFA_ERROR;
+
+	if (scf_ast_find_function(&f, parse->ast, "scf_async") < 0)
+		return SCF_DFA_ERROR;
 	if (!f) {
 		scf_loge("\n");
 		return SCF_DFA_ERROR;

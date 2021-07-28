@@ -97,6 +97,8 @@ enum scf_lex_words {
 
 	SCF_LEX_WORD_KEY_UNDERLINE, // _ underline
 
+	SCF_LEX_WORD_KEY_INCLUDE,   // include
+
 	// data types
 	SCF_LEX_WORD_KEY_CHAR,		// char
 

@@ -8,7 +8,9 @@ static scf_3ac_operand_t* _auto_gc_operand_alloc_pf(scf_ast_t* ast, scf_function
 	scf_variable_t*    v;
 	scf_type_t*        t;
 
-	t = scf_ast_find_type_type(ast, SCF_FUNCTION_PTR);
+	t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, SCF_FUNCTION_PTR);
+	assert(0 == ret);
 	assert(t);
 
 	if (f)
@@ -57,7 +59,9 @@ static scf_3ac_code_t* _auto_gc_code_ref(scf_ast_t* ast, scf_dag_node_t* dn)
 		return NULL;
 	}
 
-	f = scf_ast_find_function(ast, "scf__auto_ref");
+	f = NULL;
+	int ret = scf_ast_find_function(&f, ast, "scf__auto_ref");
+	assert(0 == ret);
 	assert(f);
 
 #define AUTO_GC_CODE_ADD_FUNCPTR() \
@@ -122,8 +126,12 @@ static scf_3ac_code_t* _auto_gc_code_memset_array(scf_ast_t* ast, scf_dag_node_t
 	dn = dn_array;
 	AUTO_GC_CODE_ADD_VAR();
 
-	t   = scf_ast_find_type_type(ast, SCF_VAR_INTPTR);
-	v   = SCF_VAR_ALLOC_BY_TYPE(dn_array->var->w, t, 1, 0, NULL);
+	t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, SCF_VAR_INTPTR);
+	assert(0 == ret);
+	assert(t);
+
+	v = SCF_VAR_ALLOC_BY_TYPE(dn_array->var->w, t, 1, 0, NULL);
 	assert(v);
 	v->data.i64 = 0;
 
@@ -163,14 +171,16 @@ static scf_3ac_code_t* _auto_gc_code_free_array(scf_ast_t* ast, scf_dag_node_t* 
 		return NULL;
 	}
 
-	f = scf_ast_find_function(ast, "scf__auto_free_array");
+	f = NULL;
+	int ret = scf_ast_find_function(&f, ast, "scf__auto_free_array");
+	assert(0 == ret);
 	assert(f);
 	AUTO_GC_CODE_ADD_FUNCPTR();
 
 	dn = dn_array;
 	AUTO_GC_CODE_ADD_VAR();
 
-	t   = scf_ast_find_type_type(ast, SCF_VAR_INTPTR);
+	t   = scf_block_find_type_type(ast->current_block, SCF_VAR_INTPTR);
 	v   = SCF_VAR_ALLOC_BY_TYPE(dn_array->var->w, t, 1, 0, NULL);
 	assert(v);
 	v->data.i64 = capacity;
@@ -191,7 +201,10 @@ static scf_3ac_code_t* _auto_gc_code_free_array(scf_ast_t* ast, scf_dag_node_t* 
 
 	if (dn_array->var->type >= SCF_STRUCT) {
 
-		t   = scf_ast_find_type_type(ast, dn_array->var->type);
+		t   = NULL;
+		ret = scf_ast_find_type_type(&t, ast, dn_array->var->type);
+		assert(0 == ret);
+		assert(t);
 
 		f   = scf_scope_find_function(t->scope, "__release");
 	} else
@@ -221,15 +234,20 @@ static scf_3ac_code_t* _auto_gc_code_freep_array(scf_ast_t* ast, scf_dag_node_t*
 		return NULL;
 	}
 
-	f = scf_ast_find_function(ast, "scf__auto_freep_array");
+	f = NULL;
+	int ret = scf_ast_find_function(&f, ast, "scf__auto_freep_array");
+	assert(0 == ret);
 	assert(f);
 	AUTO_GC_CODE_ADD_FUNCPTR();
 
 	dn = dn_array;
 	AUTO_GC_CODE_ADD_VAR();
 
-	t   = scf_ast_find_type_type(ast, SCF_VAR_INTPTR);
-	v   = SCF_VAR_ALLOC_BY_TYPE(dn_array->var->w, t, 1, 0, NULL);
+	t   = NULL;
+	ret = scf_ast_find_type_type(&t, ast, SCF_VAR_INTPTR);
+	assert(0 == ret);
+	assert(t);
+	v = SCF_VAR_ALLOC_BY_TYPE(dn_array->var->w, t, 1, 0, NULL);
 	assert(v);
 	v->data.i64 = nb_pointers;
 
@@ -243,9 +261,12 @@ static scf_3ac_code_t* _auto_gc_code_freep_array(scf_ast_t* ast, scf_dag_node_t*
 
 	if (dn_array->var->type >= SCF_STRUCT) {
 
-		t   = scf_ast_find_type_type(ast, dn_array->var->type);
+		t = NULL;
+		int ret = scf_ast_find_type_type(&t, ast, dn_array->var->type);
+		assert(0 == ret);
+		assert(t);
 
-		f   = scf_scope_find_function(t->scope, "__release");
+		f = scf_scope_find_function(t->scope, "__release");
 
 		scf_logw("f: %p, t->name: %p\n", f, t->name->data);
 	} else
@@ -279,7 +300,11 @@ static scf_3ac_code_t* _code_alloc_address(scf_ast_t* ast, scf_dag_node_t* dn)
 	w = scf_lex_word_alloc(dn->var->w->file, 0, 0, SCF_LEX_WORD_ID);
 	w->text = scf_string_cstr("&");
 
-	scf_type_t*     t   = scf_ast_find_type_type(ast, dn->var->type);
+	scf_type_t* t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, dn->var->type);
+	assert(0 == ret);
+	assert(t);
+
 	scf_variable_t* v   = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, dn->var->nb_pointers + 1, NULL);
 	scf_dag_node_t* dn2 = scf_dag_node_alloc(v->type, v, NULL);
 
@@ -312,7 +337,11 @@ static scf_3ac_code_t* _code_alloc_dereference(scf_ast_t* ast, scf_dag_node_t* d
 	w = scf_lex_word_alloc(dn->var->w->file, 0, 0, SCF_LEX_WORD_ID);
 	w->text = scf_string_cstr("*");
 
-	scf_type_t*     t   = scf_ast_find_type_type(ast, dn->var->type);
+	scf_type_t* t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, dn->var->type);
+	assert(0 == ret);
+	assert(t);
+
 	scf_variable_t* v   = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, dn->var->nb_pointers - 1, NULL);
 	scf_dag_node_t* dn2 = scf_dag_node_alloc(v->type, v, NULL);
 
@@ -350,7 +379,11 @@ static scf_3ac_code_t* _code_alloc_member(scf_ast_t* ast, scf_dag_node_t* dn_bas
 	w = scf_lex_word_alloc(dn_base->var->w->file, 0, 0, SCF_LEX_WORD_ID);
 	w->text = scf_string_cstr("->");
 
-	scf_type_t*     t   = scf_ast_find_type_type(ast, dn_member->var->type);
+	scf_type_t* t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, dn_member->var->type);
+	assert(0 == ret);
+	assert(t);
+
 	scf_variable_t* v   = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, dn_member->var->nb_pointers, NULL);
 	scf_dag_node_t* dn2 = scf_dag_node_alloc(v->type, v, NULL);
 
@@ -388,7 +421,11 @@ static scf_3ac_code_t* _code_alloc_member_address(scf_ast_t* ast, scf_dag_node_t
 	w = scf_lex_word_alloc(dn_base->var->w->file, 0, 0, SCF_LEX_WORD_ID);
 	w->text = scf_string_cstr("&->");
 
-	scf_type_t*     t   = scf_ast_find_type_type(ast, dn_member->var->type);
+	scf_type_t* t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, dn_member->var->type);
+	assert(0 == ret);
+	assert(t);
+
 	scf_variable_t* v   = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, dn_member->var->nb_pointers + 1, NULL);
 	scf_dag_node_t* dn2 = scf_dag_node_alloc(v->type, v, NULL);
 
@@ -433,7 +470,11 @@ static scf_3ac_code_t* _code_alloc_array_member_address(scf_ast_t* ast, scf_dag_
 	w = scf_lex_word_alloc(dn_base->var->w->file, 0, 0, SCF_LEX_WORD_ID);
 	w->text = scf_string_cstr("&[]");
 
-	scf_type_t*     t   = scf_ast_find_type_type(ast, dn_base->var->type);
+	scf_type_t* t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, dn_base->var->type);
+	assert(0 == ret);
+	assert(t);
+
 	scf_variable_t* v   = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, dn_base->var->nb_pointers, NULL);
 	scf_dag_node_t* dn2 = scf_dag_node_alloc(v->type, v, NULL);
 

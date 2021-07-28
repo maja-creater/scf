@@ -60,7 +60,7 @@ struct scf_dfa_s
 	scf_vector_t*       nodes;
 	scf_vector_t*       syntaxes;
 
-	scf_vector_t*       words;
+//	scf_vector_t*       words;
 
 	scf_dfa_hook_t*     hooks[SCF_DFA_HOOK_NB];
 

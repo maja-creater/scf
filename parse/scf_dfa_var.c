@@ -116,7 +116,7 @@ static int _var_add_var(scf_dfa_t* dfa, dfa_parse_data_t* d)
 				return SCF_DFA_ERROR;
 			}
 
-			scf_variable_t* v = scf_ast_find_variable(parse->ast, id->identity->text->data);
+			scf_variable_t* v = scf_block_find_variable(parse->ast->current_block, id->identity->text->data);
 			if (v) {
 				scf_loge("extern var already declared, line: %d\n", v->w->line);
 				return SCF_DFA_ERROR;

@@ -36,6 +36,7 @@ static int _call_action_lp_stat(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	return SCF_DFA_NEXT_WORD;
 }
 
+
 static int _call_action_lp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 {
 	scf_parse_t*       parse     = dfa->priv;
@@ -47,10 +48,13 @@ static int _call_action_lp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 	scf_variable_t*    var_pf    = NULL;
 	scf_node_t*        node_pf   = NULL;
-	scf_type_t*        pt        = scf_ast_find_type_type(parse->ast, SCF_FUNCTION_PTR);
+	scf_type_t*        pt        = NULL;
 
 	scf_node_t*        node_call = NULL;
 	scf_operator_t*    op        = scf_find_base_operator_by_type(SCF_OP_CALL);
+
+	if (scf_ast_find_type_type(&pt, parse->ast, SCF_FUNCTION_PTR) < 0)
+		return SCF_DFA_ERROR;
 
 	assert(pt);
 	assert(op);
@@ -58,7 +62,10 @@ static int _call_action_lp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	dfa_identity_t* id = scf_stack_top(d->current_identities);
 	if (id && id->identity) {
 
-		f = scf_ast_find_function(parse->ast, id->identity->text->data);
+		int ret = scf_ast_find_function(&f, parse->ast, id->identity->text->data);
+		if (ret < 0)
+			return SCF_DFA_ERROR;
+
 		if (f) {
 			scf_logd("f: %p, %s\n", f, f->node.w->text->data);
 
@@ -72,9 +79,12 @@ static int _call_action_lp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 			var_pf->const_literal_flag = 1;
 
 		} else {
-			var_pf = scf_ast_find_variable(parse->ast, id->identity->text->data);
+			ret = scf_ast_find_variable(&var_pf, parse->ast, id->identity->text->data);
+			if (ret < 0)
+				return SCF_DFA_ERROR;
+
 			if (!var_pf) {
-				scf_loge("var '%s' not found\n", id->identity->text->data);
+				scf_loge("funcptr var '%s' not found\n", id->identity->text->data);
 				return SCF_DFA_ERROR;
 			}
 

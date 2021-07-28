@@ -57,21 +57,31 @@ end:
 	return 0;
 }
 
-static int _binary_assign_sib_int(scf_register_x64_t* rb, scf_register_x64_t* ri, int32_t scale, int32_t disp, scf_dag_node_t* src, scf_3ac_code_t* c, scf_function_t* f, int OpCode_type)
+static int _binary_assign_sib_int(x64_sib_t* sib, scf_dag_node_t* src, scf_3ac_code_t* c, scf_function_t* f, int OpCode_type)
 {
 	scf_variable_t*     v  = src->var;
 	scf_register_x64_t* rs = NULL;
 
+	scf_register_x64_t* rb = sib->base;
+	scf_register_x64_t* ri = sib->index;
+	int32_t scale          = sib->scale;
+	int32_t disp           = sib->disp;
+
 	scf_x64_OpCode_t*   OpCode;
 	scf_instruction_t*  inst;
 
+	int dsize = sib->size;
+	int vsize = x64_variable_size(v);
+
+	assert(dsize <= vsize);
+
 	if (0 == src->color) {
-		OpCode = x64_find_OpCode(OpCode_type, v->size, v->size, SCF_X64_I2E);
+		OpCode = x64_find_OpCode(OpCode_type, dsize, dsize, SCF_X64_I2E);
 		if (OpCode) {
 			if (ri)
-				inst = x64_make_inst_I2SIB(OpCode, rb, ri, scale, disp, (uint8_t*)&v->data, v->size);
+				inst = x64_make_inst_I2SIB(OpCode, rb, ri, scale, disp, (uint8_t*)&v->data, dsize);
 			else
-				inst = x64_make_inst_I2P(OpCode, rb, disp, (uint8_t*)&v->data, v->size);
+				inst = x64_make_inst_I2P(OpCode, rb, disp, (uint8_t*)&v->data, dsize);
 			X64_INST_ADD_CHECK(c->instructions, inst);
 			return 0;
 		}
@@ -86,7 +96,9 @@ static int _binary_assign_sib_int(scf_register_x64_t* rb, scf_register_x64_t* ri
 	}
 	assert(src->color > 0);
 
-	OpCode = x64_find_OpCode(OpCode_type, v->size, v->size, SCF_X64_G2E);
+	rs = x64_find_register_color_bytes(rs->color, dsize);
+
+	OpCode = x64_find_OpCode(OpCode_type, dsize, dsize, SCF_X64_G2E);
 	if (!OpCode) {
 		scf_loge("\n");
 		return -EINVAL;
@@ -143,7 +155,7 @@ static int _binary_assign_sib(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_t
 	if (is_float)
 		return _binary_assign_sib_float(sib.base, sib.index, sib.scale, sib.disp, src->dag_node, c, f, OpCode_type);
 
-	return _binary_assign_sib_int(sib.base, sib.index, sib.scale, sib.disp, src->dag_node, c, f, OpCode_type);
+	return _binary_assign_sib_int(&sib, src->dag_node, c, f, OpCode_type);
 }
 
 static int _binary_SIB2G(scf_native_t* ctx, scf_3ac_code_t* c, int OpCode_type, int nb_srcs, x64_sib_fill_pt fill)

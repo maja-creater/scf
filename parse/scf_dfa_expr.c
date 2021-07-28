@@ -92,14 +92,19 @@ int _expr_add_var(scf_parse_t* parse, dfa_parse_data_t* d)
 	assert(id && id->identity);
 	w = id->identity;
 
-	var = scf_ast_find_variable(parse->ast, w->text->data);
+	if (scf_ast_find_variable(&var, parse->ast, w->text->data) < 0)
+		return SCF_DFA_ERROR;
+
 	if (!var) {
 		scf_logw("var '%s' not found, maybe it's a function\n", w->text->data);
 
-		pt = scf_ast_find_type_type(parse->ast, SCF_FUNCTION_PTR);
+		if (scf_ast_find_type_type(&pt, parse->ast, SCF_FUNCTION_PTR) < 0)
+			return SCF_DFA_ERROR;
 		assert(pt);
 
-		f  = scf_ast_find_function( parse->ast, w->text->data);
+		if (scf_ast_find_function(&f, parse->ast, w->text->data) < 0)
+			return SCF_DFA_ERROR;
+
 		if (!f) {
 			scf_loge("function '%s' not found\n", w->text->data);
 			return SCF_DFA_ERROR;
@@ -135,7 +140,10 @@ int _expr_add_var(scf_parse_t* parse, dfa_parse_data_t* d)
 	}
 
 	if (var->type >= SCF_STRUCT) {
-		md->current_struct = scf_ast_find_type_type(parse->ast, var->type);
+
+		int ret = scf_ast_find_type_type(&md->current_struct, parse->ast, var->type);
+		if (ret < 0)
+			return SCF_DFA_ERROR;
 		assert(md->current_struct);
 	}
 	md->current_var = var;
@@ -477,10 +485,22 @@ static int _expr_action_rp(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 	if (id && id->identity) {
 
-		scf_variable_t* var = scf_ast_find_variable(parse->ast, id->identity->text->data);
-		if (!var) {
+		scf_variable_t* v = NULL;
+		scf_function_t* f = NULL;
+
+		if (scf_ast_find_variable(&v, parse->ast, id->identity->text->data) < 0)
+			return SCF_DFA_ERROR;
+
+		if (!v) {
 			scf_logw("'%s' not var\n", id->identity->text->data);
-			return SCF_DFA_NEXT_SYNTAX;
+
+			if (scf_ast_find_function(&f, parse->ast, id->identity->text->data) < 0)
+				return SCF_DFA_ERROR;
+
+			if (!f) {
+				scf_logw("'%s' not function\n", id->identity->text->data);
+				return SCF_DFA_NEXT_SYNTAX;
+			}
 		}
 
 		if (_expr_add_var(parse, d) < 0) {

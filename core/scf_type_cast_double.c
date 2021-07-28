@@ -5,7 +5,7 @@ int scf_cast_to_double(scf_ast_t* ast, scf_variable_t** pret, scf_variable_t* sr
 	if (!pret || !src)
 		return -EINVAL;
 
-	scf_type_t*     t = scf_ast_find_type_type(ast, SCF_VAR_DOUBLE);
+	scf_type_t*     t = scf_block_find_type_type(ast->current_block, SCF_VAR_DOUBLE);
 
 	scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(src->w, t, 0, 0, NULL);
 

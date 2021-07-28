@@ -193,7 +193,7 @@ static int _optimize_call_bb(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 		for (l = start; l != sentinel; l = scf_list_next(l)) {
 			c  = scf_list_data(l, scf_3ac_code_t, list);
 
-			if (SCF_OP_CALL == c->op->type || SCF_OP_3AC_CALL_EXTERN == c->op->type)
+			if (SCF_OP_CALL == c->op->type)
 				break;
 		}
 		if (l == sentinel)
