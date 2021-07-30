@@ -18,6 +18,9 @@ extern scf_optimizer_t   scf_optimizer_auto_gc_find;
 extern scf_optimizer_t   scf_optimizer_auto_gc;
 
 extern scf_optimizer_t   scf_optimizer_basic_block;
+
+extern scf_optimizer_t   scf_optimizer_const_teq;
+
 extern scf_optimizer_t   scf_optimizer_loop;
 extern scf_optimizer_t   scf_optimizer_group;
 
@@ -43,6 +46,7 @@ static scf_optimizer_t*  scf_optimizers[] =
 	&scf_optimizer_auto_gc,
 
 	&scf_optimizer_basic_block,
+	&scf_optimizer_const_teq,
 
 	&scf_optimizer_dominators_normal,
 	&scf_optimizer_loop,

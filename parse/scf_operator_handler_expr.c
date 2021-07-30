@@ -558,7 +558,11 @@ static int _scf_op_expr_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 
 	if (!m1->indexes) {
 
-		if (scf_variable_const(m1->base)) {
+		if (scf_variable_const_string(m1->base)) {
+
+			ret = _expr_init_address(ast, m0, m1);
+
+		} else if (scf_variable_const(m1->base)) {
 
 			if (SCF_FUNCTION_PTR == m1->base->type) {
 
@@ -570,9 +574,6 @@ static int _scf_op_expr_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 				scf_member_free(m1);
 				return ret;
 			}
-		} else if (scf_variable_const_string(m1->base)) {
-
-			ret = _expr_init_address(ast, m0, m1);
 		} else {
 			scf_variable_t* v = m1->base;
 			scf_loge("v: %d/%s\n", v->w->line, v->w->text->data);

@@ -548,6 +548,7 @@ static int _bb_loop_add_pre_post(scf_function_t* f)
 			scf_basic_block_t* jcc;
 			scf_3ac_code_t*    c;
 			scf_list_t*        l;
+			scf_list_t*        l2;
 
 			for (j = 0; j < bbg->entry->nexts->size; j++) {
 				first     = bbg->entry->nexts->data[j];
@@ -579,8 +580,9 @@ static int _bb_loop_add_pre_post(scf_function_t* f)
 						if (!jcc->jmp_flag)
 							break;
 
-						l   = scf_list_head(&jcc->code_list_head);
-						c   = scf_list_data(l, scf_3ac_code_t, list);
+						l2  = scf_list_head(&jcc->code_list_head);
+						c   = scf_list_data(l2, scf_3ac_code_t, list);
+
 						dst = c->dsts->data[0];
 						if (dst->bb == first) {
 							scf_loge("bb: %p, dst: %p -> %p\n", bb, dst->bb, pre);

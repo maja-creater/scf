@@ -1344,13 +1344,16 @@ static int _3ac_split_basic_blocks(scf_list_t* h, scf_function_t* f)
 				scf_list_t*	    l2;
 				scf_3ac_code_t* c2;
 
-				l2	= scf_list_next(&c->list);
-				if (l2 != scf_list_sentinel(h)) {
+				for (l2 = scf_list_next(&c->list); l2 != scf_list_sentinel(h); l2 = scf_list_next(l2)) {
 
-					c2 = scf_list_data(l2, scf_3ac_code_t, list);
+					c2  = scf_list_data(l2, scf_3ac_code_t, list);
+
+					if (scf_type_is_setcc(c2->op->type))
+						continue;
 
 					if (scf_type_is_jmp(c2->op->type))
 						bb->cmp_flag = 1;
+					break;
 				}
 
 				scf_list_del(&c->list);

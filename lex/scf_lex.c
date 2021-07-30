@@ -1130,8 +1130,46 @@ int scf_lex_pop_word(scf_lex_t* lex, scf_lex_word_t** pword)
 	if ('\'' == c->c)
 		return _lex_char(lex, pword, c);
 
-	if ('\"' == c->c)
-		return _lex_string(lex, pword, c);
+	if ('\"' == c->c) {
+		scf_lex_word_t* w0 = NULL;
+
+		int ret = _lex_string(lex, &w0, c);
+		if (ret < 0) {
+			*pword = NULL;
+			return ret;
+		}
+
+		while (1) {
+			scf_lex_word_t* w1 = NULL;
+
+			ret = scf_lex_pop_word(lex, &w1);
+			if (ret < 0) {
+				scf_lex_word_free(w0);
+				*pword = NULL;
+				return ret;
+			}
+
+			if (SCF_LEX_WORD_CONST_STRING != w1->type) {
+				scf_lex_push_word(lex, w1);
+				break;
+			}
+
+			if (scf_string_cat(w0->text, w1->text) < 0
+					|| scf_string_cat(w0->data.s, w1->data.s) < 0) {
+
+				scf_lex_word_free(w1);
+				scf_lex_word_free(w0);
+				*pword = NULL;
+				return -1;
+			}
+
+			scf_lex_word_free(w1);
+		}
+
+		scf_logd("w0: %s\n", w0->data.s->data);
+		*pword = w0;
+		return 0;
+	}
 
 	if ('0' <= c->c && '9' >= c->c)
 		return _lex_number(lex, pword, c);
