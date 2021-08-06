@@ -275,7 +275,8 @@ static int _dfa_init_syntax_class(scf_dfa_t* dfa)
 	SCF_DFA_GET_MODULE_NODE(dfa, class,  semicolon, semicolon);
 	SCF_DFA_GET_MODULE_NODE(dfa, class,  end,       end);
 
-	SCF_DFA_GET_MODULE_NODE(dfa, type, entry,    member);
+	SCF_DFA_GET_MODULE_NODE(dfa, type,   entry,     member);
+	SCF_DFA_GET_MODULE_NODE(dfa, union,  _union,    _union);
 
 	scf_vector_add(dfa->syntaxes,     _class);
 
@@ -287,10 +288,12 @@ static int _dfa_init_syntax_class(scf_dfa_t* dfa)
 
 	scf_dfa_node_add_child(lb,        rb);
 
+	scf_dfa_node_add_child(lb,        _union);
 	scf_dfa_node_add_child(lb,        member);
 	scf_dfa_node_add_child(member,    rb);
 	scf_dfa_node_add_child(rb,        semicolon);
 
+	scf_dfa_node_add_child(end,       _union);
 	scf_dfa_node_add_child(end,       member);
 	scf_dfa_node_add_child(end,       rb);
 

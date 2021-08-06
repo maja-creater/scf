@@ -226,6 +226,9 @@ static int _expr_action_number(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 		case SCF_LEX_WORD_CONST_INT:
 			type = SCF_VAR_INT;
 			break;
+		case SCF_LEX_WORD_CONST_U32:
+			type = SCF_VAR_U32;
+			break;
 
 		case SCF_LEX_WORD_CONST_FLOAT:
 			type = SCF_VAR_FLOAT;
@@ -572,16 +575,16 @@ static int _expr_action_ls(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 	expr_module_data_t* md    = d->module_datas[dfa_module_expr.index];
 	dfa_identity_t*     id    = scf_stack_top(d->current_identities);
 
-	if (md->parent_block) {
-		parse->ast->current_block = md->parent_block;
-		md->parent_block = NULL;
-	}
-
 	if (id && id->identity) {
 		if (_expr_add_var(parse, d) < 0) {
 			scf_loge("expr add var error\n");
 			return SCF_DFA_ERROR;
 		}
+	}
+
+	if (md->parent_block) {
+		parse->ast->current_block = md->parent_block;
+		md->parent_block = NULL;
 	}
 
 	scf_operator_t* op = scf_find_base_operator_by_type(SCF_OP_ARRAY_INDEX);

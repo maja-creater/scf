@@ -15,6 +15,8 @@ typedef struct {
 
 	uint16_t    st_shndx;
 	uint8_t		st_info;
+
+	uint8_t     dyn_flag:1;
 } scf_elf_sym_t;
 
 typedef struct {
@@ -47,9 +49,8 @@ struct scf_elf_ops_s
 	int				(*open )(scf_elf_context_t* elf);
 	int				(*close)(scf_elf_context_t* elf);
 
-	int				(*add_sym   )(scf_elf_context_t* elf, const scf_elf_sym_t*  sym);
-
-	int				(*read_syms )(scf_elf_context_t* elf,       scf_vector_t*   syms);
+	int				(*add_sym   )(scf_elf_context_t* elf, const scf_elf_sym_t*  sym,   const char* sh_name);
+	int				(*read_syms )(scf_elf_context_t* elf,       scf_vector_t*   syms,  const char* sh_name);
 	int				(*read_relas)(scf_elf_context_t* elf,       scf_vector_t*   relas, const char* sh_name);
 
 	int				(*add_section )(scf_elf_context_t* elf, const scf_elf_section_t*  section);
@@ -57,8 +58,10 @@ struct scf_elf_ops_s
 
 	int				(*add_rela_section)(scf_elf_context_t* elf, const scf_elf_section_t* section, scf_vector_t* relas);
 
+	int				(*add_dyn_need)(scf_elf_context_t* elf, const char* soname);
+	int	            (*add_dyn_rela)(scf_elf_context_t* elf, const scf_elf_rela_t* rela);
+
 	int				(*write_rel )(scf_elf_context_t* elf);
-	int				(*write_dyn )(scf_elf_context_t* elf);
 	int				(*write_exec)(scf_elf_context_t* elf);
 };
 
@@ -79,19 +82,20 @@ int scf_elf_open (scf_elf_context_t** pelf, const char* machine, const char* pat
 int scf_elf_open2(scf_elf_context_t*  elf,  const char* machine);
 int scf_elf_close(scf_elf_context_t*  elf);
 
-int scf_elf_add_sym (scf_elf_context_t* elf, const scf_elf_sym_t*     sym);
+int scf_elf_add_sym (scf_elf_context_t* elf, const scf_elf_sym_t*     sym, const char* sh_name);
 
 int scf_elf_add_section(scf_elf_context_t* elf, const scf_elf_section_t* section);
 
 int	scf_elf_add_rela_section(scf_elf_context_t* elf, const scf_elf_section_t* section, scf_vector_t* relas);
+int	scf_elf_add_dyn_need(scf_elf_context_t* elf, const char* soname);
+int	scf_elf_add_dyn_rela(scf_elf_context_t* elf, const scf_elf_rela_t* rela);
 
 int scf_elf_read_section(scf_elf_context_t* elf, scf_elf_section_t** psection, const char* name);
 
-int scf_elf_read_syms (scf_elf_context_t* elf, scf_vector_t* syms);
+int scf_elf_read_syms (scf_elf_context_t* elf, scf_vector_t* syms,  const char* sh_name);
 int scf_elf_read_relas(scf_elf_context_t* elf, scf_vector_t* relas, const char* sh_name);
 
 int scf_elf_write_rel( scf_elf_context_t* elf);
-int scf_elf_write_dyn( scf_elf_context_t* elf);
 int scf_elf_write_exec(scf_elf_context_t* elf);
 
 #endif

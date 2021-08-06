@@ -105,6 +105,13 @@ static int __optimize_const_teq(scf_basic_block_t* bb, scf_function_t* f)
 				scf_list_del(&c->list);
 				scf_3ac_code_free(c);
 				c = NULL;
+
+			} else if (v->const_literal_flag) {
+				flag = 1;
+
+				scf_list_del(&c->list);
+				scf_3ac_code_free(c);
+				c = NULL;
 			}
 
 		} else if (flag >= 0) {

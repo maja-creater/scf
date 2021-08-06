@@ -147,7 +147,7 @@ static int _find_type_by_type(scf_node_t* node, void* arg, scf_vector_t* vec)
 	if (SCF_FUNCTION == node->type)
 		return 1;
 
-	if (node->type >= SCF_STRUCT && node->class_flag) {
+	if (node->type >= SCF_STRUCT && (node->class_flag || node->union_flag)) {
 
 		scf_type_t* t = (scf_type_t*)node;
 
@@ -158,7 +158,8 @@ static int _find_type_by_type(scf_node_t* node, void* arg, scf_vector_t* vec)
 				return ret;
 		}
 
-		return 1;
+		if (node->union_flag)
+			return 1;
 	}
 
 	return 0;

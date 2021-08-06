@@ -1878,10 +1878,12 @@ static int _scf_op_semantic_logic_not(scf_ast_t* ast, scf_node_t** nodes, int nb
 
 	if (scf_variable_interger(v0)) {
 
+		int const_flag    = v0->const_flag && 0 == v0->nb_pointers && 0 == v0->nb_dimentions;
+
 		scf_type_t*	    t = scf_block_find_type_type(ast->current_block, SCF_VAR_INT);
 
 		scf_lex_word_t* w = nodes[0]->parent->w;
-		scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, v0->const_flag, 0, NULL);
+		scf_variable_t* r = SCF_VAR_ALLOC_BY_TYPE(w, t, const_flag, 0, NULL);
 		if (!r)
 			return -ENOMEM;
 
@@ -1967,15 +1969,17 @@ static int _scf_op_semantic_binary(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 
 		if (scf_variable_interger(v1) || scf_variable_float(v1)) {
 
-			int             const_flag   = 0;
-			int             nb_pointers  = 0;
 			scf_function_t* func_ptr     = NULL;
+			scf_variable_t* v2           = NULL;
 			scf_type_t*     t            = NULL;
 
+			int             const_flag   = 0;
+			int             nb_pointers  = 0;
 			int             nb_pointers0 = scf_variable_nb_pointers(v0);
 			int             nb_pointers1 = scf_variable_nb_pointers(v1);
 
 			if (nb_pointers0 > 0) {
+
 				if (nb_pointers1 > 0) {
 
 					if (!scf_variable_same_type(v0, v1)) {
@@ -1987,6 +1991,19 @@ static int _scf_op_semantic_binary(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 				} else if (!scf_variable_interger(v1)) {
 					scf_loge("var calculated with a pointer should be a interger\n");
 					return -EINVAL;
+				} else {
+					t  = scf_block_find_type_type(ast->current_block, SCF_VAR_UINTPTR);
+
+					v2 = SCF_VAR_ALLOC_BY_TYPE(v1->w, t, v1->const_flag, 0, NULL);
+
+					int ret = _semantic_add_type_cast(ast, &nodes[1], v2, nodes[1]);
+
+					scf_variable_free(v2);
+					v2  = NULL;
+					if (ret < 0) {
+						scf_loge("add type cast failed\n");
+						return ret;
+					}
 				}
 
 				t = NULL;
@@ -1999,9 +2016,23 @@ static int _scf_op_semantic_binary(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 				func_ptr    = v0->func_ptr;
 
 			} else if (nb_pointers1 > 0) {
+
 				if (!scf_variable_interger(v0)) {
 					scf_loge("var calculated with a pointer should be a interger\n");
 					return -EINVAL;
+				} else {
+					t  = scf_block_find_type_type(ast->current_block, SCF_VAR_UINTPTR);
+
+					v2 = SCF_VAR_ALLOC_BY_TYPE(v0->w, t, v0->const_flag, 0, NULL);
+
+					int ret = _semantic_add_type_cast(ast, &nodes[0], v2, nodes[0]);
+
+					scf_variable_free(v2);
+					v2  = NULL;
+					if (ret < 0) {
+						scf_loge("add type cast failed\n");
+						return ret;
+					}
 				}
 
 				t = NULL;

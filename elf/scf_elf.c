@@ -100,12 +100,12 @@ int scf_elf_close(scf_elf_context_t* elf)
 	return -1;
 }
 
-int scf_elf_add_sym(scf_elf_context_t* elf, const scf_elf_sym_t* sym)
+int scf_elf_add_sym(scf_elf_context_t* elf, const scf_elf_sym_t* sym, const char* sh_name)
 {
-	if (elf && sym) {
+	if (elf && sym && sh_name) {
 
 		if (elf->ops && elf->ops->add_sym)
-			return elf->ops->add_sym(elf, sym);
+			return elf->ops->add_sym(elf, sym, sh_name);
 	}
 
 	scf_loge("\n");
@@ -136,6 +136,30 @@ int	scf_elf_add_rela_section(scf_elf_context_t* elf, const scf_elf_section_t* se
 	return -1;
 }
 
+int	scf_elf_add_dyn_rela(scf_elf_context_t* elf, const scf_elf_rela_t* rela)
+{
+	if (elf && rela) {
+
+		if (elf->ops && elf->ops->add_dyn_rela)
+			return elf->ops->add_dyn_rela(elf, rela);
+	}
+
+	scf_loge("\n");
+	return -1;
+}
+
+int	scf_elf_add_dyn_need(scf_elf_context_t* elf, const char* soname)
+{
+	if (elf && soname) {
+
+		if (elf->ops && elf->ops->add_dyn_need)
+			return elf->ops->add_dyn_need(elf, soname);
+	}
+
+	scf_loge("\n");
+	return -1;
+}
+
 int scf_elf_read_section(scf_elf_context_t* elf, scf_elf_section_t** psection, const char* name)
 {
 	if (elf && psection && name) {
@@ -148,12 +172,12 @@ int scf_elf_read_section(scf_elf_context_t* elf, scf_elf_section_t** psection, c
 	return -1;
 }
 
-int scf_elf_read_syms(scf_elf_context_t* elf, scf_vector_t* syms)
+int scf_elf_read_syms(scf_elf_context_t* elf, scf_vector_t* syms, const char* sh_name)
 {
-	if (elf && syms) {
+	if (elf && syms && sh_name) {
 
 		if (elf->ops && elf->ops->read_syms)
-			return elf->ops->read_syms(elf, syms);
+			return elf->ops->read_syms(elf, syms, sh_name);
 	}
 
 	scf_loge("\n");
@@ -176,15 +200,6 @@ int scf_elf_write_rel(scf_elf_context_t* elf)
 {
 	if (elf && elf->ops && elf->ops->write_rel)
 		return elf->ops->write_rel(elf);
-
-	scf_loge("\n");
-	return -1;
-}
-
-int scf_elf_write_dyn(scf_elf_context_t* elf)
-{
-	if (elf && elf->ops && elf->ops->write_rel)
-		return elf->ops->write_dyn(elf);
 
 	scf_loge("\n");
 	return -1;

@@ -360,39 +360,82 @@ static int _lex_number_base_16(scf_lex_t* lex, scf_lex_word_t** pword, scf_strin
 	uint64_t value = 0;
 
 	while (1) {
+		uint64_t value2;
+
 		scf_lex_char_t* c2 = _lex_pop_char(lex);
-		if ((c2->c >= '0' && c2->c <= '9')
-				|| ('a' <= c2->c && 'f' >= c2->c)
-				|| ('A' <= c2->c && 'F' >= c2->c)
-		   ) {
+
+		if (c2->c >= '0' && c2->c <= '9')
+			value2 =        c2->c -  '0';
+
+		else if ('a' <= c2->c && 'f' >= c2->c)
+			value2    = c2->c  - 'a' + 10;
+
+		else if ('A' <= c2->c && 'F' >= c2->c)
+			value2    = c2->c  - 'A' + 10;
+
+		else {
+			_lex_push_char(lex, c2);
+			c2 = NULL;
+
+			scf_lex_word_t* w;
+
+			if (value & ~0xffffffffULL)
+				w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_CONST_U64);
+			else
+				w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_CONST_U32);
+
+			w->data.u64 = value;
+
+			w->text = s;
+			s = NULL;
+
+			*pword = w;
+			return 0;
+		}
+
+		value <<= 4;
+		value  += value2;
+
+		scf_string_cat_cstr_len(s, (char*)&c2->c, 1);
+		lex->pos++;
+
+		free(c2);
+		c2 = NULL;
+	}
+}
+
+static int _lex_number_base_8(scf_lex_t* lex, scf_lex_word_t** pword, scf_string_t* s)
+{
+	uint64_t value = 0;
+
+	while (1) {
+		scf_lex_char_t* c2 = _lex_pop_char(lex);
+
+		if (c2->c >= '0' && c2->c <= '7') {
 			scf_string_cat_cstr_len(s, (char*)&c2->c, 1);
 			lex->pos++;
 
-			uint64_t value_c2;
-			if ('0' <= c2->c && c2->c <= '9') {
-
-				value_c2 = c2->c - '0';
-
-			} else if ('a' <= c2->c && c2->c <= 'f') {
-
-				value_c2 = c2->c - 'a' + 10;
-
-			} else if ('A' <= c2->c && c2->c <= 'F') {
-
-				value_c2 = c2->c - 'A' + 10;
-			} else {
-				assert(0);
-			}
-			value = (value << 4) + value_c2;
+			value  = (value << 3) + c2->c - '0';
 
 			free(c2);
 			c2 = NULL;
+
+		} else if ('8' == c2->c || '9' == c2->c) {
+			scf_loge("number must be 0-7 when base 8");
+			free(c2);
+			c2 = NULL;
+			return -1;
 		} else {
 			_lex_push_char(lex, c2);
 			c2 = NULL;
 
-			scf_lex_word_t* w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_CONST_INT);
-			w->data.i = value;
+			scf_lex_word_t* w;
+
+			if (value & ~0xffffffffULL)
+				w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_CONST_U64);
+			else
+				w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_CONST_U32);
+			w->data.u64 = value;
 
 			w->text = s;
 			s = NULL;
@@ -456,8 +499,9 @@ static int _lex_number(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c
 					return 0;
 				}
 			}
-		} else if ('0' != c1->c){
+		} else {
 			scf_string_t* s = scf_string_cstr_len((char*)&c0->c, 1);
+
 			if (c1->c < '0' || c1->c > '9') {
 				// is 0
 				_lex_push_char(lex, c1);
@@ -475,54 +519,23 @@ static int _lex_number(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c
 			}
 
 			// base 8
-			if ('8' == c1->c || '9' == c1->c) {
-				scf_loge("numbers in base 8 must be 0-7\n");
-				return -1;
-			}
-
-			scf_string_cat_cstr_len(s, (char*)&c1->c, 1);
-			lex->pos += 2;
-			free(c1);
+			_lex_push_char(lex, c1);
 			c1 = NULL;
-			free(c0);
-			c0 = NULL;
 
-			while (1) {
-				scf_lex_char_t* c2 = _lex_pop_char(lex);
-				if (c2->c >= '0' && c2->c <= '7') {
-					scf_string_cat_cstr_len(s, (char*)&c2->c, 1);
-					lex->pos++;
-					free(c2);
-					c2 = NULL;
-				} else if ('8' == c2->c || '9' == c2->c) {
-					scf_loge("numbers in base 8 must be 0-7\n");
-					return -1;
-				} else {
-					_lex_push_char(lex, c2);
-					c2 = NULL;
+			lex->pos++;
 
-					scf_lex_word_t* w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_CONST_INT);
-					w->data.i = atoi(s->data);
-
-					w->text = s;
-					s = NULL;
-
-					*pword = w;
-					return 0;
-				}
-			}
-		} else {
-			// error
-			printf("%s(),%d, error: \n", __func__, __LINE__);
-			return -1;
+			return _lex_number_base_8(lex, pword, s);
 		}
 	} else {
 		// base 10
-		scf_string_t* s = scf_string_cstr_len((char*)&c0->c, 1);
-		int nb_dots = 0;
+		scf_string_t* s  = scf_string_cstr_len((char*)&c0->c, 1);
+
+		uint64_t value   = c0->c - '0';
+		int      nb_dots = 0;
 
 		while (1) {
 			scf_lex_char_t* c1 = _lex_pop_char(lex);
+
 			if ((c1->c >= '0' && c1->c <= '9') || '.' == c1->c) {
 				if ('.' == c1->c) {
 					nb_dots++;
@@ -534,7 +547,8 @@ static int _lex_number(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c
 						printf("%s(),%d, error: \n", __func__, __LINE__);
 						return -1;
 					}
-				}
+				} else
+					value = value * 10 + c1->c - '0';
 
 				scf_string_cat_cstr_len(s, (char*)&c1->c, 1);
 				lex->pos++;
@@ -549,8 +563,11 @@ static int _lex_number(scf_lex_t* lex, scf_lex_word_t** pword, scf_lex_char_t* c
 					w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_CONST_DOUBLE);
 					w->data.d = atof(s->data);
 				} else {
-					w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_CONST_INT);
-					w->data.i = atoi(s->data);
+					if (value & ~0xffffffffULL)
+						w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_CONST_I64);
+					else
+						w = scf_lex_word_alloc(lex->file, lex->nb_lines, lex->pos, SCF_LEX_WORD_CONST_INT);
+					w->data.i64 = value;
 				}
 
 				w->text = s;

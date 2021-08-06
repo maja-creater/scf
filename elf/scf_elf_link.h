@@ -36,6 +36,10 @@ typedef struct {
 	scf_vector_t*      debug_line_relas;
 	scf_vector_t*      debug_info_relas;
 
+	scf_vector_t*      dyn_syms;
+	scf_vector_t*      rela_plt;
+	scf_vector_t*      dyn_needs;
+
 } scf_elf_file_t;
 
 #define SCF_ELF_FILE_SHNDX(member) ((void**)&((scf_elf_file_t*)0)->member - (void**)&((scf_elf_file_t*)0)->text + 1)

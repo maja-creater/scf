@@ -643,7 +643,8 @@ static int _scf_op_const_unary(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes,
 
 	assert(v0);
 
-	if (!v0->const_flag)
+	int const_flag = v0->const_flag && 0 == v0->nb_pointers && 0 == v0->nb_dimentions;
+	if (!const_flag)
 		return 0;
 
 	if (scf_type_is_number(v0->type)) {

@@ -2452,7 +2452,7 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 	for (i = 0; i < parse->symtab->size; i++) {
 		scf_elf_sym_t* sym = parse->symtab->data[i];
 
-		ret = scf_elf_add_sym(elf, sym);
+		ret = scf_elf_add_sym(elf, sym, ".symtab");
 		if (ret < 0) {
 			scf_loge("\n");
 			goto error;

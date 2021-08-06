@@ -92,6 +92,11 @@ static int _x64_function_init(scf_function_t* f, scf_vector_t* local_vars)
 	for (i = 0; i < local_vars->size; i++) {
 		v  =        local_vars->data[i];
 
+		if (v->arg_flag) {
+			assert(v->bp_offset != 0);
+			continue;
+		}
+
 		int size = scf_variable_size(v);
 		if (size < 0)
 			return size;

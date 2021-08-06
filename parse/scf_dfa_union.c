@@ -160,6 +160,11 @@ static int _union_action_rb(scf_dfa_t* dfa, scf_vector_t* words, void* data)
 
 	md->nb_rbs++;
 
+	assert(md->nb_rbs == md->nb_lbs);
+
+	parse->ast->current_block = md->parent_block;
+	md->parent_block = NULL;
+
 	return SCF_DFA_NEXT_WORD;
 }
 
@@ -197,11 +202,11 @@ static int _union_action_semicolon(scf_dfa_t* dfa, scf_vector_t* words, void* da
 	if (md->nb_rbs == md->nb_lbs) {
 		scf_logi("SCF_DFA_OK\n");
 
-		parse->ast->current_block = md->parent_block;
+//		parse->ast->current_block = md->parent_block;
+//		md->parent_block     = NULL;
 
 		md->current_identity = NULL;
 		md->current_union    = NULL;
-		md->parent_block     = NULL;
 		md->nb_lbs           = 0;
 		md->nb_rbs           = 0;
 
@@ -289,10 +294,10 @@ static int _dfa_init_syntax_union(scf_dfa_t* dfa)
 	// member var
 	scf_dfa_node_add_child(lb,        member);
 	scf_dfa_node_add_child(member,    semicolon);
+	scf_dfa_node_add_child(semicolon, rb);
 	scf_dfa_node_add_child(semicolon, member);
 
 	// end
-	scf_dfa_node_add_child(semicolon, rb);
 	scf_dfa_node_add_child(rb,        var);
 	scf_dfa_node_add_child(var,       semicolon);
 	scf_dfa_node_add_child(rb,        semicolon);

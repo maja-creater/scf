@@ -89,6 +89,10 @@ int scf_elf_file_open2(scf_elf_file_t** pfile)
 		goto debug_info_relas_error;
 	}
 
+	ef->dyn_syms  = scf_vector_alloc();
+	ef->dyn_needs = scf_vector_alloc();
+	ef->rela_plt  = scf_vector_alloc();
+
 	*pfile = ef;
 	return 0;
 
@@ -137,7 +141,64 @@ int scf_elf_file_open(scf_elf_file_t** pfile, const char* path, const char* mode
 		return ret;
 	}
 
+	ef->name = scf_string_cstr(path);
+
 	*pfile = ef;
+	return 0;
+}
+
+int scf_so_file_open(scf_elf_file_t** pso, const char* path, const char* mode)
+{
+	scf_elf_file_t* so = NULL;
+
+	int ret = scf_elf_file_open2(&so);
+	if (ret < 0)
+		return ret;
+
+	ret = scf_elf_open(&so->elf, "x64", path, mode);
+	if (ret < 0) {
+		scf_elf_file_close(so, NULL, NULL);
+		return ret;
+	}
+
+	so->name = scf_string_cstr(path);
+
+	so->dyn_syms = scf_vector_alloc();
+	if (!so->dyn_syms)
+		return -ENOMEM;
+
+	so->rela_plt = scf_vector_alloc();
+	if (!so->rela_plt)
+		return -ENOMEM;
+
+	ret = scf_elf_read_syms(so->elf, so->dyn_syms, ".dynsym");
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	ret = scf_elf_read_relas(so->elf, so->rela_plt, ".rela.plt");
+	if (ret < 0 && -404 != ret) {
+		scf_loge("\n");
+		return ret;
+	}
+
+#if 1
+	int i;
+	for (i = 0; i < so->dyn_syms->size; i++) {
+		scf_elf_sym_t* esym = so->dyn_syms->data[i];
+
+		scf_loge("i: %d, sym: %s, shndx: %d\n", i, esym->name, esym->st_shndx);
+	}
+
+	for (i = 0; i < so->rela_plt->size; i++) {
+		scf_elf_rela_t* er = so->rela_plt->data[i];
+
+		scf_loge("i: %d, rela: %s\n", i, er->name);
+	}
+#endif
+
+	*pso = so;
 	return 0;
 }
 
@@ -204,7 +265,7 @@ int scf_elf_file_read(scf_elf_file_t* ef)
 	ELF_READ_SECTION(debug_line,   ef->line_idx);
 	ELF_READ_SECTION(debug_str,    ef->str_idx);
 
-	int ret = scf_elf_read_syms(ef->elf, ef->syms);
+	int ret = scf_elf_read_syms(ef->elf, ef->syms, ".symtab");
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -609,7 +670,7 @@ static int _find_lib_sym(scf_ar_file_t** par, uint32_t* poffset, uint32_t* psize
 
 		int k;
 		for (k   = 0; k < ar->symbols->size; k++) {
-			asym = ar->symbols->data[k];
+			asym =        ar->symbols->data[k];
 
 			if (!strcmp(sym->name, asym->name->data))
 				break;
@@ -693,12 +754,51 @@ static int merge_ar_obj(scf_elf_file_t* exec, scf_ar_file_t* ar, uint32_t offset
 	return 0;
 }
 
-static int link_relas(scf_elf_file_t* exec, char* afiles[], int nb_afiles)
+static int _find_so_sym(scf_elf_file_t** pso, scf_vector_t* dlls, scf_elf_sym_t* sym)
+{
+	scf_elf_file_t* so = NULL;
+	scf_elf_sym_t*  sym2;
+
+	int j;
+	for (j = 0; j < dlls->size; j++) {
+		so =        dlls->data[j];
+
+		scf_loge("so: %p\n", so);
+		int k;
+		for (k   = 0; k < so->dyn_syms->size; k++) {
+			sym2 =        so->dyn_syms->data[k];
+
+			if (0 == sym2->st_shndx)
+				continue;
+
+			if (!strcmp(sym->name, sym2->name))
+				break;
+		}
+
+		if (k < so->dyn_syms->size)
+			break;
+	}
+
+	if (j == dlls->size) {
+		scf_loge("\n");
+		return -1;
+	}
+
+	if (pso)
+		*pso = so;
+	return 0;
+}
+
+static int link_relas(scf_elf_file_t* exec, char* afiles[], int nb_afiles, char* sofiles[], int nb_sofiles)
 {
 	scf_elf_rela_t* rela = NULL;
 	scf_elf_sym_t*  sym  = NULL;
+	scf_elf_sym_t*  sym2 = NULL;
 	scf_ar_file_t*  ar   = NULL;
+	scf_elf_file_t* so   = NULL;
+	scf_elf_file_t* so2  = NULL;
 	scf_vector_t*   libs = scf_vector_alloc();
+	scf_vector_t*   dlls = scf_vector_alloc();
 
 	int i;
 	for (i = 0; i < nb_afiles; i++) {
@@ -714,14 +814,29 @@ static int link_relas(scf_elf_file_t* exec, char* afiles[], int nb_afiles)
 		}
 	}
 
-	for (i = 0; i < exec->text_relas->size; i++) {
+	for (i = 0; i < nb_sofiles; i++) {
+
+		if (scf_so_file_open(&so, sofiles[i], "rb") < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+
+		if (scf_vector_add(dlls, so) < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+	}
+
+	for (i = 0; i < exec->text_relas->size; ) {
 		rela      = exec->text_relas->data[i];
 
 		sym = NULL;
 		int sym_idx = _find_sym(&sym, rela, exec->syms);
 
-		if (sym_idx >= 0)
+		if (sym_idx >= 0) {
+			i++;
 			continue;
+		}
 
 		sym_idx = ELF64_R_SYM(rela->r_info);
 		sym     = exec->syms->data[sym_idx - 1];
@@ -730,18 +845,61 @@ static int link_relas(scf_elf_file_t* exec, char* afiles[], int nb_afiles)
 		uint32_t size   = 0;
 
 		int ret = _find_lib_sym(&ar, &offset, &size, libs, sym);
+		if (ret >= 0) {
+			scf_logd("sym: %s, offset: %d, size: %d\n\n", sym->name, offset, size);
+
+			ret = merge_ar_obj(exec, ar, offset, size);
+			if (ret < 0) {
+				scf_loge("\n");
+				return -1;
+			}
+
+			i++;
+			continue;
+		}
+
+		ret = _find_so_sym(&so, dlls, sym);
 		if (ret < 0) {
 			scf_loge("\n");
 			return -1;
 		}
+		sym->dyn_flag = 1;
 
-		scf_loge("sym: %s, offset: %d, size: %d\n\n", sym->name, offset, size);
+		int j;
+		for (j = 0; j < exec->dyn_syms->size; j++) {
+			sym2      = exec->dyn_syms->data[j];
 
-		ret = merge_ar_obj(exec, ar, offset, size);
-		if (ret < 0) {
-			scf_loge("\n");
-			return -1;
+			if (!strcmp(sym2->name, sym->name))
+				break;
 		}
+
+		if (j == exec->dyn_syms->size) {
+			sym2 = calloc(1, sizeof(scf_elf_sym_t));
+			if (!sym2)
+				return -ENOMEM;
+
+			sym2->name = strdup(sym->name);
+			if (!sym2->name) {
+				free(sym2);
+				return -ENOMEM;
+			}
+			sym2->st_info  = ELF64_ST_INFO(STB_GLOBAL, STT_FUNC);
+			sym2->dyn_flag = 1;
+
+			if (scf_vector_add(exec->dyn_syms, sym2) < 0) {
+				scf_loge("\n");
+				return -ENOMEM;
+			}
+		}
+
+		scf_vector_add_unique(exec->dyn_needs, so);
+		scf_vector_del(exec->text_relas, rela);
+		scf_vector_add(exec->rela_plt,   rela);
+
+		rela->r_info = ELF64_R_INFO(j + 1, ELF64_R_TYPE(rela->r_info));
+
+		scf_loge("sym: %s, r_offset: %#lx, r_addend: %ld\n", sym->name,
+				rela->r_offset, rela->r_addend);
 	}
 
 	for (i = 0; i < exec->data_relas->size; i++) {
@@ -774,18 +932,41 @@ static int link_relas(scf_elf_file_t* exec, char* afiles[], int nb_afiles)
 		}
 	}
 
+	for (i = 0; i < exec->dyn_needs->size; i++) {
+		so =        exec->dyn_needs->data[i];
+
+		int sym_idx;
+		int j;
+		for (j = 0; j < so->rela_plt->size; j++) {
+			rela      = so->rela_plt->data[j];
+
+			sym_idx = ELF64_R_SYM(rela->r_info);
+			sym     = so->dyn_syms->data[sym_idx - 1];
+
+			int ret = _find_so_sym(&so2, dlls, sym);
+			if (ret < 0) {
+				scf_loge("can't find sym '%s' used in '%s'\n", sym->name, so->name->data);
+				return -1;
+			}
+
+			scf_vector_add_unique(exec->dyn_needs, so2);
+		}
+	}
 	return 0;
 }
 
 int main()
 {
 	scf_elf_file_t* exec = NULL;
+	scf_elf_file_t* so   = NULL;
+	scf_elf_rela_t* rela = NULL;
 	scf_elf_sym_t*  sym  = NULL;
 
 	int ret;
 
 	char* inputs[] = {
 		"../lib/_start.o",
+#if 0
 		"../lib/scf_syscall.o",
 		"../lib/scf_memcpy.o",
 		"../lib/scf_memcmp.o",
@@ -798,11 +979,17 @@ int main()
 		"../lib/scf_malloc.o",
 		"../lib/scf_object.o",
 		"../lib/scf_list.o",
+#endif
 		"./1.elf",
 	};
 
 	char* afiles[] = {
 //		"lib12.a",
+	};
+
+	char* sofiles[] = {
+		"libdot.so",
+		"libadd.so",
 	};
 
 	ret = scf_elf_file_open(&exec, "./1.out", "wb");
@@ -817,7 +1004,8 @@ int main()
 		return ret;
 	}
 
-	ret = link_relas(exec, afiles, sizeof(afiles) / sizeof(afiles[0]));
+	ret = link_relas(exec, afiles,  sizeof(afiles)  / sizeof(afiles[0]),
+			               sofiles, sizeof(sofiles) / sizeof(sofiles[0]));
 	if (ret < 0) {
 		scf_loge("\n");
 		return ret;
@@ -827,12 +1015,44 @@ int main()
 	for (i  = 0; i < exec->syms->size; i++) {
 		sym =        exec->syms->data[i];
 
-		if (scf_elf_add_sym(exec->elf, sym) < 0) {
+		if (scf_elf_add_sym(exec->elf, sym, ".symtab") < 0) {
 			scf_loge("\n");
 			return -1;
 		}
 	}
 
+	for (i  = 0; i < exec->dyn_syms->size; i++) {
+		sym =        exec->dyn_syms->data[i];
+
+		if (scf_elf_add_sym(exec->elf, sym, ".dynsym") < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+	}
+
+	for (i   = 0; i < exec->rela_plt->size; i++) {
+		rela =        exec->rela_plt->data[i];
+
+		if (scf_elf_add_dyn_rela(exec->elf, rela) < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+	}
+
+	for (i = 0; i < exec->dyn_needs->size; i++) {
+		so =        exec->dyn_needs->data[i];
+
+		if (scf_elf_add_dyn_need(exec->elf, so->name->data) < 0) {
+			scf_loge("\n");
+			return -1;
+		}
+	}
+#if 1
+	if (scf_elf_add_dyn_need(exec->elf, "libc.so.6") < 0) {
+		scf_loge("\n");
+		return -1;
+	}
+#endif
 	size_t   bytes = 0;
 
 #define ADD_SECTION(sname, flags, align, value) \
@@ -860,7 +1080,7 @@ int main()
 		sym.st_info   = ELF64_ST_INFO(STB_LOCAL, STT_SECTION); \
 		bytes        += s.data_len; \
 		\
-		ret = scf_elf_add_sym(exec->elf, &sym); \
+		ret = scf_elf_add_sym(exec->elf, &sym, ".symtab"); \
 		if (ret < 0) { \
 			scf_loge("\n"); \
 			return ret; \
