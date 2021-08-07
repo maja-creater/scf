@@ -188,13 +188,13 @@ int scf_so_file_open(scf_elf_file_t** pso, const char* path, const char* mode)
 	for (i = 0; i < so->dyn_syms->size; i++) {
 		scf_elf_sym_t* esym = so->dyn_syms->data[i];
 
-		scf_loge("i: %d, sym: %s, shndx: %d\n", i, esym->name, esym->st_shndx);
+		scf_logd("i: %d, sym: %s, shndx: %d\n", i, esym->name, esym->st_shndx);
 	}
 
 	for (i = 0; i < so->rela_plt->size; i++) {
 		scf_elf_rela_t* er = so->rela_plt->data[i];
 
-		scf_loge("i: %d, rela: %s\n", i, er->name);
+		scf_logd("i: %d, rela: %s\n", i, er->name);
 	}
 #endif
 
@@ -763,7 +763,7 @@ static int _find_so_sym(scf_elf_file_t** pso, scf_vector_t* dlls, scf_elf_sym_t*
 	for (j = 0; j < dlls->size; j++) {
 		so =        dlls->data[j];
 
-		scf_loge("so: %p\n", so);
+		scf_logd("so: %p\n", so);
 		int k;
 		for (k   = 0; k < so->dyn_syms->size; k++) {
 			sym2 =        so->dyn_syms->data[k];
@@ -898,8 +898,8 @@ static int link_relas(scf_elf_file_t* exec, char* afiles[], int nb_afiles, char*
 
 		rela->r_info = ELF64_R_INFO(j + 1, ELF64_R_TYPE(rela->r_info));
 
-		scf_loge("sym: %s, r_offset: %#lx, r_addend: %ld\n", sym->name,
-				rela->r_offset, rela->r_addend);
+		scf_loge("j: %d, sym: %s, r_offset: %#lx, r_addend: %ld\n", j,
+				sym->name, rela->r_offset, rela->r_addend);
 	}
 
 	for (i = 0; i < exec->data_relas->size; i++) {
@@ -935,13 +935,19 @@ static int link_relas(scf_elf_file_t* exec, char* afiles[], int nb_afiles, char*
 	for (i = 0; i < exec->dyn_needs->size; i++) {
 		so =        exec->dyn_needs->data[i];
 
+		scf_loge("so: %s\n", so->name->data);
+
 		int sym_idx;
 		int j;
 		for (j = 0; j < so->rela_plt->size; j++) {
 			rela      = so->rela_plt->data[j];
 
 			sym_idx = ELF64_R_SYM(rela->r_info);
-			sym     = so->dyn_syms->data[sym_idx - 1];
+
+			if (sym_idx <= 0)
+				continue;
+
+			sym = so->dyn_syms->data[sym_idx - 1];
 
 			int ret = _find_so_sym(&so2, dlls, sym);
 			if (ret < 0) {
@@ -988,8 +994,10 @@ int main()
 	};
 
 	char* sofiles[] = {
-		"libdot.so",
-		"libadd.so",
+//		"libdot.so",
+//		"libadd.so",
+		"ld-linux-x86-64.so.2",
+		"/lib/x86_64-linux-gnu/libc.so.6",
 	};
 
 	ret = scf_elf_file_open(&exec, "./1.out", "wb");
@@ -1047,12 +1055,7 @@ int main()
 			return -1;
 		}
 	}
-#if 1
-	if (scf_elf_add_dyn_need(exec->elf, "libc.so.6") < 0) {
-		scf_loge("\n");
-		return -1;
-	}
-#endif
+
 	size_t   bytes = 0;
 
 #define ADD_SECTION(sname, flags, align, value) \
