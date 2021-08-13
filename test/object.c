@@ -7,15 +7,6 @@ struct scf_object_t
 
 int   scf_printf(const char* fmt, ...);
 
-void* scf__malloc (uintptr_t size);
-void* scf__calloc (uintptr_t n, uintptr_t size);
-void* scf__realloc(void* p,     uintptr_t size);
-int   scf__free   (void* p);
-
-void  scf__atomic_inc(intptr_t* p);
-void  scf__atomic_dec(intptr_t* p);
-int   scf__atomic_dec_and_test(intptr_t* p);
-
 void  scf__release_pt(void* objdata);
 
 void* scf__auto_malloc(uintptr_t size);

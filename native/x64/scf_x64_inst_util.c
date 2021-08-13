@@ -22,6 +22,7 @@ static scf_instruction_t* _x64_make_OpCode(scf_x64_OpCode_t* OpCode, int bytes, 
 			case SCF_X64_POP:
 			case SCF_X64_RET:
 			case SCF_X64_CALL:
+			case SCF_X64_CVTSS2SD:
 				break;
 
 			case SCF_X64_CVTSI2SD:

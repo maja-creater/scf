@@ -198,7 +198,12 @@ static int _x64_function_finish(scf_function_t* f)
 		X64_INST_ADD_CHECK(f->init_insts, inst);
 		f->init_code_bytes += inst->len;
 
-		inst = x64_make_inst_I2E(sub, rsp, (uint8_t*)&f->local_vars_size, 4);
+		uint32_t local = f->local_vars_size;
+		if (!(local & 0xf))
+			local += 8;
+
+		inst = x64_make_inst_I2E(sub, rsp, (uint8_t*)&local, 4);
+		//inst = x64_make_inst_I2E(sub, rsp, (uint8_t*)&f->local_vars_size, 4);
 		X64_INST_ADD_CHECK(f->init_insts, inst);
 		f->init_code_bytes += inst->len;
 

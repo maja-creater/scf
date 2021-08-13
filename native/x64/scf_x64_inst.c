@@ -180,6 +180,7 @@ static int _x64_inst_call_argv(scf_3ac_code_t* c, scf_function_t* f)
 	scf_x64_OpCode_t*   movx;
 	scf_instruction_t*  inst;
 
+	int nb_floats = 0;
 	int ret;
 	int i;
 	for (i = c->srcs->size - 1; i >= 1; i--) {
@@ -238,26 +239,30 @@ static int _x64_inst_call_argv(scf_3ac_code_t* c, scf_function_t* f)
 				rabi = x64_find_register_color_bytes(rabi->color, 8);
 				rs   = x64_find_register_color_bytes(rs->color,   8);
 			}
-
-			if (movx) {
-				inst = x64_make_inst_E2G(movx, rs,  rs);
-				X64_INST_ADD_CHECK(c->instructions, inst);
-			}
 		} else {
+			nb_floats++;
+
 			if (0 == src->dag_node->color) {
 				src->dag_node->color = -1;
 				v->global_flag       =  1;
 			}
 
-			if (SCF_VAR_FLOAT == v->type)
-				mov = x64_find_OpCode(SCF_X64_MOVSS, size, size, SCF_X64_G2E);
-			else
-				mov = x64_find_OpCode(SCF_X64_MOVSD, size, size, SCF_X64_G2E);
+			if (SCF_VAR_FLOAT == v->type) {
+				mov  = x64_find_OpCode(SCF_X64_MOVSS,    4, 4, SCF_X64_G2E);
+				movx = x64_find_OpCode(SCF_X64_CVTSS2SD, 4, 8, SCF_X64_E2G);
+			} else
+				mov  = x64_find_OpCode(SCF_X64_MOVSD, size, size, SCF_X64_G2E);
 
 			if (src->dag_node->color < 0)
 				src->dag_node->color = rabi->color;
 
 			X64_SELECT_REG_CHECK(&rs, src->dag_node, c, f, 1);
+			rs = x64_find_register_color_bytes(rs->color, 8);
+		}
+
+		if (movx) {
+			inst = x64_make_inst_E2G(movx, rs,  rs);
+			X64_INST_ADD_CHECK(c->instructions, inst);
 		}
 
 		if (!rd) {
@@ -279,7 +284,7 @@ static int _x64_inst_call_argv(scf_3ac_code_t* c, scf_function_t* f)
 		}
 	}
 
-	return 0;
+	return nb_floats;
 }
 
 static int _x64_call_save_ret_regs(scf_3ac_code_t* c, scf_function_t* f, scf_function_t* pf)
@@ -500,7 +505,8 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 
 	scf_register_x64_t* rsp  = x64_find_register("rsp");
 	scf_register_x64_t* rax  = x64_find_register("rax");
-	scf_x64_OpCode_t*   xor;
+//	scf_x64_OpCode_t*   xor;
+	scf_x64_OpCode_t*   mov;
 	scf_x64_OpCode_t*   sub;
 	scf_x64_OpCode_t*   add;
 	scf_x64_OpCode_t*   call;
@@ -515,7 +521,6 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	int i;
 
 	if (pf->rets) {
-
 		ret = _x64_call_save_ret_regs(c, f, pf);
 		if (ret < 0) {
 			scf_loge("\n");
@@ -543,9 +548,10 @@ static int _x64_inst_call_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		scf_loge("\n");
 		return ret;
 	}
+	uint64_t imm = ret > 0;
 
-	xor  = x64_find_OpCode(SCF_X64_XOR, 8,8, SCF_X64_G2E);
-	inst = x64_make_inst_G2E(xor, rax, rax);
+	mov  = x64_find_OpCode(SCF_X64_MOV, 8,8, SCF_X64_I2G);
+	inst = x64_make_inst_I2G(mov, rax, (uint8_t*)&imm, sizeof(imm));
 	X64_INST_ADD_CHECK(c->instructions, inst);
 
 	scf_register_x64_t* saved_regs[X64_ABI_CALLER_SAVES_NB];

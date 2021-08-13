@@ -972,18 +972,18 @@ int main()
 
 	char* inputs[] = {
 		"../lib/_start.o",
-#if 0
 		"../lib/scf_syscall.o",
+		"../lib/scf_linux_api.o",
+		"../lib/scf_printf.o",
+		"../lib/scf_object.o",
+		"../lib/scf_atomic.o",
+#if 0
 		"../lib/scf_memcpy.o",
 		"../lib/scf_memcmp.o",
 		"../lib/scf_memset.o",
-		"../lib/scf_atomic.o",
 		"../lib/scf_brk.o",
-		"../lib/scf_linux_api.o",
-		"../lib/scf_printf.o",
 		"../lib/scf_cstr.o",
 		"../lib/scf_malloc.o",
-		"../lib/scf_object.o",
 		"../lib/scf_list.o",
 #endif
 		"./1.elf",

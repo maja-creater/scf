@@ -485,6 +485,55 @@ static scf_3ac_code_t* _code_alloc_array_member_address(scf_ast_t* ast, scf_dag_
 	return c;
 }
 
+static scf_3ac_code_t* _code_alloc_array_member(scf_ast_t* ast, scf_dag_node_t* dn_base, scf_dag_node_t* dn_index, scf_dag_node_t* dn_scale)
+{
+	scf_string_t*   s;
+	scf_lex_word_t* w;
+	scf_3ac_code_t* c    = scf_3ac_code_alloc();
+	scf_vector_t*   srcs = scf_vector_alloc();
+	scf_vector_t*   dsts = scf_vector_alloc();
+
+	scf_3ac_operand_t*   base   = scf_3ac_operand_alloc();
+	scf_3ac_operand_t*   index  = scf_3ac_operand_alloc();
+	scf_3ac_operand_t*   scale  = scf_3ac_operand_alloc();
+	scf_vector_add(srcs, base);
+	scf_vector_add(srcs, index);
+	scf_vector_add(srcs, scale);
+
+	base->node       = dn_base->node;
+	base->dag_node   = dn_base;
+
+	index->node      = dn_index->node;
+	index->dag_node  = dn_index;
+
+	scale->node      = dn_scale->node;
+	scale->dag_node  = dn_scale;
+
+	scf_3ac_operand_t*   dst0 = scf_3ac_operand_alloc();
+	scf_vector_add(dsts, dst0);
+
+	c->srcs = srcs;
+	c->dsts = dsts;
+	c->op   = scf_3ac_find_operator(SCF_OP_ARRAY_INDEX);
+
+	w = scf_lex_word_alloc(dn_base->var->w->file, 0, 0, SCF_LEX_WORD_ID);
+	w->text = scf_string_cstr("[]");
+
+	scf_type_t* t = NULL;
+	int ret = scf_ast_find_type_type(&t, ast, dn_base->var->type);
+	assert(0 == ret);
+	assert(t);
+
+	scf_variable_t* v   = SCF_VAR_ALLOC_BY_TYPE(w, t, 0, dn_base->var->nb_pointers, NULL);
+	scf_dag_node_t* dn2 = scf_dag_node_alloc(v->type, v, NULL);
+
+	dn2->var->nb_dimentions = dn_base->var->nb_dimentions;
+
+	dst0->dag_node = dn2;
+
+	return c;
+}
+
 static int _auto_gc_code_list_ref(scf_list_t* h, scf_ast_t* ast, scf_dn_status_t* ds)
 {
 	scf_dag_node_t*    dn = ds->dag_node;
@@ -504,11 +553,10 @@ static int _auto_gc_code_list_ref(scf_list_t* h, scf_ast_t* ast, scf_dn_status_t
 				c = _code_alloc_member(ast, dn, di->dn);
 
 			} else {
-				assert(di->index >= 0);
+				assert(di->index >= 0 || -1 == di->index);
+				assert(di->dn_scale);
 
-				assert(0 == di->index);
-
-				c = _code_alloc_dereference(ast, dn);
+				c = _code_alloc_array_member(ast, dn, di->dn, di->dn_scale);
 			}
 
 			scf_list_add_tail(h, &c->list);
@@ -1209,10 +1257,12 @@ static int _auto_gc_last_free(scf_ast_t* ast, scf_function_t* f)
 					var_index++;
 			}
 
-			if (var_index > 0 && v->nb_dimentions > 0 && v->local_flag) {
+			if (var_index > 0) {
+				if (v->nb_dimentions > 0 && v->local_flag) {
 
-				if (scf_vector_add_unique(local_arrays, dn) < 0)
-					return -ENOMEM;
+					if (scf_vector_add_unique(local_arrays, dn) < 0)
+						return -ENOMEM;
+				}
 
 				i++;
 				continue;

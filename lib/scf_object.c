@@ -7,10 +7,10 @@ struct scf_object_t
 
 int   scf_printf(const char* fmt, ...);
 
-void* scf__malloc (uintptr_t size);
-void* scf__calloc (uintptr_t n, uintptr_t size);
-void* scf__realloc(void* p,     uintptr_t size);
-int   scf__free   (void* p);
+void* malloc (uintptr_t size);
+void* calloc (uintptr_t n, uintptr_t size);
+void* realloc(void* p,     uintptr_t size);
+int   free   (void* p);
 
 void  scf__atomic_inc(intptr_t* p);
 void  scf__atomic_dec(intptr_t* p);
@@ -21,7 +21,7 @@ void  scf__release_pt(void* objdata);
 
 void* scf__auto_malloc(uintptr_t size)
 {
-	scf_object_t* obj = scf__calloc(1, sizeof(scf_object_t) + size);
+	scf_object_t* obj = calloc(1, sizeof(scf_object_t) + size);
 	if (!obj)
 		return NULL;
 
@@ -36,8 +36,10 @@ void* scf__auto_malloc(uintptr_t size)
 
 void scf__auto_freep(void** pp, scf__release_pt* release)
 {
-	if (!pp || !*pp)
+	if (!pp || !*pp) {
+		scf_printf("%s()\n\n", __func__);
 		return;
+	}
 
 	void*         data = *pp;
 	scf_object_t* obj  = data - sizeof(scf_object_t);
@@ -49,7 +51,7 @@ void scf__auto_freep(void** pp, scf__release_pt* release)
 		if (release)
 			release(data);
 
-		scf__free(obj);
+		free(obj);
 	}
 
 	*pp = NULL;
@@ -95,9 +97,9 @@ void scf__auto_freep_array(void** pp, int nb_pointers, scf__release_pt* release)
 		if (release && 1 == nb_pointers)
 			release(p);
 
-		scf_printf("%s(), obj: %p, p: %p, nb_pointers: %d\n\n", __func__, obj, p, nb_pointers);
+		scf_printf("%s(), pp: %p, p: %p, nb_pointers: %d\n\n", __func__, pp, p, nb_pointers);
 
-		scf__free(obj);
+		free(obj);
 	}
 
 	*pp = NULL;
@@ -132,7 +134,7 @@ void scf__auto_free_array(void** pp, int size, int nb_pointers, scf__release_pt*
 				if (release)
 					release(data);
 
-				scf__free(obj);
+				free(obj);
 			}
 		}
 

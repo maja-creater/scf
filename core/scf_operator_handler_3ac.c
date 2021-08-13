@@ -1598,7 +1598,6 @@ static int _scf_op_call(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void* 
 			v->tmp_flag = 1;
 	}
 
-
 	if (parent->result_nodes) {
 
 		scf_node_t* node;
@@ -1859,10 +1858,13 @@ static int _scf_op_right_value(scf_ast_t* ast, scf_node_t** pright, scf_handler_
 
 		if (SCF_OP_CALL == right->type && !right->split_flag) {
 
-			assert(right->result_nodes);
-			assert(right->result_nodes->size > 0);
+			if (right->result_nodes) {
 
-			right = right->result_nodes->data[0];
+				assert(right->result_nodes->size > 0);
+
+				right = right->result_nodes->data[0];
+			} else
+				assert(right->result);
 		}
 	}
 
