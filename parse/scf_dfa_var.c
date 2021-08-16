@@ -253,6 +253,11 @@ static int _var_action_semicolon(scf_dfa_t* dfa, scf_vector_t* words, void* data
 		d->expr = NULL;
 	}
 
+	scf_node_t* b = (scf_node_t*)parse->ast->current_block;
+
+	if (b->nb_nodes > 0)
+		b->nodes[b->nb_nodes - 1]->semi_flag = 1;
+
 	return SCF_DFA_OK;
 }
 

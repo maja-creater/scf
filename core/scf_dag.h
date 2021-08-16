@@ -185,6 +185,29 @@ static inline int scf_ds_is_pointer(scf_dn_status_t* ds)
 	return n;
 }
 
+static inline int scf_ds_nb_pointers(scf_dn_status_t* ds)
+{
+	if (!ds->dn_indexes)
+		return ds->dag_node->var->nb_pointers;
+
+	scf_dn_index_t* di;
+
+	int n = scf_variable_nb_pointers(ds->dag_node->var);
+	int i;
+
+	for (i = ds->dn_indexes->size - 1; i >= 0; i--) {
+		di = ds->dn_indexes->data[i];
+
+		if (di->member)
+			n = scf_variable_nb_pointers(di->member);
+		else
+			n--;
+	}
+
+	assert(n >= 0);
+	return n;
+}
+
 #define SCF_DN_STATUS_GET(ds, vec, dn) \
 	do { \
 		ds = scf_vector_find_cmp(vec, dn, scf_dn_status_cmp); \
