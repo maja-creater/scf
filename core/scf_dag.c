@@ -1056,11 +1056,13 @@ static int __ds_for_dn(scf_dn_status_t* ds, scf_dag_node_t* dn_base)
 		dn_base  = dn_base->childs->data[0];
 	}
 
+/*	scf_loge("dn_base->type: %d\n", dn_base->type);
 	assert(scf_type_is_var(dn_base->type)
 			|| SCF_OP_INC == dn_base->type || SCF_OP_INC_POST == dn_base->type
 			|| SCF_OP_DEC == dn_base->type || SCF_OP_DEC_POST == dn_base->type
-			|| SCF_OP_CALL == dn_base->type);
-
+			|| SCF_OP_CALL == dn_base->type
+			|| SCF_OP_ADDRESS_OF == dn_base->type);
+*/
 	ds->dag_node = dn_base;
 	return 0;
 }

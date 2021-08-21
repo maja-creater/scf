@@ -44,9 +44,9 @@ void scf__auto_freep(void** pp, scf__release_pt* release)
 	void*         data = *pp;
 	scf_object_t* obj  = data - sizeof(scf_object_t);
 
-	scf_printf("%s(), obj: %p, pp: %p\n", __func__, obj, pp);
-
 	if (scf__atomic_dec_and_test(&obj->refs)) {
+
+		scf_printf("%s(), obj: %p, pp: %p\n", __func__, obj, pp);
 
 		if (release)
 			release(data);

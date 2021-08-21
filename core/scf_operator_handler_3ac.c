@@ -1939,7 +1939,7 @@ static int _scf_op_##name##_assign(scf_ast_t* ast, scf_node_t** nodes, int nb_no
 				return _scf_op_left_value(ast, SCF_OP_3AC_ASSIGN_DEREFERENCE, node0, node0, d); \
 				break; \
 			case SCF_OP_ARRAY_INDEX: \
-				return _scf_op_left_value(ast, SCF_OP_3AC_ASSIGN_ARRAY_INDEX, node0, node0, d); \
+				return _scf_op_left_value_array_index(ast, SCF_OP_3AC_ASSIGN_ARRAY_INDEX, node0, node0, d); \
 				break; \
 			case SCF_OP_POINTER: \
 				return _scf_op_left_value(ast, SCF_OP_3AC_ASSIGN_POINTER, node0, node0, d); \

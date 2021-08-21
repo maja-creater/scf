@@ -1002,35 +1002,45 @@ static int _bb_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t* bb
 			return ret;
 	}
 
-	if (bb->end_flag) {
+	scf_basic_block_mov_code(scf_list_head(&bb->code_list_head), bb1, bb);
 
-		scf_basic_block_mov_code(scf_list_head(&bb->code_list_head), bb1, bb);
+	bb1->call_flag        = bb->call_flag;
+	bb1->cmp_flag         = bb->cmp_flag;
+	bb1->ret_flag         = bb->ret_flag;
+	bb1->end_flag         = bb->end_flag;
+	bb1->varg_flag        = bb->varg_flag;
+	bb1->dereference_flag = bb->dereference_flag;
+	bb1->array_index_flag = bb->array_index_flag;
+	bb1->auto_ref_flag    = bb->auto_ref_flag;
+	bb1->auto_free_flag   = bb->auto_free_flag;
 
-		bb1->ret_flag  = bb->ret_flag;
-		bb1->end_flag  = 1;
-		bb ->end_flag  = 0;
-		bb ->call_flag = 1;
+	bb->end_flag  = 0;
+	bb->cmp_flag  = 0;
+	bb->ret_flag  = 0;
+	bb->varg_flag = 0;
+	bb->call_flag = 1;
 
-		bb1 = bb;
-	} else {
-		bb1->call_flag = 1;
-	}
+	SCF_XCHG(bb1->dn_loads,   bb->dn_loads);
+	SCF_XCHG(bb1->dn_saves,   bb->dn_saves);
+	SCF_XCHG(bb1->dn_reloads, bb->dn_reloads);
+	SCF_XCHG(bb1->dn_resaves, bb->dn_resaves);
 
-	bb1->ds_auto_gc = scf_dn_status_clone(ds);
-	if (!bb1->ds_auto_gc)
+	bb->ds_auto_gc = scf_dn_status_clone(ds);
+	if (!bb->ds_auto_gc)
 		return -ENOMEM;
 
-	bb1->auto_free_flag = 1;
+	bb->auto_ref_flag  = 0;
+	bb->auto_free_flag = 1;
 
-	ret = _bb_add_gc_code_freep(ast, bb1, ds);
+	ret = _bb_add_gc_code_freep(ast, bb, ds);
 	if (ret < 0)
 		return ret;
 
-	ret = _bb_add_active(bb1, dn);
+	ret = _bb_add_active(bb, dn);
 	if (ret < 0)
 		return ret;
 
-	return scf_basic_block_search_bfs(bb1, _bb_prev_add_active, dn);
+	return scf_basic_block_search_bfs(bb, _bb_prev_add_active, dn);
 }
 
 static int _bb_split_prev_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t* bb, scf_dn_status_t* ds, scf_vector_t* bb_split_prevs)
@@ -1561,10 +1571,9 @@ static int _bb_split_prevs_need_free(scf_dn_status_t* ds_obj, scf_vector_t* ds_m
 	for (k = 0; k < ds_malloced->size; k++) {
 		ds_alias  = ds_malloced->data[k];
 
-		scf_loge("\n");
+		scf_loge("## k: %d, ds_malloced: %p, size: %d\n", k, ds_malloced, ds_malloced->size);
 		scf_dn_status_print(ds_alias);
 	}
-	printf("\n");
 #endif
 	int need = 0;
 	for (i = 0; i < aliases->size; i++) {
@@ -1584,17 +1593,17 @@ static int _bb_split_prevs_need_free(scf_dn_status_t* ds_obj, scf_vector_t* ds_m
 					goto error; \
 				} \
 				\
-				ds = scf_vector_find_cmp(malloced, obj, scf_dn_status_cmp_same_dn_indexes); \
-				if (ds) {\
-				    assert(0 == scf_vector_del(malloced, ds)); \
-				    scf_dn_status_free(ds); \
-				} \
 				need = 1; \
 			} \
 		} while (0)
 
 		SPLIT_PREVS_NEED_FREE(ds_malloced, ds_alias, bb_split_prevs);
 	}
+		//		ds = scf_vector_find_cmp(malloced, obj, scf_dn_status_cmp_same_dn_indexes); \
+				if (ds) {\
+				    assert(0 == scf_vector_del(malloced, ds)); \
+				    scf_dn_status_free(ds); \
+				} \
 
 	SPLIT_PREVS_NEED_FREE(ds_malloced, ds_obj, bb_split_prevs);
 	ret = need;

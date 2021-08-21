@@ -434,7 +434,7 @@ int	scf_dag_expr_calculate(scf_list_t* h, scf_dag_node_t* node)
 
 	assert(scf_type_is_operator(node->type));
 	assert(node->childs->size > 0);
-#if 0
+#if 1
 	if (node->done)
 		return 0;
 	node->done = 1;

@@ -195,6 +195,14 @@ static int _bb_pointer_initeds(scf_vector_t* initeds, scf_list_t* bb_list_head, 
 		return ret;
 	}
 
+	scf_loge("initeds->size: %d\n", initeds->size);
+	int i;
+	for (i = 0; i < initeds->size; i++) {
+		scf_basic_block_t* bb2 = initeds->data[i];
+
+		scf_loge("bb2: %p, %d\n", bb2, bb2->index);
+	}
+
 	ret = _bb_dfs_check_initeds(bb_list_head, bb, initeds);
 	if (ret < 0) {
 		dn = ds->dag_node;
@@ -211,11 +219,81 @@ static int _bb_pointer_initeds(scf_vector_t* initeds, scf_list_t* bb_list_head, 
 	return ret;
 }
 
+static int _bb_pointer_initeds_leak(scf_vector_t* initeds, scf_list_t* bb_list_head, scf_basic_block_t* bb, scf_dn_status_t* ds)
+{
+	scf_dag_node_t* dn;
+	scf_variable_t* v;
+
+	int ret = _bb_dfs_initeds(bb_list_head, bb, ds, initeds);
+	if (ret < 0)
+		return ret;
+
+	if (0 == initeds->size) {
+		dn = ds->dag_node;
+		v  = dn->var;
+
+		if (scf_variable_const(v) || scf_variable_const_string(v))
+			return 0;
+
+		if (v->arg_flag)
+			return 0;
+
+		if (v->global_flag) {
+			scf_loge("bb: %p, index: %d, global pointer v_%d_%d/%s is not inited\n", bb, bb->index, v->w->line, v->w->pos, v->w->text->data);
+			return 0;
+		}
+
+		if (v->nb_dimentions > 0 && !ds->dn_indexes)
+			return 0;
+
+		if (dn->node->split_flag) {
+			scf_loge("dn->node->split_parent: %d, %p\n", dn->node->split_parent->type, dn->node->split_parent);
+			assert(dn->node->split_parent->type == SCF_OP_CALL
+					|| dn->node->split_parent->type == SCF_OP_CREATE);
+
+			return 0;
+		}
+
+		if (ds->dn_indexes)
+			return 0;
+
+		scf_loge("bb: %p, index: %d, pointer v_%d_%d/%s is not inited\n", bb, bb->index, v->w->line, v->w->pos, v->w->text->data);
+
+		return SCF_POINTER_NOT_INIT;
+	}
+
+	if (ds->dn_indexes && ds->dn_indexes->size > 0) {
+
+		scf_dn_status_t* base;
+		scf_vector_t*    tmp;
+
+		base = scf_dn_status_alloc(ds->dag_node);
+		if (!base)
+			return -ENOMEM;
+
+		tmp = scf_vector_alloc();
+		if (!tmp) {
+			scf_dn_status_free(base);
+			return -ENOMEM;
+		}
+
+		ret = _bb_pointer_initeds_leak(tmp, bb_list_head, bb, base);
+
+		scf_vector_free(tmp);
+		scf_dn_status_free(base);
+
+		return ret;
+	}
+
+	return 0;
+}
+
 static int _bb_pointer_aliases(scf_vector_t* aliases, scf_list_t* bb_list_head, scf_basic_block_t* bb, scf_dn_status_t* ds_pointer)
 {
 	scf_vector_t*      initeds;
 	scf_basic_block_t* bb2;
 	scf_dn_status_t*   ds;
+	scf_dn_status_t*   ds2;
 
 	int ret;
 	int i;
@@ -243,17 +321,114 @@ static int _bb_pointer_aliases(scf_vector_t* aliases, scf_list_t* bb_list_head, 
 			if (scf_vector_find_cmp(aliases, ds, scf_dn_status_cmp_alias))
 				continue;
 
-			ret = scf_vector_add(aliases, ds);
+			ds2 = scf_dn_status_clone(ds);
+			if (!ds2) {
+				scf_vector_free(initeds);
+				return -ENOMEM;
+			}
+
+			ret = scf_vector_add(aliases, ds2);
 			if (ret < 0) {
+				scf_dn_status_free(ds2);
 				scf_vector_free(initeds);
 				return ret;
 			}
-
-			scf_dn_status_ref(ds);
 		}
 	}
 
 	return 0;
+}
+
+static int _bb_pointer_aliases_leak(scf_vector_t* aliases, scf_list_t* bb_list_head, scf_basic_block_t* bb, scf_dn_status_t* ds_pointer)
+{
+	scf_vector_t*      initeds;
+	scf_basic_block_t* bb2;
+	scf_dn_status_t*   ds;
+	scf_dn_status_t*   ds2;
+
+	int ret;
+	int i;
+	int j;
+
+	initeds = scf_vector_alloc();
+	if (!initeds)
+		return -ENOMEM;
+
+	ret = _bb_pointer_initeds_leak(initeds, bb_list_head, bb, ds_pointer);
+	if (ret < 0) {
+		scf_vector_free(initeds);
+		return ret;
+	}
+
+	for (i = 0; i < initeds->size; i++) {
+		bb2       = initeds->data[i];
+
+		for (j = 0; j < bb2->dn_status_initeds->size; j++) {
+			ds =        bb2->dn_status_initeds->data[j];
+
+			if (scf_dn_status_cmp_like_dn_indexes(ds, ds_pointer))
+				continue;
+
+			if (scf_vector_find_cmp(aliases, ds, scf_dn_status_cmp_alias))
+				continue;
+
+			ds2 = scf_dn_status_clone(ds);
+			if (!ds2) {
+				scf_vector_free(initeds);
+				return -ENOMEM;
+			}
+
+			ret = scf_vector_add(aliases, ds2);
+			if (ret < 0) {
+				scf_dn_status_free(ds2);
+				scf_vector_free(initeds);
+				return ret;
+			}
+		}
+	}
+
+	return 0;
+}
+
+int scf_pointer_alias_ds_leak(scf_vector_t* aliases, scf_dn_status_t* ds_pointer, scf_3ac_code_t* c, scf_basic_block_t* bb, scf_list_t* bb_list_head)
+{
+	scf_dn_status_t* ds;
+	scf_dn_status_t* ds2;
+	scf_dn_status_t* ds3;
+	scf_3ac_code_t*  c2;
+	scf_list_t*      l2;
+
+	for (l2 = &c->list; l2 != scf_list_sentinel(&bb->code_list_head); l2 = scf_list_prev(l2)) {
+
+		c2  = scf_list_data(l2, scf_3ac_code_t, list);
+
+		if (!c2->dn_status_initeds)
+			continue;
+
+		ds2 = scf_vector_find_cmp(c2->dn_status_initeds, ds_pointer, scf_dn_status_cmp_same_dn_indexes);
+		if (!ds2)
+			continue;
+
+		ds = scf_dn_status_null(); 
+		if (!ds)
+			return -ENOMEM;
+
+		int ret = scf_dn_status_copy_alias(ds, ds2);
+		if (ret < 0) {
+			scf_dn_status_free(ds);
+			return ret;
+		}
+
+		ret = scf_vector_add(aliases, ds);
+		if (ret < 0) {
+			scf_dn_status_free(ds);
+			return ret;
+		}
+
+		return 0;
+	}
+
+	return _bb_pointer_aliases_leak(aliases, bb_list_head, bb, ds_pointer);
 }
 
 int _bb_copy_aliases(scf_basic_block_t* bb, scf_dag_node_t* dn_pointer, scf_dag_node_t* dn_dereference, scf_vector_t* aliases)

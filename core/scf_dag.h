@@ -68,6 +68,8 @@ struct scf_dn_status_s {
 
 	intptr_t            color;
 
+	int                 ret_index;
+
 	uint32_t            active :1;
 	uint32_t            inited :1;
 	uint32_t            updated:1;

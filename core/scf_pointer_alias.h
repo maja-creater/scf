@@ -16,4 +16,6 @@ int __alias_dereference(scf_vector_t* aliases, scf_dag_node_t* dn_pointer, scf_3
 int scf_pointer_alias   (scf_vector_t* aliases, scf_dag_node_t*  dn_alias,   scf_3ac_code_t* c, scf_basic_block_t* bb, scf_list_t* bb_list_head);
 int scf_pointer_alias_ds(scf_vector_t* aliases, scf_dn_status_t* ds_pointer, scf_3ac_code_t* c, scf_basic_block_t* bb, scf_list_t* bb_list_head);
 
+int scf_pointer_alias_ds_leak(scf_vector_t* aliases, scf_dn_status_t* ds_pointer, scf_3ac_code_t* c, scf_basic_block_t* bb, scf_list_t* bb_list_head);
+
 #endif

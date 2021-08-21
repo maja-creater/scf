@@ -1130,6 +1130,12 @@ static int _x64_inst_address_of_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 	}
 	assert(dst->dag_node->color > 0);
 
+	ret = x64_overflow_reg2(rd, dst->dag_node, c, f);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
 	lea  = x64_find_OpCode(SCF_X64_LEA, 8,8, SCF_X64_E2G);
 	inst = x64_make_inst_M2G(&rela, lea, rd, NULL, src->dag_node->var);
 	X64_INST_ADD_CHECK(c->instructions, inst);
@@ -1764,6 +1770,7 @@ static int _x64_inst_reload_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 		scf_loge("\n");
 		return ret;
 	}
+
 	return 0;
 }
 
