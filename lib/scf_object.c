@@ -46,12 +46,14 @@ void scf__auto_freep(void** pp, scf__release_pt* release)
 
 	if (scf__atomic_dec_and_test(&obj->refs)) {
 
-		scf_printf("%s(), obj: %p, pp: %p\n", __func__, obj, pp);
+		scf_printf("%s(), obj: %p\n", __func__, obj);
 
 		if (release)
 			release(data);
 
 		free(obj);
+	} else {
+		scf_printf("%s(), obj: %p, refs: %ld\n", __func__, obj, obj->refs);
 	}
 
 	*pp = NULL;
@@ -92,12 +94,14 @@ void scf__auto_freep_array(void** pp, int nb_pointers, scf__release_pt* release)
 
 	obj  = (void*)p - sizeof(scf_object_t);
 
+//	scf_printf("%s(), pp: %p, p: %p, nb_pointers: %d\n\n", __func__, pp, p, nb_pointers);
+
 	if (scf__atomic_dec_and_test(&obj->refs)) {
 
 		if (release && 1 == nb_pointers)
 			release(p);
 
-		scf_printf("%s(), pp: %p, p: %p, nb_pointers: %d\n\n", __func__, pp, p, nb_pointers);
+		scf_printf("%s(), obj: %p\n\n", __func__, obj);
 
 		free(obj);
 	}

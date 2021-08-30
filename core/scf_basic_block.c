@@ -281,6 +281,19 @@ void scf_basic_block_print_list(scf_list_t* h)
 				}
 			}
 #endif
+#if 1
+			if (bb->ds_malloced) {
+				scf_dn_status_t* ds;
+
+				for (i = 0; i < bb->ds_malloced->size; i++) {
+					ds =        bb->ds_malloced->data[i];
+
+					if (scf_vector_find_cmp(bb->ds_freed, ds, scf_dn_status_cmp_same_dn_indexes))
+						continue;
+					scf_dn_status_print(ds);
+				}
+			}
+#endif
 			if (bb->entry_dn_actives) {
 				for (i = 0; i < bb->entry_dn_actives->size; i++) {
 

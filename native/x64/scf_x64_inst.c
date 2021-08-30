@@ -233,11 +233,6 @@ static int _x64_inst_call_argv(scf_3ac_code_t* c, scf_function_t* f)
 			} else {
 				if (src->dag_node->color < 0)
 					src->dag_node->color = rabi->color;
-
-				X64_SELECT_REG_CHECK(&rs, src->dag_node, c, f, 1);
-
-				rabi = x64_find_register_color_bytes(rabi->color, 8);
-				rs   = x64_find_register_color_bytes(rs->color,   8);
 			}
 		} else {
 			nb_floats++;
@@ -255,6 +250,19 @@ static int _x64_inst_call_argv(scf_3ac_code_t* c, scf_function_t* f)
 
 			if (src->dag_node->color < 0)
 				src->dag_node->color = rabi->color;
+		}
+
+		if (!rs) {
+			assert(src->dag_node->color > 0);
+
+			if (rd && X64_COLOR_CONFLICT(rd->color, src->dag_node->color)) {
+
+				ret = x64_overflow_reg2(rd, src->dag_node, c, f);
+				if (ret < 0) {
+					scf_loge("\n");
+					return ret;
+				}
+			}
 
 			X64_SELECT_REG_CHECK(&rs, src->dag_node, c, f, 1);
 			rs = x64_find_register_color_bytes(rs->color, 8);
@@ -1517,10 +1525,12 @@ static int _x64_inst_return_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 				mov = x64_find_OpCode(SCF_X64_MOV, rd->bytes, rd->bytes, SCF_X64_E2G);
 		}
 
-		scf_loge("rd: %s, rd->dag_nodes->size: %d\n", rd->name, rd->dag_nodes->size);
-
+		scf_logd("rd: %s, rd->dag_nodes->size: %d\n", rd->name, rd->dag_nodes->size);
 
 		if (src->dag_node->color > 0) {
+
+			int start = c->instructions->size;
+
 			X64_SELECT_REG_CHECK(&rs, src->dag_node, c, f, 1);
 
 			if (!X64_COLOR_CONFLICT(rd->color, rs->color)) {
@@ -1531,6 +1541,18 @@ static int _x64_inst_return_handler(scf_native_t* ctx, scf_3ac_code_t* c)
 
 				inst = x64_make_inst_E2G(mov, rd, rs);
 				X64_INST_ADD_CHECK(c->instructions, inst);
+
+				scf_instruction_t* tmp;
+				int j;
+				int k;
+				for (j = start; j < c->instructions->size; j++) {
+					tmp           = c->instructions->data[j];
+
+					for (k = j - 1; k >= j - start; k--)
+						c->instructions->data[k + 1] = c->instructions->data[k];
+
+					c->instructions->data[j - start] = tmp;
+				}
 			}
 		} else {
 			int ret = x64_save_reg(rd, c, f);

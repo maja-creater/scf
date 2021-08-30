@@ -497,6 +497,7 @@ int scf_dag_node_same(scf_dag_node_t* dag_node, const scf_node_t* node)
 	int i;
 
 	if (node->split_flag) {
+
 		if (dag_node->var != _scf_operand_get(node))
 			return 0;
 		node = node->split_parent;
@@ -630,6 +631,21 @@ cmp_childs:
 		}
 	}
 
+	if (SCF_OP_CALL == dag_node->type) {
+
+		scf_variable_t* v0 = _scf_operand_get(node);
+		scf_variable_t* v1 = dag_node->var;
+
+		if (v0 && v0->w && v1 && v1->w) {
+			if (v0->type != v1->type) {
+				scf_loge("v0: %d/%s_%#lx, split_flag: %d\n", v0->w->line, v0->w->text->data, 0xffff & (uintptr_t)v0, node->split_flag);
+				scf_loge("v1: %d/%s_%#lx\n", v1->w->line, v1->w->text->data, 0xffff & (uintptr_t)v1);
+			}
+		}
+
+		if (v0 != v1)
+			return 0;
+	}
 	return 1;
 }
 

@@ -39,9 +39,9 @@ static scf_optimizer_t*  scf_optimizers[] =
 	&scf_optimizer_pointer_aliases,
 	&scf_optimizer_loads_saves,
 
-	&scf_optimizer_dominators_normal,
-
 	&scf_optimizer_auto_gc_find,  // global optimizer
+
+	&scf_optimizer_dominators_normal,
 
 	&scf_optimizer_auto_gc,
 

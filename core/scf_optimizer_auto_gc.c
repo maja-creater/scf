@@ -966,83 +966,6 @@ static int _bb_add_memset_array(scf_ast_t* ast, scf_function_t* f, scf_dag_node_
 	return scf_basic_block_search_bfs(bb1, _bb_prev_add_active, dn_array);
 }
 
-static int _bb_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t* bb, scf_dn_status_t* ds)
-{
-	scf_basic_block_t* bb1     = NULL;
-	scf_dn_status_t*   ds2     = NULL;
-	scf_dag_node_t*    dn      = ds->dag_node;
-	scf_dag_node_t*    dn2;
-
-	int ret = scf_basic_block_split(bb, &bb1);
-	if (ret < 0)
-		return ret;
-
-	scf_list_add_front(&bb->list, &bb1->list);
-
-	ds2 = scf_vector_find_cmp(bb->ds_malloced, ds, scf_dn_status_cmp_same_dn_indexes);
-	if (ds2) {
-		assert(0 == scf_vector_del(bb->ds_malloced, ds2));
-
-		if (ds2 != ds)
-			scf_dn_status_free(ds2);
-	}
-	ds2 = NULL;
-
-	int i;
-	for (i  = 0; i < bb->ds_malloced->size; i++) {
-		ds2 =        bb->ds_malloced->data[i];
-
-		if (scf_vector_find_cmp(bb->ds_freed, ds2, scf_dn_status_cmp_same_dn_indexes))
-			continue;
-
-		scf_dn_status_t* ds3 = scf_dn_status_clone(ds2);
-
-		ret = scf_vector_add(bb1->ds_malloced, ds2);
-		if (ret < 0)
-			return ret;
-	}
-
-	scf_basic_block_mov_code(scf_list_head(&bb->code_list_head), bb1, bb);
-
-	bb1->call_flag        = bb->call_flag;
-	bb1->cmp_flag         = bb->cmp_flag;
-	bb1->ret_flag         = bb->ret_flag;
-	bb1->end_flag         = bb->end_flag;
-	bb1->varg_flag        = bb->varg_flag;
-	bb1->dereference_flag = bb->dereference_flag;
-	bb1->array_index_flag = bb->array_index_flag;
-	bb1->auto_ref_flag    = bb->auto_ref_flag;
-	bb1->auto_free_flag   = bb->auto_free_flag;
-
-	bb->end_flag  = 0;
-	bb->cmp_flag  = 0;
-	bb->ret_flag  = 0;
-	bb->varg_flag = 0;
-	bb->call_flag = 1;
-
-	SCF_XCHG(bb1->dn_loads,   bb->dn_loads);
-	SCF_XCHG(bb1->dn_saves,   bb->dn_saves);
-	SCF_XCHG(bb1->dn_reloads, bb->dn_reloads);
-	SCF_XCHG(bb1->dn_resaves, bb->dn_resaves);
-
-	bb->ds_auto_gc = scf_dn_status_clone(ds);
-	if (!bb->ds_auto_gc)
-		return -ENOMEM;
-
-	bb->auto_ref_flag  = 0;
-	bb->auto_free_flag = 1;
-
-	ret = _bb_add_gc_code_freep(ast, bb, ds);
-	if (ret < 0)
-		return ret;
-
-	ret = _bb_add_active(bb, dn);
-	if (ret < 0)
-		return ret;
-
-	return scf_basic_block_search_bfs(bb, _bb_prev_add_active, dn);
-}
-
 static int _bb_split_prev_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_block_t* bb, scf_dn_status_t* ds, scf_vector_t* bb_split_prevs)
 {
 	scf_basic_block_t* bb1;
@@ -1155,8 +1078,6 @@ static int _bb_split_prev_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_
 				c   = scf_list_data(l2, scf_3ac_code_t, list);
 				dst = c->dsts->data[0];
 
-				scf_loge("bb2: %p, bb3: %p, bb1: %p\n", bb2, bb3, bb1);
-
 				if (dst->bb == bb)
 					dst->bb = bb1;
 			}
@@ -1171,6 +1092,9 @@ static int _bb_split_prev_add_free(scf_ast_t* ast, scf_function_t* f, scf_basic_
 				continue;
 
 			if (scf_vector_find_cmp(bb2->ds_freed, ds2, scf_dn_status_cmp_same_dn_indexes))
+				continue;
+
+			if (scf_vector_find_cmp(bb1->ds_malloced, ds2, scf_dn_status_cmp_same_dn_indexes))
 				continue;
 
 			scf_dn_status_t* ds3 = scf_dn_status_clone(ds2);
@@ -1338,33 +1262,10 @@ static int _auto_gc_last_free(scf_ast_t* ast, scf_function_t* f)
 			return ret;
 		}
 
-		if (0 == vec->size || vec->size == bb_dominator->prevs->size) {
-
-			if (scf_vector_find_cmp(bb_dominator->ds_malloced, ds, scf_dn_status_cmp_same_dn_indexes)) {
-
-				ret = _bb_add_free(ast, f, bb_dominator, ds);
-				i++;
-			} else {
-				int size = bb->ds_malloced->size;
-
-				ret = _bb_add_free(ast, f, bb, ds);
-
-				if (size == bb->ds_malloced->size)
-					i++;
-			}
-
-			scf_vector_free(vec);
-			vec = NULL;
-
-			if (ret < 0)
-				return ret;
-
-		} else {
-			ret = _bb_split_prev_add_free(ast, f, bb_dominator, ds, vec);
-			if (ret < 0)
-				return ret;
-			i++;
-		}
+		ret = _bb_split_prev_add_free(ast, f, bb_dominator, ds, vec);
+		if (ret < 0)
+			return ret;
+		i++;
 	}
 
 	scf_dag_node_t*    dn;
@@ -1525,6 +1426,8 @@ static int _bb_need_ref(scf_dn_status_t* ds_obj, scf_vector_t* ds_malloced,
 	if (ret < 0)
 		return ret;
 
+	scf_logd("aliases->size: %d\n", aliases->size);
+
 	int need = 0;
 	for (i = 0; i < aliases->size; i++) {
 		ds_alias  = aliases->data[i];
@@ -1556,31 +1459,11 @@ static int _bb_split_prevs_need_free(scf_dn_status_t* ds_obj, scf_vector_t* ds_m
 
 	int ret;
 	int i;
+	int need = 0;
 
 	aliases = scf_vector_alloc();
 	if (!aliases)
 		return -ENOMEM;
-
-	ret = __bb_find_ds_alias(aliases, ds_obj, c, bb, bb_list_head);
-	if (ret < 0)
-		return ret;
-
-#if 0
-	printf("\n");
-	int k;
-	for (k = 0; k < ds_malloced->size; k++) {
-		ds_alias  = ds_malloced->data[k];
-
-		scf_loge("## k: %d, ds_malloced: %p, size: %d\n", k, ds_malloced, ds_malloced->size);
-		scf_dn_status_print(ds_alias);
-	}
-#endif
-	int need = 0;
-	for (i = 0; i < aliases->size; i++) {
-		ds_alias  = aliases->data[i];
-
-		if (!ds_alias->dag_node)
-			continue;
 
 #define SPLIT_PREVS_NEED_FREE(malloced, obj, split_prevs) \
 		do { \
@@ -1597,6 +1480,28 @@ static int _bb_split_prevs_need_free(scf_dn_status_t* ds_obj, scf_vector_t* ds_m
 			} \
 		} while (0)
 
+#if 0
+	ret = __bb_find_ds_alias(aliases, ds_obj, c, bb, bb_list_head);
+	if (ret < 0)
+		return ret;
+
+#if 0
+	printf("\n");
+	int k;
+	for (k = 0; k < ds_malloced->size; k++) {
+		ds_alias  = ds_malloced->data[k];
+
+		scf_loge("## k: %d, ds_malloced: %p, size: %d\n", k, ds_malloced, ds_malloced->size);
+		scf_dn_status_print(ds_alias);
+	}
+#endif
+	for (i = 0; i < aliases->size; i++) {
+		ds_alias  = aliases->data[i];
+
+		if (!ds_alias->dag_node)
+			continue;
+
+
 		SPLIT_PREVS_NEED_FREE(ds_malloced, ds_alias, bb_split_prevs);
 	}
 		//		ds = scf_vector_find_cmp(malloced, obj, scf_dn_status_cmp_same_dn_indexes); \
@@ -1604,7 +1509,8 @@ static int _bb_split_prevs_need_free(scf_dn_status_t* ds_obj, scf_vector_t* ds_m
 				    assert(0 == scf_vector_del(malloced, ds)); \
 				    scf_dn_status_free(ds); \
 				} \
-
+#endif
+#endif
 	SPLIT_PREVS_NEED_FREE(ds_malloced, ds_obj, bb_split_prevs);
 	ret = need;
 
@@ -1835,6 +1741,7 @@ _ref:
 				return ret;
 
 			int ret = _bb_need_ref(ds, ds_malloced, c, bb, bb_list_head);
+
 			scf_dn_status_free(ds);
 			ds = NULL;
 
