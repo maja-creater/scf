@@ -1187,6 +1187,9 @@ int scf_basic_block_loads_saves(scf_basic_block_t* bb, scf_list_t* bb_list_head)
 
 		dn = bb->entry_dn_actives->data[i];
 
+		if (dn->var->extra_flag)
+			continue;
+
 		if (scf_vector_find(bb->entry_dn_aliases, dn)
 				|| dn->var->tmp_flag)
 			ret = scf_vector_add_unique(bb->dn_reloads, dn);

@@ -84,17 +84,23 @@ static int _x64_function_init(scf_function_t* f, scf_vector_t* local_vars)
 	if (ret < 0)
 		return ret;
 
+	int i;
+	for (i = 0; i < local_vars->size; i++) {
+		v  =        local_vars->data[i];
+
+		v->bp_offset = 0;
+	}
+
 	_x64_argv_rabi(f);
 
-	int i;
 	int local_vars_size = 8 + X64_ABI_NB * 8 * 2;
 
 	for (i = 0; i < local_vars->size; i++) {
 		v  =        local_vars->data[i];
 
 		if (v->arg_flag) {
-			assert(v->bp_offset != 0);
-			continue;
+			if (v->bp_offset != 0)
+				continue;
 		}
 
 		int size = scf_variable_size(v);
@@ -123,6 +129,8 @@ static int _x64_save_rabi(scf_function_t* f)
 	scf_register_x64_t* rsi;
 	scf_register_x64_t* rdx;
 	scf_register_x64_t* rcx;
+	scf_register_x64_t* r8;
+	scf_register_x64_t* r9;
 
 	scf_register_x64_t* xmm0;
 	scf_register_x64_t* xmm1;
@@ -140,6 +148,8 @@ static int _x64_save_rabi(scf_function_t* f)
 		rsi  = x64_find_register("rsi");
 		rdx  = x64_find_register("rdx");
 		rcx  = x64_find_register("rcx");
+		r8   = x64_find_register("r8");
+		r9   = x64_find_register("r9");
 
 #define X64_SAVE_RABI(offset, rabi) \
 		do { \
@@ -152,6 +162,8 @@ static int _x64_save_rabi(scf_function_t* f)
 		X64_SAVE_RABI(-16, rsi);
 		X64_SAVE_RABI(-24, rdx);
 		X64_SAVE_RABI(-32, rcx);
+		X64_SAVE_RABI(-40, r8);
+		X64_SAVE_RABI(-48, r9);
 
 		mov  = x64_find_OpCode(SCF_X64_MOVSD, 8,8, SCF_X64_G2E);
 
@@ -160,10 +172,10 @@ static int _x64_save_rabi(scf_function_t* f)
 		xmm2 = x64_find_register("xmm2");
 		xmm3 = x64_find_register("xmm3");
 
-		X64_SAVE_RABI(-40, xmm0);
-		X64_SAVE_RABI(-48, xmm1);
-		X64_SAVE_RABI(-56, xmm2);
-		X64_SAVE_RABI(-64, xmm3);
+		X64_SAVE_RABI(-56, xmm0);
+		X64_SAVE_RABI(-64, xmm1);
+		X64_SAVE_RABI(-72, xmm2);
+		X64_SAVE_RABI(-80, xmm3);
 	}
 
 	return 0;
@@ -506,7 +518,7 @@ static int _x64_select_bb_regs(scf_basic_block_t* bb, scf_native_t* ctx)
 		goto error;
 	}
 
-	ret = scf_x64_graph_kcolor(g, 8, colors);
+	ret = scf_x64_graph_kcolor(g, 16, colors);
 	if (ret < 0)
 		goto error;
 
@@ -557,7 +569,7 @@ static int _x64_select_bb_group_regs(scf_bb_group_t* bbg, scf_native_t* ctx)
 		goto error;
 	}
 
-	ret = scf_x64_graph_kcolor(g, 8, colors);
+	ret = scf_x64_graph_kcolor(g, 16, colors);
 	if (ret < 0)
 		goto error;
 

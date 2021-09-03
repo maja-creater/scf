@@ -40,6 +40,46 @@ scf_register_x64_t	x64_registers[] = {
 	{7, 4, "edi",    X64_COLOR(0, 7, 0xf),  NULL, 0},
 	{7, 8, "rdi",    X64_COLOR(0, 7, 0xff), NULL, 0},
 
+	{8, 1, "r8b",    X64_COLOR(0, 8,  0x1),  NULL, 0},
+	{8, 2, "r8w",    X64_COLOR(0, 8,  0x3),  NULL, 0},
+	{8, 4, "r8d",    X64_COLOR(0, 8,  0xf),  NULL, 0},
+	{8, 8, "r8",     X64_COLOR(0, 8,  0xff), NULL, 0},
+
+	{9, 1, "r9b",    X64_COLOR(0, 9,  0x1),  NULL, 0},
+	{9, 2, "r9w",    X64_COLOR(0, 9,  0x3),  NULL, 0},
+	{9, 4, "r9d",    X64_COLOR(0, 9,  0xf),  NULL, 0},
+	{9, 8, "r9",     X64_COLOR(0, 9,  0xff), NULL, 0},
+
+	{10, 1, "r10b",  X64_COLOR(0, 10, 0x1),  NULL, 0},
+	{10, 2, "r10w",  X64_COLOR(0, 10, 0x3),  NULL, 0},
+	{10, 4, "r10d",  X64_COLOR(0, 10, 0xf),  NULL, 0},
+	{10, 8, "r10",   X64_COLOR(0, 10, 0xff), NULL, 0},
+
+	{11, 1, "r11b",  X64_COLOR(0, 11, 0x1),  NULL, 0},
+	{11, 2, "r11w",  X64_COLOR(0, 11, 0x3),  NULL, 0},
+	{11, 4, "r11d",  X64_COLOR(0, 11, 0xf),  NULL, 0},
+	{11, 8, "r11",   X64_COLOR(0, 11, 0xff), NULL, 0},
+
+	{12, 1, "r12b",  X64_COLOR(0, 12, 0x1),  NULL, 0},
+	{12, 2, "r12w",  X64_COLOR(0, 12, 0x3),  NULL, 0},
+	{12, 4, "r12d",  X64_COLOR(0, 12, 0xf),  NULL, 0},
+	{12, 8, "r12",   X64_COLOR(0, 12, 0xff), NULL, 0},
+
+	{13, 1, "r13b",  X64_COLOR(0, 13, 0x1),  NULL, 0},
+	{13, 2, "r13w",  X64_COLOR(0, 13, 0x3),  NULL, 0},
+	{13, 4, "r13d",  X64_COLOR(0, 13, 0xf),  NULL, 0},
+	{13, 8, "r13",   X64_COLOR(0, 13, 0xff), NULL, 0},
+
+	{14, 1, "r14b",  X64_COLOR(0, 14, 0x1),  NULL, 0},
+	{14, 2, "r14w",  X64_COLOR(0, 14, 0x3),  NULL, 0},
+	{14, 4, "r14d",  X64_COLOR(0, 14, 0xf),  NULL, 0},
+	{14, 8, "r14",   X64_COLOR(0, 14, 0xff), NULL, 0},
+
+	{15, 1, "r15b",  X64_COLOR(0, 15, 0x1),  NULL, 0},
+	{15, 2, "r15w",  X64_COLOR(0, 15, 0x3),  NULL, 0},
+	{15, 4, "r15d",  X64_COLOR(0, 15, 0xf),  NULL, 0},
+	{15, 8, "r15",   X64_COLOR(0, 15, 0xff), NULL, 0},
+
 	{4, 1, "ah",     X64_COLOR(0, 0, 0x2),  NULL, 0},
 	{5, 1, "ch",     X64_COLOR(0, 1, 0x2),  NULL, 0},
 	{6, 1, "dh",     X64_COLOR(0, 2, 0x2),  NULL, 0},
@@ -163,6 +203,19 @@ int x64_caller_save_regs(scf_vector_t* instructions, uint32_t* regs, int nb_regs
 
 		if (i == sizeof(x64_registers) / sizeof(x64_registers[0]))
 			continue;
+
+		if (stack_size > 0)
+			inst = x64_make_inst_G2P(mov, rsp, size + stack_size, r2);
+		else
+			inst = x64_make_inst_G(push, r2);
+		X64_INST_ADD_CHECK(instructions, inst);
+
+		saved_regs[k++] = r2;
+		size += 8;
+	}
+
+	if (size & 0xf) {
+		r2 = saved_regs[k - 1];
 
 		if (stack_size > 0)
 			inst = x64_make_inst_G2P(mov, rsp, size + stack_size, r2);

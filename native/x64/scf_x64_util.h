@@ -160,6 +160,10 @@ enum scf_x64_RMs {
 	SCF_X64_RM_MM5		= 0x5, // 101
 	SCF_X64_RM_XMM5		= 0x5, // 101
 
+	SCF_X64_RM_R12      = 0xc,
+	SCF_X64_RM_R13      = 0xd,
+
+
 	SCF_X64_RM_DISP32		= 0x5, // 101, when Mod = 00
 	SCF_X64_RM_EBP_DISP8	= 0x5, // 101, when Mod = 01
 	SCF_X64_RM_EBP_DISP32	= 0x5, // 101, when Mod = 10
@@ -223,6 +227,30 @@ enum scf_x64_REGs {
 	SCF_X64_REG_RDI		= 0x7,
 	SCF_X64_REG_MM7		= 0x7,
 	SCF_X64_REG_XMM7	= 0x7,
+
+	SCF_X64_REG_R8D     = 0x8,
+	SCF_X64_REG_R8      = 0x8,
+
+	SCF_X64_REG_R9D     = 0x9,
+	SCF_X64_REG_R9      = 0x9,
+
+	SCF_X64_REG_R10D    = 0xa,
+	SCF_X64_REG_R10     = 0xa,
+
+	SCF_X64_REG_R11D    = 0xb,
+	SCF_X64_REG_R11     = 0xb,
+
+	SCF_X64_REG_R12D    = 0xc,
+	SCF_X64_REG_R12     = 0xc,
+
+	SCF_X64_REG_R13D    = 0xd,
+	SCF_X64_REG_R13     = 0xd,
+
+	SCF_X64_REG_R14D    = 0xe,
+	SCF_X64_REG_R14     = 0xe,
+
+	SCF_X64_REG_R15D    = 0xf,
+	SCF_X64_REG_R15     = 0xf,
 };
 
 enum scf_x64_EG_types {
@@ -257,12 +285,12 @@ static inline void scf_ModRM_setMod(uint8_t* ModRM, uint8_t v)
 
 static inline void scf_ModRM_setReg(uint8_t* ModRM, uint8_t v)
 {
-	*ModRM |= (v << 3);
+	*ModRM |= (v & 0x7) << 3;
 }
 
 static inline void scf_ModRM_setRM(uint8_t* ModRM, uint8_t v)
 {
-	*ModRM |= v;
+	*ModRM |= v & 0x7;
 }
 
 static inline uint8_t scf_SIB_getScale(uint8_t SIB)
@@ -280,7 +308,7 @@ static inline uint8_t scf_SIB_getIndex(uint8_t SIB)
 }
 static inline void scf_SIB_setIndex(uint8_t* SIB, uint8_t index)
 {
-	*SIB |= (index << 3);
+	*SIB |= (index & 0x7) << 3;
 }
 
 static inline uint8_t scf_SIB_getBase(uint8_t SIB)
@@ -289,7 +317,7 @@ static inline uint8_t scf_SIB_getBase(uint8_t SIB)
 }
 static inline void scf_SIB_setBase(uint8_t* SIB, uint8_t base)
 {
-	*SIB |= base;
+	*SIB |= base & 0x7;
 }
 
 #endif

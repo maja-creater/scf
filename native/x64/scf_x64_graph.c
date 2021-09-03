@@ -413,9 +413,10 @@ static int _x64_graph_kcolor(scf_graph_t* graph, int k, scf_vector_t* colors)
 			if (0 == node1->color)
 				goto overflow;
 
-			intptr_t type  = X64_COLOR_TYPE(node0->color);
-			intptr_t id    = X64_COLOR_ID(node0->color);
+			intptr_t type  = X64_COLOR_TYPE(node1->color);
+			intptr_t id    = X64_COLOR_ID(node1->color);
 			intptr_t mask  = (1 << reg_size0) - 1;
+
 			node0->color   = X64_COLOR(type, id, mask);
 
 			ret = _x64_color_del(colors2, node1->color);

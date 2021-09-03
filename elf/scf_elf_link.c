@@ -974,16 +974,9 @@ int main()
 		"../lib/_start.o",
 		"../lib/scf_syscall.o",
 		"../lib/scf_linux_api.o",
-		"../lib/scf_printf.o",
 		"../lib/scf_object.o",
 		"../lib/scf_atomic.o",
 #if 0
-		"../lib/scf_memcpy.o",
-		"../lib/scf_memcmp.o",
-		"../lib/scf_memset.o",
-		"../lib/scf_brk.o",
-		"../lib/scf_cstr.o",
-		"../lib/scf_malloc.o",
 		"../lib/scf_list.o",
 #endif
 		"./1.elf",
@@ -994,8 +987,6 @@ int main()
 	};
 
 	char* sofiles[] = {
-//		"libdot.so",
-//		"libadd.so",
 		"ld-linux-x86-64.so.2",
 		"/lib/x86_64-linux-gnu/libc.so.6",
 	};

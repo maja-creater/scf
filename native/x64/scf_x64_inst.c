@@ -98,6 +98,9 @@ static int _x64_inst_call_stack_size(scf_3ac_code_t* c)
 	}
 	assert(0 == (stack_size & 0x7));
 
+	if (stack_size & 0xf)
+		stack_size += 8;
+
 	return stack_size;
 }
 

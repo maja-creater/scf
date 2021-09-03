@@ -38,6 +38,8 @@ static uint32_t x64_abi_regs[] =
 	SCF_X64_REG_RSI,
 	SCF_X64_REG_RDX,
 	SCF_X64_REG_RCX,
+	SCF_X64_REG_R8,
+	SCF_X64_REG_R9,
 };
 
 static uint32_t x64_abi_float_regs[] =
@@ -65,12 +67,20 @@ static uint32_t x64_abi_caller_saves[] =
 	SCF_X64_REG_RDX,
 	SCF_X64_REG_RSI,
 	SCF_X64_REG_RDI,
+	SCF_X64_REG_R8,
+	SCF_X64_REG_R9,
+	SCF_X64_REG_R10,
+	SCF_X64_REG_R11,
 };
 #define X64_ABI_CALLER_SAVES_NB (sizeof(x64_abi_caller_saves) / sizeof(x64_abi_caller_saves[0]))
 
 static uint32_t x64_abi_callee_saves[] =
 {
 	SCF_X64_REG_RBX,
+	SCF_X64_REG_R12,
+	SCF_X64_REG_R13,
+	SCF_X64_REG_R14,
+	SCF_X64_REG_R15,
 };
 #define X64_ABI_CALLEE_SAVES_NB (sizeof(x64_abi_callee_saves) / sizeof(x64_abi_callee_saves[0]))
 

@@ -352,8 +352,10 @@ static int _scf_op_va_arg(scf_ast_t* ast, scf_node_t** nodes, int nb_nodes, void
 	vptr = SCF_VAR_ALLOC_BY_TYPE(NULL, tptr, 0, 0, NULL);
 	if (!vptr)
 		return -ENOMEM;
-	vptr->data.u64 = 0;
-	vptr->tmp_flag = 1;
+
+	vptr->data.u64   = 0;
+	vptr->tmp_flag   = 1;
+	vptr->extra_flag = 1;
 
 	nptr = scf_node_alloc(NULL, vptr->type, vptr);
 	if (!nptr)

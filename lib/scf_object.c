@@ -5,7 +5,7 @@ struct scf_object_t
 	uintptr_t  size;
 };
 
-int   scf_printf(const char* fmt, ...);
+int   printf(const char* fmt, ...);
 
 void* malloc (uintptr_t size);
 void* calloc (uintptr_t n, uintptr_t size);
@@ -30,14 +30,14 @@ void* scf__auto_malloc(uintptr_t size)
 
 	void* data = (void*)obj + sizeof(scf_object_t);
 
-	scf_printf("%s(), obj: %p, size: %d\n", __func__, obj, size);
+	printf("%s(), obj: %p, size: %d\n", __func__, obj, size);
 	return data;
 }
 
 void scf__auto_freep(void** pp, scf__release_pt* release)
 {
 	if (!pp || !*pp) {
-		scf_printf("%s()\n\n", __func__);
+		printf("%s()\n\n", __func__);
 		return;
 	}
 
@@ -46,14 +46,14 @@ void scf__auto_freep(void** pp, scf__release_pt* release)
 
 	if (scf__atomic_dec_and_test(&obj->refs)) {
 
-		scf_printf("%s(), obj: %p\n", __func__, obj);
+		printf("%s(), obj: %p\n", __func__, obj);
 
 		if (release)
 			release(data);
 
 		free(obj);
 	} else {
-		scf_printf("%s(), obj: %p, refs: %ld\n", __func__, obj, obj->refs);
+		printf("%s(), obj: %p, refs: %ld\n", __func__, obj, obj->refs);
 	}
 
 	*pp = NULL;
@@ -77,7 +77,7 @@ void scf__auto_freep_array(void** pp, int nb_pointers, scf__release_pt* release)
 
 		size = obj->size / sizeof(void*);
 
-		scf_printf("%d, size: %ld\n", __LINE__, size);
+		printf("%d, size: %ld\n", __LINE__, size);
 
 		for (i   = 0; i < size; i++) {
 			data = p[i];
@@ -94,14 +94,14 @@ void scf__auto_freep_array(void** pp, int nb_pointers, scf__release_pt* release)
 
 	obj  = (void*)p - sizeof(scf_object_t);
 
-//	scf_printf("%s(), pp: %p, p: %p, nb_pointers: %d\n\n", __func__, pp, p, nb_pointers);
+//	printf("%s(), pp: %p, p: %p, nb_pointers: %d\n\n", __func__, pp, p, nb_pointers);
 
 	if (scf__atomic_dec_and_test(&obj->refs)) {
 
 		if (release && 1 == nb_pointers)
 			release(p);
 
-		scf_printf("%s(), obj: %p\n\n", __func__, obj);
+		printf("%s(), obj: %p\n\n", __func__, obj);
 
 		free(obj);
 	}
@@ -129,7 +129,7 @@ void scf__auto_free_array(void** pp, int size, int nb_pointers, scf__release_pt*
 
 		if (scf__atomic_dec_and_test(&obj->refs)) {
 
-			scf_printf("%s(), obj: %p, pp: %p, i: %d, nb_pointers: %d\n", __func__, obj, pp, i, nb_pointers);
+			printf("%s(), obj: %p, pp: %p, i: %d, nb_pointers: %d\n", __func__, obj, pp, i, nb_pointers);
 
 			if (nb_pointers > 1)
 
@@ -152,7 +152,7 @@ void scf__auto_ref(void* data)
 
 		scf_object_t* obj = data - sizeof(scf_object_t);
 
-		scf_printf("%s(), obj: %p\n", __func__, obj);
+		printf("%s(), obj: %p\n", __func__, obj);
 
 		scf__atomic_inc(&obj->refs);
 	}

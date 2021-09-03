@@ -392,9 +392,13 @@ error:
 		\
 		scf_vector_free(child->exit_dn_actives); \
 		scf_vector_free(child->exit_dn_aliases); \
+		scf_vector_free(child->dn_loads);   \
+		scf_vector_free(child->dn_reloads); \
 		\
 		child->exit_dn_actives = scf_vector_clone(parent->exit_dn_actives); \
 		child->exit_dn_aliases = scf_vector_clone(parent->exit_dn_aliases); \
+		child->dn_loads        = scf_vector_clone(parent->dn_loads);   \
+		child->dn_reloads      = scf_vector_clone(parent->dn_reloads); \
 		\
 		scf_list_add_front(&parent->list, &child->list); \
 	} while (0)

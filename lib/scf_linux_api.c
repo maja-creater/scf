@@ -56,8 +56,6 @@ struct stat
 	struct timespec st_ctim;  /* Time of last status change */
 };
 
-int scf_printf(const char* fmt, ...);
-
 int scf__read(int fd, uint8_t* buf, uint64_t size)
 {
 	return scf_syscall(SCF_read, fd, buf, size);
