@@ -393,11 +393,12 @@ struct scf_dwarf_debug_s
 
 	scf_vector_t*       line_relas;
 	scf_vector_t*       info_relas;
+	scf_vector_t*       file_names;
 };
 
 scf_dwarf_debug_t*               scf_dwarf_debug_alloc();
 void                             scf_dwarf_debug_free  (scf_dwarf_debug_t* debug);
-int                              scf_dwarf_debug_encode(scf_dwarf_debug_t* debug, scf_vector_t* file_names);
+int                              scf_dwarf_debug_encode(scf_dwarf_debug_t* debug);
 
 int scf_dwarf_abbrev_add_cu (scf_vector_t* abbrevs);
 int scf_dwarf_abbrev_add_var(scf_vector_t* abbrevs);

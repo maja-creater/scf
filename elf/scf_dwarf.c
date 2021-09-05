@@ -224,7 +224,7 @@ int scf_dwarf_abbrev_add_cu(scf_vector_t* abbrevs)
 	return scf_dwarf_abbrev_add_subprogram(abbrevs);
 }
 
-int scf_dwarf_debug_encode(scf_dwarf_debug_t* debug, scf_vector_t* file_names)
+int scf_dwarf_debug_encode(scf_dwarf_debug_t* debug)
 {
 	if (0 == debug->infos->size)
 		return 0;
@@ -323,7 +323,7 @@ int scf_dwarf_debug_encode(scf_dwarf_debug_t* debug, scf_vector_t* file_names)
 	if (!lm)
 		return -ENOMEM;
 
-	ret = scf_dwarf_line_machine_fill(lm, file_names);
+	ret = scf_dwarf_line_machine_fill(lm, debug->file_names);
 	if (ret < 0)
 		return ret;
 
@@ -407,6 +407,12 @@ scf_dwarf_debug_t* scf_dwarf_debug_alloc()
 		return NULL;
 	}
 
+	debug->file_names = scf_vector_alloc();
+	if (!debug->file_names) {
+		scf_dwarf_debug_free(debug);
+		return NULL;
+	}
+
 	if (scf_dwarf_abbrev_add_cu(debug->abbrevs) < 0) {
 		scf_dwarf_debug_free(debug);
 
@@ -452,6 +458,9 @@ void scf_dwarf_debug_free (scf_dwarf_debug_t* debug)
 
 		if (debug->info_relas)
 			scf_vector_free(debug->info_relas);
+
+		if (debug->file_names)
+			scf_vector_free(debug->file_names);
 
 		free(debug);
 	}

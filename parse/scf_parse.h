@@ -120,7 +120,7 @@ int scf_parse_close(scf_parse_t* parse);
 
 int scf_parse_file(scf_parse_t* parse, const char* path);
 
-int scf_parse_compile(scf_parse_t* parse, const char* path);
+int scf_parse_compile(scf_parse_t* parse, const char* out);
 
 #endif
 

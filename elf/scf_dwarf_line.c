@@ -697,6 +697,29 @@ int scf_dwarf_line_encode(scf_dwarf_debug_t* debug, scf_dwarf_line_machine_t* lm
 			DWARF_DEBUG_LINE_FILL2(&opcode, 1);
 		}
 
+		assert(debug->file_names->size > 0);
+
+		scf_string_t* file_name = debug->file_names->data[lm->file - 1];
+
+		if (strcmp(file_name->data, result->file_name->data)) {
+			int j;
+			for (j = 0; j < debug->file_names->size; j++) {
+				file_name = debug->file_names->data[j];
+
+				if (!strcmp(file_name->data, result->file_name->data))
+					break;
+			}
+			assert(j < debug->file_names->size);
+
+			lm->file = j + 1;
+
+			opcode = DW_LNS_set_file;
+			len    = scf_leb128_encode_uint32(lm->file, buf, sizeof(buf));
+			assert(len > 0);
+			DWARF_DEBUG_LINE_FILL2(&opcode, 1);
+			DWARF_DEBUG_LINE_FILL2(buf,     len);
+		}
+
 		line_advance     = result->line    - lm->line;
 		address_advance  = result->address - lm->address;
 

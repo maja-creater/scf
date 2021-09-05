@@ -1068,7 +1068,7 @@ static int _debug_add_var(scf_parse_t* parse, scf_node_t* node)
 	return 0;
 }
 
-static int _fill_code_list_inst(scf_string_t* code, scf_list_t* h, int64_t offset, scf_parse_t* parse)
+static int _fill_code_list_inst(scf_string_t* code, scf_list_t* h, int64_t offset, scf_parse_t* parse, scf_function_t* f)
 {
 	scf_list_t* l;
 	scf_node_t* node;
@@ -1152,12 +1152,19 @@ static int _fill_code_list_inst(scf_string_t* code, scf_list_t* h, int64_t offse
 			if (!r)
 				return -ENOMEM;
 
+			r->file_name = scf_string_clone(f->node.w->file);
+			if (!r->file_name) {
+				free(r);
+				return -ENOMEM;
+			}
+
 			r->address = offset;
 			r->line    = line;
 			r->is_stmt = 1;
 
 			ret = scf_vector_add(parse->debug->lines, r);
 			if (ret < 0) {
+				scf_string_free(r->file_name);
 				free(r);
 				return ret;
 			}
@@ -1228,8 +1235,24 @@ static int _debug_add_subprogram(scf_dwarf_info_entry_t** pie, scf_parse_t* pars
 				return ret;
 
 		} else if (DW_AT_decl_file == iattr->name) {
+			scf_loge("f->node.w->file->data: %s\n", f->node.w->file->data);
 
-			uint8_t file = 1;
+			scf_string_t* s;
+			int k;
+			scf_loge("parse->debug->file_names->size: %d\n", parse->debug->file_names->size);
+
+			for (k = 0; k < parse->debug->file_names->size; k++) {
+				s  =        parse->debug->file_names->data[k];
+
+				scf_loge("s->data: %s\n", s->data);
+
+				if (!strcmp(s->data, f->node.w->file->data))
+					break;
+			}
+			assert(k < parse->debug->file_names->size);
+			assert(k < 254);
+
+			uint8_t file = k + 1;
 
 			ret = scf_dwarf_info_fill_attr(iattr, &file, 1);
 			if (ret < 0)
@@ -1446,7 +1469,7 @@ static int _fill_function_inst(scf_string_t* code, scf_function_t* f, int64_t of
 
 		scf_basic_block_t* bb = scf_list_data(l, scf_basic_block_t, list);
 
-		ret = _fill_code_list_inst(code, &bb->code_list_head, offset + f->code_bytes, parse);
+		ret = _fill_code_list_inst(code, &bb->code_list_head, offset + f->code_bytes, parse, f);
 		if (ret < 0)
 			return ret;
 
@@ -2153,7 +2176,41 @@ static int _sym_cmp(const void* v0, const void* v1)
 	return 0;
 }
 
-int scf_parse_compile(scf_parse_t* parse, const char* path)
+static int _add_debug_file_names(scf_parse_t* parse)
+{
+	scf_block_t* root = parse->ast->root_block;
+	scf_block_t* b    = NULL;
+
+	int ret;
+	int i;
+
+	for (i = 0; i < root->node.nb_nodes; i++) {
+		b  = (scf_block_t*)root->node.nodes[i];
+
+		if (SCF_OP_BLOCK != b->node.type)
+			continue;
+
+		ret = _scf_parse_add_sym(parse, b->name->data, 0, 0, SHN_ABS, ELF64_ST_INFO(STB_LOCAL, STT_FILE));
+		if (ret < 0) {
+			scf_loge("\n");
+			return ret;
+		}
+
+		scf_string_t* file_str = scf_string_clone(b->name);
+		if (!file_str)
+			return -ENOMEM;
+
+		ret = scf_vector_add(parse->debug->file_names, file_str);
+		if (ret < 0) {
+			scf_string_free(file_str);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+int scf_parse_compile(scf_parse_t* parse, const char* out)
 {
 	scf_block_t* b = parse->ast->root_block;
 	if (!b)
@@ -2191,7 +2248,7 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 		goto open_native_error;
 	}
 
-	ret = scf_elf_open(&elf, "x64", "./1.elf", "wb");
+	ret = scf_elf_open(&elf, "x64", out, "wb");
 	if (ret < 0) {
 		scf_loge("open elf file failed\n");
 		goto open_elf_error;
@@ -2212,16 +2269,6 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 	scf_logi("all functions: %d\n",   functions->size);
 	scf_logi("all global_vars: %d\n", global_vars->size);
 
-	ret = _scf_parse_add_sym(parse, path, 0, 0, SHN_ABS, ELF64_ST_INFO(STB_LOCAL, STT_FILE));
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-
-	ADD_SECTION_SYMBOL(SCF_SHNDX_TEXT,   ".text");
-	ADD_SECTION_SYMBOL(SCF_SHNDX_RODATA, ".rodata");
-	ADD_SECTION_SYMBOL(SCF_SHNDX_DATA,   ".data");
-
 	int64_t tv0 = gettime();
 	ret = scf_parse_compile_functions(parse, native, functions);
 	if (ret < 0) {
@@ -2231,6 +2278,19 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 	int64_t tv1 = gettime();
 	scf_logw("tv1 - tv0: %ld\n", tv1 - tv0);
 
+	ret = _add_debug_file_names(parse);
+	if (ret < 0) {
+		scf_loge("\n");
+		goto error;
+	}
+	assert(parse->debug->file_names->size > 0);
+	scf_string_t* file_name = parse->debug->file_names->data[0];
+	const char*   path      = file_name->data;
+
+	ADD_SECTION_SYMBOL(SCF_SHNDX_TEXT,   ".text");
+	ADD_SECTION_SYMBOL(SCF_SHNDX_RODATA, ".rodata");
+	ADD_SECTION_SYMBOL(SCF_SHNDX_DATA,   ".data");
+
 	scf_dwarf_info_entry_t*  cu = NULL;
 	scf_dwarf_line_result_t* r  = NULL;
 	scf_dwarf_line_result_t* r2 = NULL;
@@ -2238,11 +2298,18 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 	r = calloc(1, sizeof(scf_dwarf_line_result_t));
 	if (!r)
 		return -ENOMEM;
+
+	r->file_name = scf_string_cstr(path);
+	if (!r->file_name) {
+		free(r);
+		return -ENOMEM;
+	}
 	r->address = 0;
 	r->line    = 1;
 	r->is_stmt = 1;
 
 	if (scf_vector_add(parse->debug->lines, r) < 0) {
+		scf_string_free(r->file_name);
 		free(r);
 		return -ENOMEM;
 	}
@@ -2330,12 +2397,20 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 	r = calloc(1, sizeof(scf_dwarf_line_result_t));
 	if (!r)
 		return -ENOMEM;
+
+	r->file_name = scf_string_cstr(path);
+	if (!r->file_name) {
+		free(r);
+		return -ENOMEM;
+	}
+
 	r->address = offset;
 	r->line    = r2->line;
 	r->is_stmt = 1;
 	r->end_sequence = 1;
 
 	if (scf_vector_add(parse->debug->lines, r) < 0) {
+		scf_string_free(r->file_name);
 		free(r);
 		return -ENOMEM;
 	}
@@ -2374,40 +2449,7 @@ int scf_parse_compile(scf_parse_t* parse, const char* path)
 		goto error;
 	}
 
-	scf_vector_t* file_names = scf_vector_alloc();
-	if (!file_names) {
-		scf_loge("\n");
-
-		ret = -ENOMEM;
-		goto error;
-	}
-
-	scf_string_t* file_str = scf_string_cstr(path);
-	if (!file_str) {
-		scf_loge("\n");
-
-		scf_vector_free(file_names);
-		ret = -ENOMEM;
-		goto error;
-	}
-
-	ret = scf_vector_add(file_names, file_str);
-	if (ret < 0) {
-		scf_loge("\n");
-
-		scf_string_free(file_str);
-		scf_vector_free(file_names);
-		ret = -ENOMEM;
-		goto error;
-	}
-
-	ret = scf_dwarf_debug_encode(parse->debug, file_names);
-
-	scf_string_free(file_str);
-	scf_vector_free(file_names);
-	file_str   = NULL;
-	file_names = NULL;
-
+	ret = scf_dwarf_debug_encode(parse->debug);
 	if (ret < 0) {
 		scf_loge("\n");
 		goto error;

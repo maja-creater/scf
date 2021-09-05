@@ -961,7 +961,7 @@ static int link_relas(scf_elf_file_t* exec, char* afiles[], int nb_afiles, char*
 	return 0;
 }
 
-int main()
+int scf_elf_link(scf_vector_t* objs, scf_vector_t* afiles, scf_vector_t* sofiles, const char* out)
 {
 	scf_elf_file_t* exec = NULL;
 	scf_elf_file_t* so   = NULL;
@@ -969,48 +969,26 @@ int main()
 	scf_elf_sym_t*  sym  = NULL;
 
 	int ret;
-
-	char* inputs[] = {
-		"../lib/_start.o",
-		"../lib/scf_syscall.o",
-		"../lib/scf_linux_api.o",
-		"../lib/scf_object.o",
-		"../lib/scf_atomic.o",
-#if 0
-		"../lib/scf_list.o",
-#endif
-		"./1.elf",
-	};
-
-	char* afiles[] = {
-//		"lib12.a",
-	};
-
-	char* sofiles[] = {
-		"ld-linux-x86-64.so.2",
-		"/lib/x86_64-linux-gnu/libc.so.6",
-	};
-
-	ret = scf_elf_file_open(&exec, "./1.out", "wb");
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-
-	ret = merge_objs(exec, inputs, sizeof(inputs) / sizeof(inputs[0]));
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-
-	ret = link_relas(exec, afiles,  sizeof(afiles)  / sizeof(afiles[0]),
-			               sofiles, sizeof(sofiles) / sizeof(sofiles[0]));
-	if (ret < 0) {
-		scf_loge("\n");
-		return ret;
-	}
-
 	int i;
+
+	ret = scf_elf_file_open(&exec, out, "wb");
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	ret = merge_objs(exec, (char**)objs->data, objs->size);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
+	ret = link_relas(exec, (char**)afiles->data, afiles->size, (char**)sofiles->data, sofiles->size);
+	if (ret < 0) {
+		scf_loge("\n");
+		return ret;
+	}
+
 	for (i  = 0; i < exec->syms->size; i++) {
 		sym =        exec->syms->data[i];
 
@@ -1121,7 +1099,6 @@ int main()
 	scf_elf_write_exec(exec->elf);
 	scf_elf_file_close(exec, free, free);
 
-	printf("%s(),%d, main ok\n", __func__, __LINE__);
 	return 0;
 }
 

@@ -30,6 +30,7 @@ CFILES += ../native/x64/scf_x64_peephole.c
 CFILES += ../native/x64/scf_x64_bb_color.c
 
 CFILES += ../elf/scf_elf.c
+CFILES += ../elf/scf_elf_link.c
 CFILES += ../elf/scf_elf_x64.c
 CFILES += ../elf/scf_elf_x64_so.c
 CFILES += ../elf/scf_dwarf.c
